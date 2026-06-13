@@ -246,7 +246,10 @@ class TelegramProxyAccessibilityTests(unittest.TestCase):
         self.assertIn("Fake TLS", widgets.fake_tls_domain_edit.accessibleDescription())
         self.assertEqual(widgets.fake_tls_nginx_btn.accessibleName(), "Скопировать Nginx-конфиг MTProxy Fake TLS")
         self.assertEqual(widgets.upstream_host_edit.accessibleName(), "Хост upstream-прокси Telegram Proxy")
-        self.assertEqual(widgets.upstream_port_spin.accessibleName(), "Порт upstream-прокси Telegram Proxy")
+        self.assertEqual(
+            widgets.upstream_port_spin.accessibleName(),
+            "Порт upstream-прокси Telegram Proxy, значение: 1080",
+        )
         self.assertEqual(widgets.upstream_user_edit.accessibleName(), "Логин upstream-прокси Telegram Proxy")
         self.assertEqual(widgets.upstream_pass_edit.accessibleName(), "Пароль upstream-прокси Telegram Proxy")
         self.assertEqual(widgets.mtproxy_action_btn.accessibleName(), "Открыть MTProxy в Telegram")
@@ -259,8 +262,8 @@ class TelegramProxyAccessibilityTests(unittest.TestCase):
         self.assertEqual(widgets.cloudflare_worker_code_btn.accessibleName(), "Скопировать код Cloudflare Worker")
         self.assertEqual(widgets.dc_ip_edit.accessibleName(), "Ручные адреса Telegram DC")
         self.assertIn("номер дата-центра и IP", widgets.dc_ip_edit.accessibleDescription())
-        self.assertEqual(widgets.pool_size_spin.accessibleName(), "Пул WSS Telegram Proxy")
-        self.assertEqual(widgets.buffer_kb_spin.accessibleName(), "Размер буфера Telegram Proxy")
+        self.assertEqual(widgets.pool_size_spin.accessibleName(), "Пул WSS Telegram Proxy, значение: 4")
+        self.assertEqual(widgets.buffer_kb_spin.accessibleName(), "Размер буфера Telegram Proxy, значение: 256")
 
     def test_settings_panel_main_controls_are_named_for_screen_reader(self) -> None:
         parent = QWidget()
@@ -309,8 +312,57 @@ class TelegramProxyAccessibilityTests(unittest.TestCase):
         self.assertIn("буфер обмена", widgets.setup_copy_btn.accessibleDescription())
         self.assertEqual(widgets.host_edit.accessibleName(), "Адрес Telegram Proxy")
         self.assertIn("IP-адрес", widgets.host_edit.accessibleDescription())
-        self.assertEqual(widgets.port_spin.accessibleName(), "Порт Telegram Proxy")
+        self.assertEqual(widgets.port_spin.accessibleName(), "Порт Telegram Proxy, значение: 1353")
         self.assertIn("порт", widgets.port_spin.accessibleDescription().lower())
+
+        widgets.port_spin.setValue(1443)
+
+        self.assertEqual(widgets.port_spin.accessibleName(), "Порт Telegram Proxy, значение: 1443")
+        self.assertEqual(
+            widgets.port_spin.property("screenReaderStateText"),
+            "Порт Telegram Proxy, значение: 1443",
+        )
+
+    def test_advanced_spinboxes_read_current_value_for_screen_reader(self) -> None:
+        parent = QWidget()
+        self.addCleanup(parent.deleteLater)
+        layout = QVBoxLayout(parent)
+
+        widgets = build_telegram_proxy_advanced_settings_panel(
+            layout,
+            content_parent=parent,
+            strong_body_label_cls=StrongBodyLabel,
+            caption_label_cls=CaptionLabel,
+            body_label_cls=BodyLabel,
+            push_button_cls=PushButton,
+            setting_card_group_cls=SettingCardGroup,
+            line_edit_cls=LineEdit,
+            spin_box_cls=SpinBox,
+            password_line_edit_cls=PasswordLineEdit,
+            win11_toggle_row_cls=Win11ToggleRow,
+            win11_combo_row_cls=Win11ComboRow,
+            on_open_mtproxy=lambda: None,
+            on_generate_mtproxy_secret=lambda: None,
+            on_copy_fake_tls_nginx_config=lambda: None,
+            on_test_cloudflare=lambda: None,
+            on_copy_cloudflare_dns=lambda: None,
+            on_test_cloudflare_worker=lambda: None,
+            on_copy_cloudflare_worker_code=lambda: None,
+            upstream_catalog={"manual": "Manual"},
+        )
+
+        self.assertEqual(
+            widgets.upstream_port_spin.accessibleName(),
+            "Порт upstream-прокси Telegram Proxy, значение: 1080",
+        )
+        self.assertEqual(widgets.pool_size_spin.accessibleName(), "Пул WSS Telegram Proxy, значение: 4")
+        self.assertEqual(widgets.buffer_kb_spin.accessibleName(), "Размер буфера Telegram Proxy, значение: 256")
+
+        widgets.pool_size_spin.setValue(6)
+        widgets.buffer_kb_spin.setValue(512)
+
+        self.assertEqual(widgets.pool_size_spin.accessibleName(), "Пул WSS Telegram Proxy, значение: 6")
+        self.assertEqual(widgets.buffer_kb_spin.accessibleName(), "Размер буфера Telegram Proxy, значение: 512")
 
     def test_settings_clear_buttons_do_not_take_tab_focus(self) -> None:
         parent = QWidget()

@@ -157,6 +157,27 @@ def _insert_before_trailing_stretch(layout: QVBoxLayout, widget) -> None:
     layout.insertWidget(index, widget)
 
 
+def _set_spinbox_value_accessibility(spinbox, *, name: str, description: str) -> None:
+    def _sync(value=None) -> None:
+        if value is None:
+            try:
+                value = spinbox.value()
+            except Exception:
+                value = ""
+        state = f"{name}, значение: {value}"
+        set_control_accessibility(spinbox, name=state, description=description)
+        set_state_text(spinbox, state)
+
+    _sync()
+    if bool(getattr(spinbox, "_telegram_proxy_accessibility_value_connected", False)):
+        return
+    try:
+        spinbox.valueChanged.connect(_sync)
+        setattr(spinbox, "_telegram_proxy_accessibility_value_connected", True)
+    except Exception:
+        pass
+
+
 def build_telegram_proxy_settings_panel(
     layout: QVBoxLayout,
     *,
@@ -279,7 +300,7 @@ def build_telegram_proxy_settings_panel(
     port_spin.setRange(1024, 65535)
     port_spin.setValue(1353)
     port_spin.setFixedWidth(140)
-    set_control_accessibility(
+    _set_spinbox_value_accessibility(
         port_spin,
         name="Порт Telegram Proxy",
         description="Порт, на котором Telegram Proxy принимает подключения.",
@@ -553,7 +574,7 @@ def build_telegram_proxy_advanced_settings_panel(
     upstream_port_spin.setRange(1, 65535)
     upstream_port_spin.setValue(1080)
     upstream_port_spin.setFixedWidth(140)
-    set_control_accessibility(
+    _set_spinbox_value_accessibility(
         upstream_port_spin,
         name="Порт upstream-прокси Telegram Proxy",
         description="Введите порт upstream-прокси для Telegram Proxy.",
@@ -750,7 +771,7 @@ def build_telegram_proxy_advanced_settings_panel(
     pool_size_spin.setValue(4)
     pool_size_spin.setFixedWidth(120)
     set_tooltip(pool_size_spin, "Сколько запасных WSS-соединений держать в пуле. 4 — обычное значение.")
-    set_control_accessibility(
+    _set_spinbox_value_accessibility(
         pool_size_spin,
         name="Пул WSS Telegram Proxy",
         description="Сколько запасных WSS-соединений держать в пуле. 4 — обычное значение.",
@@ -764,7 +785,7 @@ def build_telegram_proxy_advanced_settings_panel(
     buffer_kb_spin.setValue(256)
     buffer_kb_spin.setFixedWidth(120)
     set_tooltip(buffer_kb_spin, "Размер сетевого буфера. 256 КБ обычно достаточно.")
-    set_control_accessibility(
+    _set_spinbox_value_accessibility(
         buffer_kb_spin,
         name="Размер буфера Telegram Proxy",
         description="Размер сетевого буфера. 256 КБ обычно достаточно.",
