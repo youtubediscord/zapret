@@ -12,6 +12,28 @@ from ui.combo_accessibility import set_combo_items_accessibility
 from ui.fluent_widgets import style_semantic_caption_label
 
 
+_PORT_HINTS: dict[str, dict[str, str]] = {
+    "tcp": {
+        "label": "TCP-порты",
+        "placeholder": "TCP-порты, например 443-65535 или порт прокси",
+        "hint": "TCP: впишите диапазон 443-65535 или только нужный порт прокси.",
+        "description": "TCP-порты. Например 443-65535, 80,443 или только нужный порт прокси.",
+    },
+    "udp": {
+        "label": "UDP-порты",
+        "placeholder": "UDP-порты, например 443-65535 или нужный порт сервиса",
+        "hint": "UDP: впишите диапазон 443-65535 или только нужный порт сервиса.",
+        "description": "UDP-порты. Например 443-65535 или только нужный порт сервиса.",
+    },
+    "l7": {
+        "label": "L7",
+        "placeholder": "L7-имена, например stun,discord",
+        "hint": "L7: укажите имена протоколов через запятую, например stun,discord.",
+        "description": "L7-имена можно указать словами через запятую, например stun,discord.",
+    },
+}
+
+
 class CreateUserProfileDialog(MessageBoxBase):
     def __init__(
         self,
@@ -43,10 +65,13 @@ class CreateUserProfileDialog(MessageBoxBase):
         self._set_protocol(protocol)
 
         self.portsEdit = LineEdit(self.widget)
-        self.portsEdit.setPlaceholderText("Порты или L7, например 80,443 или stun,discord")
         self.portsEdit.setClearButtonEnabled(True)
         self.nameEdit.setText(str(name or ""))
         self.portsEdit.setText(str(ports or ""))
+
+        self.portsLabel = BodyLabel("", self.widget)
+        self.portsHintLabel = CaptionLabel("", self.widget)
+        self._update_ports_hint()
 
         self.warningLabel = CaptionLabel("", self.widget)
         style_semantic_caption_label(self.warningLabel, tone="error")
@@ -58,17 +83,18 @@ class CreateUserProfileDialog(MessageBoxBase):
         self.viewLayout.addWidget(self.nameEdit)
         self.viewLayout.addWidget(BodyLabel("Тип", self.widget))
         self.viewLayout.addWidget(self.protocolCombo)
-        self.viewLayout.addWidget(BodyLabel("Порты / L7", self.widget))
+        self.viewLayout.addWidget(self.portsLabel)
         self.viewLayout.addWidget(self.portsEdit)
+        self.viewLayout.addWidget(self.portsHintLabel)
         self.viewLayout.addWidget(self.warningLabel)
 
         self.yesButton.setText(button_text)
         self.cancelButton.setText("Отмена")
-        self.widget.setMinimumWidth(440)
+        self.widget.setMinimumWidth(520)
         self._install_accessibility(button_text=button_text)
         self.nameEdit.returnPressed.connect(self._validate_and_accept)
         self.portsEdit.returnPressed.connect(self._validate_and_accept)
-        self.protocolCombo.currentIndexChanged.connect(self._update_protocol_accessibility)
+        self.protocolCombo.currentIndexChanged.connect(self._update_protocol_ui)
 
     def values(self) -> tuple[str, str, str]:
         protocol = str(self.protocolCombo.itemData(self.protocolCombo.currentIndex()) or "tcp")
@@ -93,11 +119,7 @@ class CreateUserProfileDialog(MessageBoxBase):
             self.protocolCombo,
             "Выберите, к чему относится profile: TCP, UDP или L7.",
         )
-        set_control_accessibility(
-            self.portsEdit,
-            name="Порты или L7 для пользовательского profile",
-            description="Например 80,443 или stun,discord. Для L7 можно указать текстовые имена.",
-        )
+        self._update_ports_hint()
         remove_line_edit_buttons_from_tab_order(self.portsEdit)
         action = str(button_text or "").strip().lower()
         is_save = action.startswith("сохран")
@@ -127,6 +149,25 @@ class CreateUserProfileDialog(MessageBoxBase):
         )
         set_state_text(self.protocolCombo, state_text)
         set_combo_items_accessibility(self.protocolCombo, name="Тип пользовательского profile")
+
+    def _update_protocol_ui(self) -> None:
+        self._update_protocol_accessibility()
+        self._update_ports_hint()
+
+    def _selected_protocol(self) -> str:
+        return str(self.protocolCombo.itemData(self.protocolCombo.currentIndex()) or "tcp").strip().lower() or "tcp"
+
+    def _update_ports_hint(self) -> None:
+        hint = _PORT_HINTS.get(self._selected_protocol(), _PORT_HINTS["tcp"])
+        self.portsLabel.setText(hint["label"])
+        self.portsEdit.setPlaceholderText(hint["placeholder"])
+        self.portsHintLabel.setText(hint["hint"])
+        set_control_accessibility(
+            self.portsEdit,
+            name="Порты или L7 для пользовательского profile",
+            description=hint["description"],
+        )
+        set_state_text(self.portsHintLabel, hint["hint"])
 
     def validate(self) -> bool:
         name, _protocol, ports = self.values()

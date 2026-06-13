@@ -32,7 +32,7 @@ class UserProfileDialogAccessibilityTests(unittest.TestCase):
         )
         self.assertIn("TCP, UDP или L7", dialog.protocolCombo.accessibleDescription())
         self.assertEqual(dialog.portsEdit.accessibleName(), "Порты или L7 для пользовательского profile")
-        self.assertIn("Например 80,443 или stun,discord", dialog.portsEdit.accessibleDescription())
+        self.assertIn("UDP-порты", dialog.portsEdit.accessibleDescription())
         self.assertEqual(dialog.yesButton.accessibleName(), "Добавить пользовательский profile")
         self.assertEqual(
             dialog.yesButton.property("screenReaderStateText"),
@@ -103,6 +103,35 @@ class UserProfileDialogAccessibilityTests(unittest.TestCase):
             dialog.protocolCombo.property("screenReaderStateText"),
             "Тип пользовательского profile, выбрано: L7",
         )
+
+    def test_ports_hint_updates_for_selected_protocol(self) -> None:
+        parent = QWidget()
+        self.addCleanup(parent.deleteLater)
+        parent.resize(640, 480)
+        parent.show()
+
+        dialog = CreateUserProfileDialog(parent, protocol="tcp")
+        self.addCleanup(dialog.deleteLater)
+
+        self.assertGreaterEqual(dialog.widget.minimumWidth(), 520)
+        self.assertEqual(dialog.portsLabel.text(), "TCP-порты")
+        self.assertIn("443-65535", dialog.portsEdit.placeholderText())
+        self.assertIn("порт прокси", dialog.portsHintLabel.text())
+        self.assertIn("TCP", dialog.portsEdit.accessibleDescription())
+
+        dialog.protocolCombo.setCurrentIndex(1)
+
+        self.assertEqual(dialog.portsLabel.text(), "UDP-порты")
+        self.assertIn("UDP-порты", dialog.portsEdit.placeholderText())
+        self.assertIn("UDP", dialog.portsHintLabel.text())
+        self.assertIn("UDP", dialog.portsEdit.accessibleDescription())
+
+        dialog.protocolCombo.setCurrentIndex(2)
+
+        self.assertEqual(dialog.portsLabel.text(), "L7")
+        self.assertIn("stun,discord", dialog.portsEdit.placeholderText())
+        self.assertIn("stun,discord", dialog.portsHintLabel.text())
+        self.assertIn("L7", dialog.portsEdit.accessibleDescription())
 
     def test_protocol_combo_menu_items_are_named_for_screen_reader(self) -> None:
         parent = QWidget()
