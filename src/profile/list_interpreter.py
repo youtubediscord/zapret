@@ -195,11 +195,19 @@ def _template_display_name_for_selected_preset_source(
     selected: ProfileListSource,
     candidates: list[ProfileListSource],
 ) -> str:
-    if str(getattr(selected.profile, "name", "") or "").strip():
-        return ""
     template_names = [
         str(getattr(source.profile, "name", "") or getattr(source.profile, "display_name", "") or "").strip()
         for source in candidates
         if not source.in_preset
     ]
+    selected_name = str(getattr(selected.profile, "name", "") or "").strip()
+    if selected_name:
+        return next(
+            (
+                name
+                for name in template_names
+                if name and name.casefold() == selected_name.casefold() and name != selected_name
+            ),
+            "",
+        )
     return next((name for name in template_names if name), "")

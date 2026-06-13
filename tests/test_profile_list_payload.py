@@ -722,7 +722,47 @@ class ProfileListPayloadTests(unittest.TestCase):
         self.assertEqual(len(payload.items), 1)
         self.assertTrue(payload.items[0].in_preset)
         self.assertEqual(payload.items[0].display_name, "Facebook")
-        self.assertEqual(payload.items[0].profile_name, "Facebook")
+        self.assertEqual(payload.items[0].profile_name, "")
+
+    def test_lowercase_preset_profile_name_uses_template_case_for_display_only(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            templates_dir = root / "profile" / "templates"
+            templates_dir.mkdir(parents=True)
+            (templates_dir / "all_profiles.txt").write_text(
+                "\n".join(
+                    (
+                        "--name=Facebook",
+                        "--filter-tcp=80,443",
+                        "--hostlist=lists/facebook.txt",
+                        "",
+                    )
+                ),
+                encoding="utf-8",
+            )
+
+            store = _PresetStore(
+                "\n".join(
+                    (
+                        "--name=facebook",
+                        "--filter-tcp=80,443",
+                        "--hostlist=lists/facebook.txt",
+                        "--lua-desync=multisplit:pos=sniext+1",
+                        "",
+                    )
+                )
+            )
+            feature = SimpleNamespace(
+                _presets_feature=store,
+                _app_paths=AppPaths(user_root=root, local_root=root),
+            )
+
+            with patch("settings.store.MAIN_DIRECTORY", str(root)):
+                payload = ProfilePresetService(feature, "zapret2_mode").list_profiles()
+
+        self.assertEqual(len(payload.items), 1)
+        self.assertEqual(payload.items[0].display_name, "Facebook")
+        self.assertEqual(payload.items[0].profile_name, "facebook")
 
     def test_profile_folder_does_not_depend_on_preset_membership(self) -> None:
         with TemporaryDirectory() as temp_dir:

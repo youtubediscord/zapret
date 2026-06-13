@@ -113,6 +113,10 @@ def _normalize_resource_name(value: str) -> str:
 
 
 def _logical_display_name(item: Any) -> str:
+    display_name_override = str(getattr(item, "display_name_override", "") or "").strip()
+    if display_name_override:
+        return display_name_override
+
     explicit_name = str(getattr(item, "profile_name", "") or "").strip()
     if explicit_name:
         return explicit_name

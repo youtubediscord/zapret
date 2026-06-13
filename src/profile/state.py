@@ -55,6 +55,7 @@ class ProfileListItem:
     group_collapsed: bool = False
     user_profile_id: str = ""
     profile_name: str = ""
+    display_name_override: str = ""
     strategy_branches: tuple[ProfileStrategyBranch, ...] = ()
 
 
