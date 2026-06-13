@@ -49,6 +49,7 @@ _KNOWN_ICONS: dict[str, ProfileIconSpec] = {
     "timeweb": ProfileIconSpec("fa5s.server", "#2F80ED"),
     "zapretkvn": ProfileIconSpec("fa5s.server", "#31C48D"),
     "tankix": ProfileIconSpec("fa5s.gamepad", "#8B5CF6"),
+    "7tv": ProfileIconSpec("fa5s.tv", "#60A5FA"),
     "porn": ProfileIconSpec("fa5s.user-shield", "#EC4899"),
     "all": ProfileIconSpec("fa5s.globe", "#60A5FA"),
     "general": ProfileIconSpec("fa5s.list-ul", "#94A3B8"),
@@ -78,6 +79,7 @@ _ICON_ALIASES: dict[str, str] = {
     "com-riotcdn": "riot",
     "com-valorant": "valorant",
     "com-z-library": "z-library",
+    "10tv": "7tv",
 }
 
 _NAMED_COLORS: dict[str, str] = {

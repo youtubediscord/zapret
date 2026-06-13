@@ -124,6 +124,14 @@ class ProfileIconTests(unittest.TestCase):
 
         self.assertEqual(icon.icon_name, "simple:speedtest:ST")
 
+    def test_7tv_profile_uses_tv_icon(self) -> None:
+        icon = resolve_profile_icon(
+            "7tv (10tv)",
+            ("--filter-tcp=80,443", "--hostlist-domains=7tv.app,7tv.io,10tv.app"),
+        )
+
+        self.assertEqual(icon.icon_name, "fa5s.tv")
+
 
 if __name__ == "__main__":
     unittest.main()
