@@ -5,6 +5,10 @@ from types import MethodType
 from PyQt6.QtCore import Qt
 
 
+_TOGGLE_ACCESSIBLE_BASE_PROPERTY = "_keyboardToggleAccessibleBaseName"
+_TOGGLE_ACCESSIBLE_TEXT_PROPERTY = "_keyboardToggleAccessibleText"
+
+
 def _clean_text(text: object) -> str:
     return " ".join(str(text or "").strip().split())
 
@@ -71,6 +75,7 @@ def set_control_accessibility(
     remove_scrollbar_arrow_buttons_from_tab_order(widget)
     remove_switch_indicators_from_tab_order(widget)
     _sync_spinbox_children_accessibility(widget, name=name, description=description)
+    _remember_keyboard_toggle_accessibility(widget, name=name)
     _enable_keyboard_click_for_button(widget)
 
 
@@ -291,6 +296,9 @@ def _activate_keyboard_click_target(widget) -> bool:
 def _enable_keyboard_click_for_button(widget) -> None:
     if widget is None:
         return
+    if _is_checkable_widget(widget):
+        enable_keyboard_toggle(widget)
+        return
     try:
         clicked = getattr(widget, "clicked", None)
     except Exception:
@@ -298,6 +306,71 @@ def _enable_keyboard_click_for_button(widget) -> None:
     if clicked is None:
         return
     enable_keyboard_click(widget)
+
+
+def _is_checkable_widget(widget) -> bool:
+    if widget is None:
+        return False
+    try:
+        is_checked = getattr(widget, "isChecked", None)
+        set_checked = getattr(widget, "setChecked", None)
+    except Exception:
+        return False
+    if not (callable(is_checked) and callable(set_checked)):
+        return False
+    if type(widget).__name__ in {"CheckBox", "SwitchButton"}:
+        return True
+    try:
+        is_checkable = getattr(widget, "isCheckable", None)
+    except Exception:
+        return False
+    if callable(is_checkable):
+        try:
+            return bool(is_checkable())
+        except Exception:
+            return False
+    return False
+
+
+def _remember_keyboard_toggle_accessibility(widget, *, name: object | None) -> None:
+    if not _is_checkable_widget(widget):
+        return
+    value = _clean_text(_widget_text(widget) if name is None else name)
+    for state in ("включено", "выключено"):
+        suffix = f", {state}"
+        if not value.endswith(suffix):
+            continue
+        base = value[: -len(suffix)].strip()
+        if not base:
+            return
+        try:
+            widget.setProperty(_TOGGLE_ACCESSIBLE_BASE_PROPERTY, base)
+            widget.setProperty(_TOGGLE_ACCESSIBLE_TEXT_PROPERTY, value)
+        except Exception:
+            pass
+        return
+
+
+def _refresh_keyboard_toggle_accessibility(widget) -> None:
+    if not _is_checkable_widget(widget):
+        return
+    try:
+        base = _clean_text(widget.property(_TOGGLE_ACCESSIBLE_BASE_PROPERTY))
+    except Exception:
+        base = ""
+    if not base:
+        return
+    try:
+        state = "включено" if bool(widget.isChecked()) else "выключено"
+    except Exception:
+        return
+    text = f"{base}, {state}"
+    set_accessible_name(widget, text)
+    try:
+        widget.setProperty("screenReaderStateText", text)
+        widget.setProperty(_TOGGLE_ACCESSIBLE_TEXT_PROPERTY, text)
+    except Exception:
+        pass
 
 
 def enable_keyboard_toggle(widget) -> None:
@@ -326,6 +399,7 @@ def enable_keyboard_toggle(widget) -> None:
         if key in (Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Space):
             try:
                 self.setChecked(not bool(self.isChecked()))
+                _refresh_keyboard_toggle_accessibility(self)
                 event.accept()
                 return
             except Exception:

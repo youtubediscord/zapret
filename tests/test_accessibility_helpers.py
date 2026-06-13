@@ -112,6 +112,37 @@ class AccessibilityHelpersTests(unittest.TestCase):
 
         self.assertEqual(clicked, [True])
 
+    def test_set_control_accessibility_updates_checkable_state_after_enter(self) -> None:
+        from PyQt6.QtCore import Qt
+        from PyQt6.QtTest import QTest
+        from qfluentwidgets import CheckBox
+
+        from ui.accessibility import set_control_accessibility
+
+        checkbox = CheckBox("Пропускать проблемные домены")
+        self.addCleanup(checkbox.deleteLater)
+        checkbox.setChecked(False)
+
+        set_control_accessibility(
+            checkbox,
+            name="Пропускать проблемные домены, выключено",
+            description="Если включено, BlockCheck пропускает домены с ошибками.",
+        )
+        checkbox.show()
+        self._app.processEvents()
+        checkbox.setFocus()
+        self._app.processEvents()
+
+        QTest.keyClick(checkbox, Qt.Key.Key_Return)
+        self._app.processEvents()
+
+        self.assertTrue(checkbox.isChecked())
+        self.assertEqual(checkbox.accessibleName(), "Пропускать проблемные домены, включено")
+        self.assertEqual(
+            checkbox.property("screenReaderStateText"),
+            "Пропускать проблемные домены, включено",
+        )
+
     def test_set_control_accessibility_enables_tab_and_enter_for_clickable_widget(self) -> None:
         from PyQt6.QtCore import QEvent, Qt, pyqtSignal
         from PyQt6.QtGui import QKeyEvent
