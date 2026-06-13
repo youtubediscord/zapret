@@ -104,8 +104,8 @@
 
 --name=Голосовые звонки/чаты
 --filter-l7=stun,discord
---payload=stun,discord_ip_discovery
 --out-range=-n8
+--payload=stun,discord_ip_discovery
 --lua-desync=fake:blob=fake_default_udp:repeats=6
 
 --new

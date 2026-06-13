@@ -587,7 +587,7 @@
 
 --new
 
---name=Speedtest
+--name=SpeedTest
 --filter-tcp=443,8080
 --hostlist=lists/speedtest.txt
 --payload=all

@@ -19,7 +19,7 @@
 --wf-raw-part=@windivert.filter/windivert_part.discord_media.txt
 --wf-raw-part=@windivert.filter/windivert_part.stun.txt
 --wf-raw-part=@windivert.filter/windivert_part.wireguard.txt
-# AutoWFOutExtra: tcp=443 udp=1-79,81-443
+
 --blob=tls_google:@bin/tls_clienthello_www_google_com.bin
 --blob=tls1:@bin/tls_clienthello_1.bin
 --blob=tls2:@bin/tls_clienthello_2.bin
@@ -135,8 +135,8 @@
 
 --name=Голосовые звонки/чаты
 --filter-l7=stun,discord
---payload=stun,discord_ip_discovery
 --out-range=-n2
+--payload=stun,discord_ip_discovery
 --lua-desync=fake:blob=tls_max
 
 --new

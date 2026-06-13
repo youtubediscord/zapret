@@ -135,8 +135,8 @@
 
 --name=Голосовые звонки/чаты
 --filter-l7=stun,discord
---payload=stun,discord_ip_discovery
 --out-range=-n2
+--payload=stun,discord_ip_discovery
 --lua-desync=fake:blob=tls_max
 
 --new

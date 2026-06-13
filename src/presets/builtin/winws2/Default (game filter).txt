@@ -1,4 +1,4 @@
-# Preset: Default multisplit_sni
+# Preset: Default
 # BuiltinVersion: 2.20
 # IconColor: #a8c5ff
 
@@ -13,8 +13,8 @@
 --ipcache-lifetime=8400
 --ipcache-hostname=1
 
---wf-tcp-out=80,443,1080,2053,2083,2087,2096,8443,8080
---wf-udp-out=80,443
+--wf-tcp-out=80,443,500,853,1080,2053,2083,2087,2096,8443,8080
+--wf-udp-out=80,443,500,50000-65535
 
 --wf-raw-part=@windivert.filter/windivert_part.discord_media.txt
 --wf-raw-part=@windivert.filter/windivert_part.stun.txt
@@ -101,7 +101,7 @@
 --filter-tcp=80,443
 --hostlist=lists/googlevideo.txt
 --out-range=-d8
---lua-desync=multidisorder:pos=1,host+2,sld+2,sld+5,sniext+1,sniext+2,endhost-2:seqovl=1
+--lua-desync=multisplit:pos=1,host+2,sld+2,sld+5,sniext+1,sniext+2,endhost-2:seqovl=1
 
 --new
 
@@ -109,7 +109,25 @@
 --filter-tcp=443
 --hostlist=lists/discord-updates.txt
 --out-range=-d10
---lua-desync=tls_multisplit_sni:seqovl=652:seqovl_pattern=tls_google
+--lua-desync=hostfakesplit_multi:hosts=google.com,vimeo.com:tcp_ts=-1000:tcp_md5:repeats=2
+
+--new
+
+--name=discord.media
+--filter-tcp=80,443,1080,2053,2083,2087,2096,8443
+--hostlist=lists/discord-media.txt
+--out-range=-d10
+--lua-desync=hostfakesplit_multi:hosts=google.com,vimeo.com:tcp_ts=-1000:tcp_md5:repeats=2
+
+--new
+
+--name=discord.com
+--filter-tcp=80,443,1080,2053,2083,2087,2096,8443
+--hostlist=lists/discord.txt
+--out-range=-d10
+--lua-desync=send:repeats=2
+--lua-desync=syndata:blob=stun_pat
+--lua-desync=tls_multisplit_sni:seqovl=652:seqovl_pattern=stun_pat
 
 --new
 
@@ -119,23 +137,23 @@
 --out-range=-n8
 --lua-desync=send:repeats=2
 --lua-desync=syndata:blob=stun_pat
+
+--new
+
+--name=Twitter Images (twimg.com)
+--filter-tcp=80,443
+--hostlist=lists/twimg.txt
+--out-range=-d10
 --lua-desync=hostfakesplit_multi:hosts=google.com,vimeo.com:tcp_ts=-1000:tcp_md5:repeats=2
 
 --new
 
---name=discord.com
---filter-tcp=80,443,1080,2053,2083,2087,2096,8443
---hostlist=lists/discord.txt
+--name=Twitter/X
+--filter-tcp=80,443
+--hostlist=lists/twitter.txt
 --out-range=-d10
---lua-desync=tls_multisplit_sni:seqovl=652:seqovl_pattern=tls_google
-
---new
-
---name=Мои сайты
---filter-tcp=80,443-65535
---ipset=lists/ipset-all.txt
---out-range=-d10
---lua-desync=tls_multisplit_sni:seqovl=652:seqovl_pattern=tls_google
+--lua-desync=send:repeats=2
+--lua-desync=syndata:blob=stun_pat
 
 --new
 
@@ -143,7 +161,9 @@
 --filter-tcp=80,443
 --hostlist=lists/soundcloud.txt
 --out-range=-d10
---lua-desync=tls_multisplit_sni:seqovl=652:seqovl_pattern=tls_google
+--lua-desync=send:repeats=2
+--lua-desync=syndata:blob=stun_pat
+--lua-desync=tls_multisplit_sni:seqovl=652:seqovl_pattern=stun_pat
 
 --new
 
@@ -151,7 +171,10 @@
 --filter-tcp=80,443
 --hostlist=lists/rutracker.txt
 --out-range=-d10
---lua-desync=tls_multisplit_sni:seqovl=652:seqovl_pattern=tls_google
+--out-range=-d10
+--lua-desync=send:repeats=2
+--lua-desync=syndata:blob=stun_pat
+--lua-desync=tls_multisplit_sni:seqovl=652:seqovl_pattern=stun_pat
 
 --new
 
@@ -159,7 +182,10 @@
 --filter-tcp=80,443
 --hostlist=lists/rutor.txt
 --out-range=-d10
---lua-desync=tls_multisplit_sni:seqovl=652:seqovl_pattern=tls_google
+--out-range=-d10
+--lua-desync=send:repeats=2
+--lua-desync=syndata:blob=stun_pat
+--lua-desync=tls_multisplit_sni:seqovl=652:seqovl_pattern=stun_pat
 
 --new
 
@@ -167,47 +193,59 @@
 --filter-tcp=80,443-65535
 --hostlist=lists/roblox.txt
 --out-range=-d10
---lua-desync=tls_multisplit_sni:seqovl=652:seqovl_pattern=tls_google
+--lua-desync=send:repeats=2
+--lua-desync=syndata:blob=stun_pat
+--lua-desync=tls_multisplit_sni:seqovl=652:seqovl_pattern=stun_pat
 
 --new
 
 --name=itch.io
---filter-tcp=80,443
+--filter-tcp=80,443-65535
 --hostlist=lists/itch.txt
 --out-range=-d10
---lua-desync=tls_multisplit_sni:seqovl=652:seqovl_pattern=tls_google
+--lua-desync=send:repeats=2
+--lua-desync=syndata:blob=stun_pat
+--lua-desync=tls_multisplit_sni:seqovl=652:seqovl_pattern=stun_pat
 
 --new
 
 --name=Facebook
---filter-tcp=80,443
+--filter-tcp=80,443-65535
 --hostlist=lists/facebook.txt
 --out-range=-d10
---lua-desync=tls_multisplit_sni:seqovl=652:seqovl_pattern=tls_google
+--lua-desync=send:repeats=2
+--lua-desync=syndata:blob=stun_pat
+--lua-desync=tls_multisplit_sni:seqovl=652:seqovl_pattern=stun_pat
 
 --new
 
 --name=Instagram
---filter-tcp=80,443
+--filter-tcp=80,443-65535
 --hostlist=lists/instagram.txt
 --out-range=-d10
---lua-desync=tls_multisplit_sni:seqovl=652:seqovl_pattern=tls_google
+--lua-desync=send:repeats=2
+--lua-desync=syndata:blob=stun_pat
+--lua-desync=tls_multisplit_sni:seqovl=652:seqovl_pattern=stun_pat
 
 --new
 
 --name=WhatsApp
---filter-tcp=80,443
+--filter-tcp=80,443-65535
 --hostlist=lists/whatsapp.txt
 --out-range=-d10
---lua-desync=tls_multisplit_sni:seqovl=652:seqovl_pattern=tls_google
+--lua-desync=send:repeats=2
+--lua-desync=syndata:blob=stun_pat
+--lua-desync=tls_multisplit_sni:seqovl=652:seqovl_pattern=stun_pat
 
 --new
 
---name=discord.media
+--name=SpeedTest
 --filter-tcp=80,443,1080,2053,2083,2087,2096,8443
---hostlist=lists/discord-media.txt
+--hostlist=lists/speedtest.txt
 --out-range=-d10
---lua-desync=tls_multisplit_sni:seqovl=652:seqovl_pattern=tls_google
+--lua-desync=send:repeats=2
+--lua-desync=syndata:blob=stun_pat
+--lua-desync=tls_multisplit_sni:seqovl=652:seqovl_pattern=stun_pat
 
 --new
 
@@ -219,14 +257,6 @@
 
 --new
 
---name=Twitter/X
---filter-tcp=80,443
---ipset=lists/ipset-twitter.txt
---out-range=-d8
---lua-desync=tls_multisplit_sni:seqovl=652:seqovl_pattern=tls_google
-
---new
-
 --name=ntc.party
 --filter-tcp=80,443
 --hostlist=lists/ntcparty.txt
@@ -235,17 +265,111 @@
 
 --new
 
+--name=WARP TCP
+--filter-tcp=80,443-65535
+--ipset=lists/ipset-warp.txt
+--out-range=-d8
+--lua-desync=send:repeats=2
+--lua-desync=syndata:blob=stun_pat
+--lua-desync=pktmod:tcp_flags_unset=ack
+
+--new
+
+--name=Cloudflare TCP
+--filter-tcp=80,443-65535
+--ipset=lists/ipset-cloudflare.txt
+--out-range=-d8
+--lua-desync=send:repeats=2
+--lua-desync=syndata:blob=stun_pat
+--lua-desync=pktmod:tcp_flags_unset=ack
+
+--new
+
+--name=Cloudflare legacy TCP
+--filter-tcp=80,443-65535
+--ipset=lists/cloudflare-ipset.txt
+--out-range=-d8
+--lua-desync=send:repeats=2
+--lua-desync=syndata:blob=stun_pat
+--lua-desync=pktmod:tcp_flags_unset=ack
+
+--new
+
+--name=Cloudflare IPv6 legacy TCP
+--filter-tcp=80,443-65535
+--ipset=lists/cloudflare-ipset_v6.txt
+--out-range=-d8
+--lua-desync=send:repeats=2
+--lua-desync=syndata:blob=stun_pat
+--lua-desync=pktmod:tcp_flags_unset=ack
+
+--new
+
+--name=Cloudflare alt TCP
+--filter-tcp=80,443-65535
+--ipset=lists/ipset-cloudflare1.txt
+--out-range=-d8
+--lua-desync=send:repeats=2
+--lua-desync=syndata:blob=stun_pat
+--lua-desync=pktmod:tcp_flags_unset=ack
+
+--new
+
+--name=Мои сайты
+--filter-tcp=80,443-65535
+--hostlist=lists/other.txt
+--out-range=-d10
+--lua-desync=send:repeats=2
+--lua-desync=syndata:blob=stun_pat
+--lua-desync=tls_multisplit_sni:seqovl=652:seqovl_pattern=stun_pat
+
+--new
+
 --name=Russia blacklist TCP 443
---filter-tcp=443
+--filter-tcp=80,443
 --hostlist=lists/russia-blacklist.txt
 --out-range=-d10
---lua-desync=multidisorder:pos=1,host+2,sld+2,sld+5,sniext+1,sniext+2,endhost-2:seqovl=1
+--lua-desync=send:repeats=2
+--lua-desync=syndata:blob=stun_pat
+--lua-desync=tls_multisplit_sni:seqovl=652:seqovl_pattern=stun_pat
 
 --new
 
 --name=Tanki X
---filter-tcp=80,443-65535
+--filter-tcp=80,443,5050,8080
 --hostlist=lists/tankix.txt
 --out-range=-n8
 --lua-desync=fake:blob=fake_default_http:repeats=4:ip_autottl=2,3-20:ip6_autottl=2,3-20:tcp_md5
 --lua-desync=multidisorder:pos=host+1
+
+--new
+
+--name=ZapretKVN TCP
+--filter-tcp=80,443-65535
+--ipset=lists/ipset-zapretkvn.txt
+--out-range=-n8
+--lua-desync=send:repeats=2
+--lua-desync=syndata:blob=stun_pat
+--lua-desync=hostfakesplit_multi:hosts=google.com,vimeo.com:tcp_ts=-1000:tcp_md5:repeats=2
+
+--new
+
+--name=Timeweb TCP
+--filter-tcp=80,443-65535
+--ipset=lists/ipset-timeweb.txt
+--out-range=-d10
+--lua-desync=send:repeats=2
+--lua-desync=syndata:blob=stun_pat
+--lua-desync=hostfakesplit_multi:hosts=google.com,vimeo.com:tcp_ts=-1000:tcp_md5:repeats=2
+
+--new
+
+--name=Все сайты UDP (исключение)
+--filter-udp=443-65535
+--ipset-exclude=lists/ipset-ru.txt
+--ipset-exclude=lists/ipset-dns.txt
+--ipset-exclude=lists/ipset-exclude.txt
+--out-range=-d8
+--payload=all
+--lua-desync=fake:blob=quic6:repeats=2:ip_autottl=-1,3-20:ip6_autottl=-1,3-20:payload=all:out_range=-n3
+--lua-desync=udplen:increment=8:pattern=0x0F0F0E0F
