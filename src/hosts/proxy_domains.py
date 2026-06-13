@@ -583,10 +583,10 @@ QUICK_SERVICES = [
     ("fa5b.github", "GitHub", "#181717"),
     ("fa5b.whatsapp", "WhatsApp (работает обход если есть IPv6)", "#25d366"),
     ("fa5b.twitter", "x.com / Twitter", "#1da1f2"),
-    ("fa5s.magnet", "rutor", "#e74c3c"),
+    ("fa5s.magnet", "Rutor", "#e74c3c"),
     ("fa5s.network-wired", "ntc.party (включить обход по IPv4)", "#3498db"),
     ("fa5b.discord", "Решение от Flowseal для стабильной работы голосовых серверов в Discord", "#5865f2"),
     ("fa5s.gamepad", "Supercell", "#f4b400"),
-    ("fa5s.exchange-alt", "IP для подмены заблокированных ресурсов", "#6c757d"),
+    ("fa5b.instagram", "Instagram", "#e4405f"),
     ("fa5s.box-open", "Остальное", "#6c757d"),
 ]

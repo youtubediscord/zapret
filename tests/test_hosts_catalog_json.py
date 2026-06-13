@@ -52,7 +52,7 @@ class HostsCatalogJsonTests(unittest.TestCase):
                             ],
                         },
                         {
-                            "name": "IP для подмены заблокированных ресурсов",
+                            "name": "Instagram",
                             "mode": "direct",
                             "hosts": [
                                 {"ip": "157.240.245.174", "host": "instagram.com"},
@@ -100,14 +100,14 @@ class HostsCatalogJsonTests(unittest.TestCase):
                     self.proxy_domains.get_dns_profile_display_name("zapret_dns"),
                     "Zapret DNS",
                 )
-                self.assertEqual(self.proxy_domains.get_all_services(), ["ChatGPT", "IP для подмены заблокированных ресурсов"])
+                self.assertEqual(self.proxy_domains.get_all_services(), ["ChatGPT", "Instagram"])
                 self.assertEqual(
                     self.proxy_domains.get_service_domain_ip_rows("ChatGPT", "zapret_dns"),
                     [("chat.openai.com", "72.56.93.144")],
                 )
                 self.assertEqual(
                     self.proxy_domains.get_service_domain_ip_rows(
-                        "IP для подмены заблокированных ресурсов",
+                        "Instagram",
                         "direct",
                     ),
                     [
@@ -128,7 +128,7 @@ class HostsCatalogJsonTests(unittest.TestCase):
                 self.proxy_domains.invalidate_hosts_catalog_cache()
 
                 self.assertEqual(
-                    self.proxy_domains.get_service_domains("IP для подмены заблокированных ресурсов"),
+                    self.proxy_domains.get_service_domains("Instagram"),
                     {"instagram.com": "157.240.245.174"},
                 )
 
@@ -321,7 +321,7 @@ class HostsCatalogJsonTests(unittest.TestCase):
                     other_title="Other",
                 )
 
-        service_name = "IP для подмены заблокированных ресурсов"
+        service_name = "Instagram"
         self.assertEqual(plan.new_selection.get(service_name), "direct")
 
     def test_services_catalog_plan_matches_direct_ipv4_when_catalog_has_ipv6_first(self) -> None:
@@ -499,6 +499,16 @@ class HostsCatalogJsonTests(unittest.TestCase):
                     "hosts": [{"ip": "1.1.1.1", "host": "github.com"}],
                 },
                 {
+                    "name": "Instagram",
+                    "mode": "direct",
+                    "hosts": [{"ip": "1.1.1.1", "host": "instagram.com"}],
+                },
+                {
+                    "name": "Rutor",
+                    "mode": "direct",
+                    "hosts": [{"ip": "1.1.1.1", "host": "rutor.info"}],
+                },
+                {
                     "name": "Остальное",
                     "mode": "dns",
                     "domains": [{"host": "example.com", "ips": {"zapret_dns": "72.56.93.144"}}],
@@ -531,6 +541,8 @@ class HostsCatalogJsonTests(unittest.TestCase):
         self.assertEqual(rows["Discord"].icon_name, "fa5b.discord")
         self.assertEqual(rows[youtube_name].icon_name, "fa5b.youtube")
         self.assertEqual(rows["GitHub"].icon_name, "fa5b.github")
+        self.assertEqual(rows["Instagram"].icon_name, "fa5b.instagram")
+        self.assertEqual(rows["Rutor"].icon_name, "fa5s.magnet")
         self.assertEqual(rows["Остальное"].icon_name, "fa5s.box-open")
 
     def test_services_catalog_plan_groups_current_ai_service_names(self) -> None:
