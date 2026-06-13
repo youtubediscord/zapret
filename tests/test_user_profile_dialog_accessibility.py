@@ -116,7 +116,9 @@ class UserProfileDialogAccessibilityTests(unittest.TestCase):
         self.assertGreaterEqual(dialog.widget.minimumWidth(), 520)
         self.assertEqual(dialog.portsLabel.text(), "TCP-порты")
         self.assertIn("443-65535", dialog.portsEdit.placeholderText())
-        self.assertIn("порт прокси", dialog.portsHintLabel.text())
+        self.assertIn("80,443-65535", dialog.portsEdit.placeholderText())
+        self.assertIn("список через запятую", dialog.portsHintLabel.text())
+        self.assertNotIn("порт прокси", dialog.portsHintLabel.text())
         self.assertIn("TCP", dialog.portsEdit.accessibleDescription())
 
         dialog.protocolCombo.setCurrentIndex(1)
