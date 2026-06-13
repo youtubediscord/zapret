@@ -639,15 +639,6 @@ class Winws2StrategyRunner(StrategyRunnerBase):
         preset_switch: bool,
         notify_failure: bool,
     ) -> bool:
-        missing_dlls = self._get_missing_windows_system_dependencies()
-        if missing_dlls:
-            message = self._format_missing_windows_system_dependency_error(missing_dlls)
-            self._last_spawn_exit_code = -1
-            self._last_spawn_stderr = message
-            log(message, "WARNING" if not notify_failure else "ERROR")
-            self._set_last_error(message, notify=notify_failure)
-            return False
-
         dry_run_artifact = self._artifact_for_dry_run_locked(artifact)
         if not dry_run_artifact.launch_args:
             return True

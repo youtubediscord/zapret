@@ -188,6 +188,70 @@ class ProfileListPayloadTests(unittest.TestCase):
         self.assertIn("--hostlist=lists/other.txt", store.text)
         self.assertNotIn("--hostlist-exclude=lists/list-exclude.txt", store.text)
 
+    def test_service_exceptions_profile_from_all_profiles_is_hidden_and_not_split(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            lists_dir = root / "lists"
+            lists_dir.mkdir()
+            for name in ("ipset-ru.txt", "ipset-dns.txt", "ipset-exclude.txt", "youtube.txt"):
+                (lists_dir / name).write_text("127.0.0.1\n", encoding="utf-8")
+            templates_dir = root / "profile" / "templates"
+            templates_dir.mkdir(parents=True)
+            (templates_dir / "all_profiles.txt").write_text(
+                "\n".join(
+                    (
+                        "--name=Исключения (RU сайты)",
+                        "--filter-tcp=80,443-65535",
+                        "--ipset=lists/ipset-ru.txt",
+                        "--ipset=lists/ipset-dns.txt",
+                        "--ipset=lists/ipset-exclude.txt",
+                        "",
+                        "--new",
+                        "--name=YouTube",
+                        "--filter-tcp=80,443",
+                        "--hostlist=lists/youtube.txt",
+                        "",
+                    )
+                ),
+                encoding="utf-8",
+            )
+            store = _PresetStore(
+                "\n".join(
+                    (
+                        "--name=Исключения (RU сайты)",
+                        "--filter-tcp=80,443-65535",
+                        "--ipset=lists/ipset-ru.txt",
+                        "--ipset=lists/ipset-dns.txt",
+                        "--ipset=lists/ipset-exclude.txt",
+                        "--payload=tls_client_hello",
+                        "--out-range=-d8",
+                        "--lua-desync=pass",
+                        "",
+                        "--new",
+                        "--name=YouTube",
+                        "--filter-tcp=80,443",
+                        "--hostlist=lists/youtube.txt",
+                        "--lua-desync=pass",
+                        "",
+                    )
+                )
+            )
+            feature = SimpleNamespace(
+                _presets_feature=store,
+                _app_paths=AppPaths(user_root=root, local_root=root),
+            )
+
+            with patch("settings.store.MAIN_DIRECTORY", str(root)):
+                service = ProfilePresetService(feature, "zapret2_mode")
+                payload = service.list_profiles()
+                order_payload = service.list_preset_order_profiles()
+
+        self.assertEqual(payload.normalized_split_profiles, 0)
+        self.assertEqual([item.profile_name for item in payload.items], ["YouTube"])
+        self.assertEqual([item.profile_name for item in order_payload.items], ["YouTube"])
+        self.assertIn("--ipset=lists/ipset-ru.txt\n--ipset=lists/ipset-dns.txt\n--ipset=lists/ipset-exclude.txt", store.text)
+        self.assertIn("--payload=tls_client_hello\n--out-range=-d8\n--lua-desync=pass", store.text)
+
     def test_selected_preset_snapshot_reuses_parsed_preset_for_summary_calls(self) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

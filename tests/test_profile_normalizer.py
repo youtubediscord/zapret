@@ -59,6 +59,40 @@ class ProfileNormalizerTests(unittest.TestCase):
         self.assertEqual(result.preset.profiles[0].match.hostlist_lines, ["--hostlist=lists/discord.txt"])
         self.assertEqual(result.preset.profiles[1].match.ipset_lines, ["--ipset=lists/ipset-discord.txt"])
 
+    def test_keeps_multi_ipset_profile_when_it_matches_all_profiles_template(self) -> None:
+        preset = parse_preset_text(
+            "\n".join(
+                (
+                    "--name=Исключения (RU сайты)",
+                    "--filter-tcp=80,443-65535",
+                    "--ipset=lists/ipset-ru.txt",
+                    "--ipset=lists/ipset-dns.txt",
+                    "--ipset=lists/ipset-exclude.txt",
+                    "--payload=tls_client_hello",
+                    "--out-range=-d8",
+                    "--lua-desync=pass",
+                    "",
+                )
+            ),
+            engine="winws2",
+        )
+
+        result = normalize_preset_profiles(
+            preset,
+            preserved_match_signatures=(preset.profiles[0].match_signature,),
+        )
+
+        self.assertFalse(result.changed)
+        self.assertEqual(len(result.preset.profiles), 1)
+        self.assertEqual(
+            result.preset.profiles[0].match.ipset_lines,
+            [
+                "--ipset=lists/ipset-ru.txt",
+                "--ipset=lists/ipset-dns.txt",
+                "--ipset=lists/ipset-exclude.txt",
+            ],
+        )
+
     def test_keeps_all_profile_with_only_excludes_unchanged(self) -> None:
         preset = parse_preset_text(
             "\n".join(

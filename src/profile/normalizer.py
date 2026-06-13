@@ -26,7 +26,11 @@ class ProfileNormalizationResult:
     created_profile_count: int = 0
 
 
-def normalize_preset_profiles(preset: Preset) -> ProfileNormalizationResult:
+def normalize_preset_profiles(
+    preset: Preset,
+    *,
+    preserved_match_signatures: tuple[str, ...] = (),
+) -> ProfileNormalizationResult:
     """Разделяет profile-ы, где несколько обычных hostlist/ipset.
 
     Исключения не копируются в разрезанные profile-ы: после появления обычного
@@ -36,10 +40,15 @@ def normalize_preset_profiles(preset: Preset) -> ProfileNormalizationResult:
     profiles: list[Profile] = []
     split_profile_count = 0
     created_profile_count = 0
+    preserved_signatures = {
+        str(signature or "").strip()
+        for signature in preserved_match_signatures
+        if str(signature or "").strip()
+    }
 
     for profile in tuple(preset.profiles or ()):
         primary_segments = _primary_list_segments(profile)
-        if len(primary_segments) <= 1:
+        if len(primary_segments) <= 1 or str(profile.match_signature or "").strip() in preserved_signatures:
             profiles.append(profile)
             continue
 

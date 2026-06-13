@@ -92,6 +92,14 @@ PROFILE_VISIBLE_TIMING_LABELS = frozenset(
         "profile_feature.templates.load",
     }
 )
+_SERVICE_EXCEPTION_PROFILE_NAMES = frozenset({"исключения (ru сайты)"})
+_SERVICE_EXCEPTION_IPSETS = frozenset(
+    {
+        "--ipset=lists/ipset-ru.txt",
+        "--ipset=lists/ipset-dns.txt",
+        "--ipset=lists/ipset-exclude.txt",
+    }
+)
 
 
 @dataclass(slots=True)
@@ -217,6 +225,7 @@ class ProfilePresetService:
                 order=profile.index,
             )
             for profile in tuple(preset.profiles)
+            if not _is_service_exception_profile(profile)
         ]
         items.sort(key=lambda item: int(getattr(item, "profile_index", 0) or 0))
         return ProfileListPayload(
@@ -252,8 +261,15 @@ class ProfilePresetService:
             return revision_snapshot
 
         preset, manifest = self._load_selected_preset_for_revision(preset_revision, manifest, source_text)
+        templates_started_at = time.perf_counter()
+        templates = self._load_profile_templates()
+        self._log_timing("profile_feature.templates.load", templates_started_at)
+
         normalize_started_at = time.perf_counter()
-        normalization = normalize_preset_profiles(preset)
+        normalization = normalize_preset_profiles(
+            preset,
+            preserved_match_signatures=tuple(profile.match_signature for profile in templates.values()),
+        )
         self._log_timing("profile_feature.profiles.normalize", normalize_started_at)
         if normalization.changed:
             preset = normalization.preset
@@ -263,14 +279,10 @@ class ProfilePresetService:
         catalogs = load_strategy_catalogs(self._app_paths, self._engine)
         self._log_timing("profile_feature.strategy_catalogs.load", catalogs_started_at)
 
-        templates_started_at = time.perf_counter()
-        templates = self._load_profile_templates()
-        self._log_timing("profile_feature.templates.load", templates_started_at)
-
         items: list[ProfileListItem] = []
 
         sources_started_at = time.perf_counter()
-        sources = build_profile_list_sources(tuple(preset.profiles), templates)
+        sources = _visible_profile_sources(build_profile_list_sources(tuple(preset.profiles), templates))
         self._log_timing("profile_feature.sources.build", sources_started_at)
 
         items_started_at = time.perf_counter()
@@ -416,7 +428,7 @@ class ProfilePresetService:
         catalogs = load_strategy_catalogs(self._app_paths, self._engine)
         templates = self._load_profile_templates()
         source = find_profile_list_source(
-            build_profile_list_sources(tuple(preset.profiles), templates),
+            _visible_profile_sources(build_profile_list_sources(tuple(preset.profiles), templates)),
             profile_key,
         )
         if source is None:
@@ -1123,7 +1135,7 @@ class ProfilePresetService:
     def _profile_sources_for_folder_order(self):
         preset, _manifest = self.load_selected_preset()
         templates = self._load_profile_templates()
-        return build_profile_list_sources(tuple(preset.profiles), templates)
+        return _visible_profile_sources(build_profile_list_sources(tuple(preset.profiles), templates))
 
     def _resolve_profile(self, profile_key: str) -> Profile | None:
         preset, _manifest = self.load_selected_preset()
@@ -1666,6 +1678,22 @@ def _user_profile_id_from_template_key(template_key: str) -> str:
     if key.startswith("user:"):
         return key.split("user:", 1)[1].strip()
     return ""
+
+
+def _visible_profile_sources(sources):
+    return tuple(source for source in tuple(sources or ()) if not _is_service_exception_profile(source.profile))
+
+
+def _is_service_exception_profile(profile: Profile) -> bool:
+    name = str(getattr(profile, "name", "") or getattr(profile, "display_name", "") or "").strip().casefold()
+    if name not in _SERVICE_EXCEPTION_PROFILE_NAMES:
+        return False
+    ipsets = {
+        str(line or "").strip().casefold()
+        for line in tuple(profile.match.ipset_lines or ())
+        if str(line or "").strip()
+    }
+    return ipsets == _SERVICE_EXCEPTION_IPSETS
 
 
 def _match_summary(profile: Profile, *, list_type: str | None = None) -> str:
