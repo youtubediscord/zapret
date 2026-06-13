@@ -96,7 +96,7 @@ class _ToggleTarget:
 
 
 def _language_refresh_kwargs() -> dict[str, object]:
-    return {
+    kwargs = {
         "language": "ru",
         "program_settings_card": _CardTarget(),
         "auto_dpi_toggle": _ToggleTarget(),
@@ -114,6 +114,9 @@ def _language_refresh_kwargs() -> dict[str, object]:
         "wssize_toggle": _ToggleTarget(),
         "debug_log_toggle": _ToggleTarget(),
     }
+    for key in ("test_card", "internet_cleanup_card", "folder_card", "docs_card"):
+        kwargs[key].button.setProperty("controlIconTextGap", True)
+    return kwargs
 
 
 class ControlAccessibilityTests(unittest.TestCase):
@@ -205,6 +208,7 @@ class ControlAccessibilityTests(unittest.TestCase):
         )
 
         self.assertEqual(card.button.accessibleName(), "Открыть тест соединения")
+        self.assertEqual(card.button.text(), "  Открыть")
         self.assertIn("Проверить доступность сети", card.button.accessibleDescription())
         self.assertEqual(card.button.property("screenReaderStateText"), "Открыть тест соединения")
 
@@ -275,6 +279,10 @@ class ControlAccessibilityTests(unittest.TestCase):
         self.assertEqual(kwargs["internet_cleanup_card"].button.accessibleName(), "Сбросить сеть Windows")
         self.assertEqual(kwargs["folder_card"].button.accessibleName(), "Открыть папку программы")
         self.assertEqual(kwargs["docs_card"].button.accessibleName(), "Открыть документацию")
+        self.assertEqual(kwargs["test_card"].button.text(), "  Открыть")
+        self.assertEqual(kwargs["internet_cleanup_card"].button.text(), "  Сбросить")
+        self.assertEqual(kwargs["folder_card"].button.text(), "  Открыть")
+        self.assertEqual(kwargs["docs_card"].button.text(), "  Открыть")
         self.assertEqual(kwargs["test_card"].button.property("screenReaderStateText"), "Открыть тест соединения")
         self.assertEqual(kwargs["internet_cleanup_card"].button.property("screenReaderStateText"), "Сбросить сеть Windows")
         self.assertEqual(kwargs["folder_card"].button.property("screenReaderStateText"), "Открыть папку программы")
@@ -311,6 +319,10 @@ class ControlAccessibilityTests(unittest.TestCase):
         self.assertEqual(kwargs["internet_cleanup_card"].button.accessibleName(), "Сбросить сеть Windows")
         self.assertEqual(kwargs["folder_card"].button.accessibleName(), "Открыть папку программы")
         self.assertEqual(kwargs["docs_card"].button.accessibleName(), "Открыть документацию")
+        self.assertEqual(kwargs["test_card"].button.text(), "  Открыть")
+        self.assertEqual(kwargs["internet_cleanup_card"].button.text(), "  Сбросить")
+        self.assertEqual(kwargs["folder_card"].button.text(), "  Открыть")
+        self.assertEqual(kwargs["docs_card"].button.text(), "  Открыть")
         self.assertEqual(kwargs["test_card"].button.property("screenReaderStateText"), "Открыть тест соединения")
         self.assertEqual(kwargs["internet_cleanup_card"].button.property("screenReaderStateText"), "Сбросить сеть Windows")
         self.assertEqual(kwargs["folder_card"].button.property("screenReaderStateText"), "Открыть папку программы")

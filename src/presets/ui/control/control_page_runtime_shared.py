@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from ui.accessibility import set_accessible_description, set_control_accessibility, set_state_text
 
+BUTTON_ICON_TEXT_GAP_PROPERTY = "controlIconTextGap"
+BUTTON_ICON_TEXT_GAP = "  "
+
 
 def _current_widget_text(widget) -> str | None:
     try:
@@ -15,6 +18,17 @@ def _current_widget_text(widget) -> str | None:
     return None
 
 
+def _button_text_for_display(widget, text: str) -> str:
+    value = str(text or "")
+    try:
+        needs_gap = bool(widget.property(BUTTON_ICON_TEXT_GAP_PROPERTY))
+    except Exception:
+        needs_gap = False
+    if needs_gap and value.strip():
+        return f"{BUTTON_ICON_TEXT_GAP}{value.lstrip()}"
+    return value
+
+
 def set_text_if_changed(widget, text: str) -> bool:
     next_text = str(text or "")
     current = _current_widget_text(widget)
@@ -25,7 +39,7 @@ def set_text_if_changed(widget, text: str) -> bool:
 
 
 def set_button_text_accessibility(button, text: str, *, description: str, accessible_name: str | None = None) -> bool:
-    changed = set_text_if_changed(button, text)
+    changed = set_text_if_changed(button, _button_text_for_display(button, text))
     state_text = str(accessible_name or text or "")
     set_control_accessibility(button, name=state_text, description=description)
     set_state_text(button, state_text)

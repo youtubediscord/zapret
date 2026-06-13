@@ -8,7 +8,10 @@ from PyQt6.QtWidgets import QHBoxLayout, QVBoxLayout
 
 from qfluentwidgets import CardWidget, FluentIcon
 
-from presets.ui.control.control_page_runtime_shared import set_button_text_accessibility
+from presets.ui.control.control_page_runtime_shared import (
+    BUTTON_ICON_TEXT_GAP_PROPERTY,
+    set_button_text_accessibility,
+)
 from ui.pulsing_dot import PulsingDot
 from ui.accessibility import enable_keyboard_click, set_control_accessibility, set_state_text
 from ui.theme import get_themed_qta_icon
@@ -273,6 +276,7 @@ def build_push_setting_card_common(
         if hasattr(button_icon_name, "icon"):
             button_icon_name = button_icon_name.icon()
         button.setIcon(button_icon_name)
+        button.setProperty(BUTTON_ICON_TEXT_GAP_PROPERTY, True)
         button.setMinimumWidth(128)
         set_button_text_accessibility(
             button,
