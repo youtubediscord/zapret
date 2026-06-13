@@ -8,6 +8,8 @@
 --lua-init=@lua/custom_funcs.lua
 --lua-init=@lua/custom_diag.lua
 --lua-init=@lua/zapret-multishake.lua
+--lua-init=@lua/fakemultisplit.lua
+--lua-init=@lua/fakemultidisorder.lua
 
 --ctrack-disable=0
 --ipcache-lifetime=8400

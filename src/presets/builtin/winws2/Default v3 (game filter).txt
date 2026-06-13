@@ -8,6 +8,8 @@
 --lua-init=@lua/custom_funcs.lua
 --lua-init=@lua/custom_diag.lua
 --lua-init=@lua/zapret-multishake.lua
+--lua-init=@lua/fakemultisplit.lua
+--lua-init=@lua/fakemultidisorder.lua
 
 --ctrack-disable=0
 --ipcache-lifetime=8400
@@ -80,6 +82,17 @@
 --blob=hex_0f0f0f0f:0x0F0F0F0F
 --blob=hex_00:0x00
 
+--name=Исключения (RU сайты)
+--filter-tcp=80,443-65535
+--ipset=lists/ipset-ru.txt
+--ipset=lists/ipset-dns.txt
+--ipset=lists/ipset-exclude.txt
+--out-range=-d8
+--payload=tls_client_hello
+--lua-desync=pass
+
+--new
+
 --name=googlevideo.com (CDN сервера)
 --filter-tcp=80,443
 --hostlist=lists/googlevideo.txt
@@ -114,7 +127,7 @@
 
 --new
 
---name=discord.media
+--name=discord.media (voice RTC)
 --filter-tcp=80,443,1080,2053,2083,2087,2096,8443
 --hostlist=lists/discord-media.txt
 --out-range=-d10

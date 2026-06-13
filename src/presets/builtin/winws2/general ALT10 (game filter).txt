@@ -8,6 +8,8 @@
 --lua-init=@lua/custom_funcs.lua
 --lua-init=@lua/custom_diag.lua
 --lua-init=@lua/zapret-multishake.lua
+--lua-init=@lua/fakemultisplit.lua
+--lua-init=@lua/fakemultidisorder.lua
 
 --ctrack-disable=0
 --ipcache-lifetime=8400
@@ -109,7 +111,7 @@
 
 --new
 
---name=discord.media
+--name=discord.media (voice RTC)
 --filter-tcp=80,443,1080,2053,2083,2087,2096,8443
 --out-range=-d10
 --hostlist=lists/discord-media.txt
