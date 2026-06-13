@@ -132,6 +132,14 @@ class ProfileIconTests(unittest.TestCase):
 
         self.assertEqual(icon.icon_name, "fa5s.tv")
 
+    def test_my_sites_profile_uses_globe_icon(self) -> None:
+        icon = resolve_profile_icon(
+            "Мои сайты",
+            ("--filter-tcp=80,443-65535", "--hostlist=lists/other.txt"),
+        )
+
+        self.assertEqual(icon.icon_name, "fa5s.globe")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -174,7 +174,7 @@ def _semantic_icon_from_text(
         return ProfileIconSpec("fa5s.gamepad", "#8B5CF6")
     if "general" in haystack:
         return _KNOWN_ICONS["general"]
-    if any(token in haystack for token in ("все сайты", "all sites")):
+    if any(token in haystack for token in ("все сайты", "мои сайты", "all sites")):
         return _KNOWN_ICONS["all"]
     if any(token in haystack for token in ("18+", "porn", "xvideos", "xnxx")):
         return _KNOWN_ICONS["porn"]
