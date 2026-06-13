@@ -27,6 +27,7 @@ def attach_window_notifications(window, features) -> None:
             is_available=features.runtime.is_available,
             cancel_start_after_conflict_prompt=features.runtime.cancel_start_after_conflict_prompt,
             execute_windivert_autofix=features.runtime.execute_windivert_autofix,
+            install_windows_server_wlanapi=features.runtime.install_windows_server_wlanapi,
             prepare_launch_conflict_resolution=features.runtime.prepare_launch_conflict_resolution,
             continue_start_after_conflict_resolution=features.runtime.continue_start_after_conflict_resolution,
         ),

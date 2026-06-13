@@ -173,6 +173,31 @@ class StrategyListAccessibilityTests(unittest.TestCase):
             "Показано готовых стратегий: 1 из 2",
         )
 
+    def test_strategy_filter_without_matches_reads_empty_result_state(self) -> None:
+        widget = _make_sync_strategy_list()
+        self.addCleanup(widget.deleteLater)
+
+        widget.set_rows(
+            entries={
+                "alpha": SimpleNamespace(name="Alpha", args="--alpha"),
+                "beta": SimpleNamespace(name="Beta", args="--beta"),
+            },
+            states={},
+            current_strategy_id="alpha",
+        )
+
+        widget._search.setText("zzzz")
+
+        self.assertEqual(widget._list.count(), 0)
+        self.assertEqual(
+            widget._list.accessibleName(),
+            "Список готовых стратегий: по фильтру ничего не найдено",
+        )
+        self.assertEqual(
+            widget._list.property("screenReaderStateText"),
+            "Список готовых стратегий: по фильтру ничего не найдено",
+        )
+
     def test_strategy_list_updates_screen_reader_text_when_current_row_changes(self) -> None:
         widget = _make_sync_strategy_list()
         self.addCleanup(widget.deleteLater)

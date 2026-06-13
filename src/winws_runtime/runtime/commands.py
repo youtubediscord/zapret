@@ -323,3 +323,10 @@ def execute_windivert_autofix(action: str) -> tuple[bool, str]:
 
     ok, message = execute_windivert_auto_fix(str(action or ""))
     return bool(ok), str(message or "")
+
+
+def install_windows_server_wlanapi() -> tuple[bool, str]:
+    from winws_runtime.health.windows_system_dependencies import run_windows_server_wlanapi_install
+
+    ok, message = run_windows_server_wlanapi_install()
+    return bool(ok), str(message or "")

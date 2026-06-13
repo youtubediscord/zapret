@@ -495,3 +495,7 @@ class RuntimeCommandPort:
     def execute_windivert_autofix(self, action: str) -> tuple[bool, str]:
         runtime_commands = self._runtime_commands()
         return runtime_commands.execute_windivert_autofix(action)
+
+    def install_windows_server_wlanapi(self) -> tuple[bool, str]:
+        runtime_commands = self._runtime_commands()
+        return runtime_commands.install_windows_server_wlanapi()

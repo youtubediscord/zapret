@@ -4,6 +4,7 @@ import time
 
 from app_notifications import advisory_notification, notification_action
 from log.log import log
+from winws_runtime.health.windows_system_dependencies import WINDOWS_SERVER_WLANAPI_MARKER
 
 
 class RuntimeUiBridge:
@@ -44,14 +45,33 @@ class RuntimeUiBridge:
 
             buttons = []
             duration = 10000
+            is_windows_server_wlanapi = False
             if auto_fix_action:
                 buttons.append(notification_action("autofix", "Исправить", value=auto_fix_action))
+                duration = -1
+            if text.startswith(WINDOWS_SERVER_WLANAPI_MARKER):
+                is_windows_server_wlanapi = True
+                text = text[len(WINDOWS_SERVER_WLANAPI_MARKER) :].strip()
+                buttons.extend(
+                    [
+                        notification_action(
+                            "install_windows_server_wlanapi",
+                            "Установить",
+                            description="Запускает PowerShell от администратора и ставит компонент Wireless-Networking.",
+                        ),
+                        notification_action(
+                            "dismiss",
+                            "Нет",
+                            description="Закрывает это уведомление без установки компонента.",
+                        ),
+                    ]
+                )
                 duration = -1
 
             self._notify(
                 advisory_notification(
-                    level="error",
-                    title="Ошибка",
+                    level="warning" if is_windows_server_wlanapi else "error",
+                    title="Windows Server обнаружена" if is_windows_server_wlanapi else "Ошибка",
                     content=text,
                     source="launch.dpi_error",
                     presentation="infobar",

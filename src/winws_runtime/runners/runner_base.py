@@ -16,6 +16,10 @@ from winws_runtime.health.process_health_check import (
     check_process_health, get_last_crash_info, check_common_crash_causes,
     diagnose_startup_error, diagnose_winws_exit,
 )
+from winws_runtime.health.windows_system_dependencies import (
+    mark_windows_server_wlanapi_message,
+    should_offer_windows_server_wlanapi_install,
+)
 from winws_runtime.runtime.system_ops import (
     _ERROR_SERVICE_MARKED_FOR_DELETE,
     aggressive_windivert_cleanup_runtime,
@@ -179,12 +183,15 @@ class StrategyRunnerBase(ABC):
         if not dll_text:
             dll_text = "системная DLL"
         exe_name = os.path.basename(str(self.winws_exe or "")) or "winws"
-        return (
+        message = (
             f"Windows урезана: не найден системный файл {dll_text}. "
             f"Из-за этого {exe_name} не может запуститься. "
             "Нужна обычная Windows или сборка, где есть компонент автонастройки WLAN "
             "(беспроводная сеть)."
         )
+        if should_offer_windows_server_wlanapi_install(missing_dlls):
+            return mark_windows_server_wlanapi_message(message)
+        return message
 
     def get_runner_state_snapshot(self):
         """Optional public state snapshot hook for newer preset runners."""

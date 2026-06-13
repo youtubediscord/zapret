@@ -220,6 +220,9 @@ class RuntimeFeature:
     def execute_windivert_autofix(self, action: str) -> tuple[bool, str]:
         return self.commands.execute_windivert_autofix(action)
 
+    def install_windows_server_wlanapi(self) -> tuple[bool, str]:
+        return self.commands.install_windows_server_wlanapi()
+
 
 def build_runtime_feature(
     *,

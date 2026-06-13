@@ -894,7 +894,19 @@ class ProfileStrategyListWidget(QWidget):
         if accessible_text:
             set_state_text(self._list, f"Готовая стратегия: {accessible_text}")
         else:
-            set_state_text(self._list, "Список готовых стратегий")
+            set_state_text(self._list, self._empty_strategy_list_state_text())
+
+    def _empty_strategy_list_state_text(self) -> str:
+        search_text = ""
+        try:
+            search_text = str(self._search.text() or "").strip()
+        except Exception:
+            search_text = ""
+        if search_text:
+            return "Список готовых стратегий: по фильтру ничего не найдено"
+        if not self._entries:
+            return "Список готовых стратегий: список пуст"
+        return "Список готовых стратегий"
 
     def _apply_filter(self) -> None:
         self._request_tree_rebuild()

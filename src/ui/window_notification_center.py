@@ -55,6 +55,7 @@ class WindowNotificationCenter(QObject):
             request_disable_kaspersky_warning=self._request_disable_kaspersky_warning,
             request_disable_telega_warning=self._request_disable_telega_warning,
             request_windivert_autofix=self._request_windivert_autofix,
+            request_windows_server_wlanapi_install=self._request_windows_server_wlanapi_install,
             request_launch_conflict_action=self._request_launch_conflict_action,
         )
 
@@ -229,6 +230,13 @@ class WindowNotificationCenter(QObject):
             context={"action": value},
         )
 
+    def _request_windows_server_wlanapi_install(self, bar=None) -> None:
+        self._request_notification_action(
+            "install_windows_server_wlanapi",
+            self._runtime_actions.install_windows_server_wlanapi,
+            bar=bar,
+        )
+
     def _request_launch_conflict_action(self, request_id: int, close_conflicts: bool, bar=None) -> None:
         self._request_notification_action(
             "launch_conflict_resume",
@@ -325,6 +333,8 @@ class WindowNotificationCenter(QObject):
                 bar=bar,
                 action=str(context.get("action") or ""),
             )
+        elif action == "install_windows_server_wlanapi":
+            self._notify_windows_server_wlanapi_install_result(result, bar=bar)
         elif action == "launch_conflict_resume":
             self._finish_launch_conflict_action(result, context=context, bar=bar)
 
@@ -358,6 +368,8 @@ class WindowNotificationCenter(QObject):
                 failure_content="Не удалось сохранить настройку для предупреждения о Telega Desktop.",
                 dedupe_key="startup.telega.action.disable_warning",
             )
+        elif action == "install_windows_server_wlanapi":
+            self._notify_windows_server_wlanapi_install_result((False, error), bar=bar)
         elif action == "windivert_autofix":
             self._notify_windivert_autofix_result(
                 (False, error),
@@ -534,6 +546,22 @@ class WindowNotificationCenter(QObject):
                 queue="immediate",
                 duration=5000 if ok else 8000,
                 dedupe_key=f"launch.autofix:{action}",
+            )
+        )
+
+    def _notify_windows_server_wlanapi_install_result(self, result, *, bar=None) -> None:
+        ok, message = self._coerce_bool_message_result(result)
+        self._close_bar(bar)
+        self.notify(
+            advisory_notification(
+                level="success" if ok else "warning",
+                title="Компонент установлен" if ok else "Не удалось установить компонент",
+                content=str(message or ""),
+                source="launch.windows_server_wlanapi",
+                presentation="infobar",
+                queue="immediate",
+                duration=-1 if ok else 10000,
+                dedupe_key="launch.windows_server_wlanapi.install_result",
             )
         )
 

@@ -49,6 +49,7 @@ class WinwsSystemDependencyTests(unittest.TestCase):
                     "winws_runtime.runners.runner_base.StrategyRunnerBase._get_missing_windows_system_dependencies",
                     return_value=("wlanapi.dll",),
                 ),
+                patch("winws_runtime.runners.runner_base.should_offer_windows_server_wlanapi_install", return_value=False),
                 patch("winws_runtime.runners.zapret1_runner.subprocess.run") as run_mock,
             ):
                 ok = runner._run_preset_dry_run_locked(artifact)
@@ -87,6 +88,7 @@ class WinwsSystemDependencyTests(unittest.TestCase):
                     "winws_runtime.runners.runner_base.StrategyRunnerBase._get_missing_windows_system_dependencies",
                     return_value=("wlanapi.dll",),
                 ),
+                patch("winws_runtime.runners.runner_base.should_offer_windows_server_wlanapi_install", return_value=False),
                 patch("winws_runtime.runners.zapret2_runner.subprocess.run") as run_mock,
             ):
                 ok = runner._run_preset_dry_run_locked(
@@ -102,6 +104,45 @@ class WinwsSystemDependencyTests(unittest.TestCase):
         self.assertIn("Windows урезана", message)
         self.assertIn("wlanapi.dll", message)
         self.assertIn("winws2.exe", message)
+
+    def test_windows_server_missing_wlanapi_message_has_install_marker(self) -> None:
+        from winws_runtime.health.windows_system_dependencies import WINDOWS_SERVER_WLANAPI_MARKER
+        from winws_runtime.runners.zapret2_runner import Winws2StrategyRunner
+
+        runner = object.__new__(Winws2StrategyRunner)
+        runner.winws_exe = "winws2.exe"
+
+        with patch("winws_runtime.runners.runner_base.should_offer_windows_server_wlanapi_install", return_value=True):
+            message = runner._format_missing_windows_system_dependency_error(("wlanapi.dll",))
+
+        self.assertTrue(message.startswith(WINDOWS_SERVER_WLANAPI_MARKER))
+        self.assertIn("wlanapi.dll", message)
+        self.assertIn("winws2.exe", message)
+
+    def test_runtime_bridge_shows_windows_server_install_buttons(self) -> None:
+        from ui.runtime_ui_bridge import RuntimeUiBridge
+        from winws_runtime.health.windows_system_dependencies import WINDOWS_SERVER_WLANAPI_MARKER
+
+        payloads: list[dict] = []
+        bridge = RuntimeUiBridge(
+            notify=payloads.append,
+            set_status=lambda _text: None,
+            mark_content_changed=lambda: None,
+        )
+
+        bridge.show_launch_error(f"{WINDOWS_SERVER_WLANAPI_MARKER} не найден wlanapi.dll")
+
+        self.assertEqual(len(payloads), 1)
+        payload = payloads[0]
+        self.assertEqual(payload["level"], "warning")
+        self.assertEqual(payload["title"], "Windows Server обнаружена")
+        self.assertEqual(payload["duration"], -1)
+        self.assertEqual(
+            [button["kind"] for button in payload["buttons"]],
+            ["install_windows_server_wlanapi", "dismiss"],
+        )
+        self.assertEqual([button["text"] for button in payload["buttons"]], ["Установить", "Нет"])
+        self.assertNotIn(WINDOWS_SERVER_WLANAPI_MARKER, payload["content"])
 
 
 if __name__ == "__main__":

@@ -14,6 +14,7 @@ class WindowNotificationRuntimeActions:
     is_available: Callable[[], bool]
     cancel_start_after_conflict_prompt: Callable[[int], object]
     execute_windivert_autofix: Callable[[str], tuple[bool, str]]
+    install_windows_server_wlanapi: Callable[[], tuple[bool, str]]
     prepare_launch_conflict_resolution: Callable[..., tuple[bool, str]]
     continue_start_after_conflict_resolution: Callable[[int], object]
 
@@ -32,6 +33,7 @@ class WindowNotificationActionHandler:
         request_disable_kaspersky_warning: Callable[[object | None], None],
         request_disable_telega_warning: Callable[[object | None], None],
         request_windivert_autofix: Callable[[str, object | None], None],
+        request_windows_server_wlanapi_install: Callable[[object | None], None],
         request_launch_conflict_action: Callable[[int, bool, object | None], None],
     ) -> None:
         self._notify = notify
@@ -42,6 +44,7 @@ class WindowNotificationActionHandler:
         self._request_disable_kaspersky_warning = request_disable_kaspersky_warning
         self._request_disable_telega_warning = request_disable_telega_warning
         self._request_windivert_autofix = request_windivert_autofix
+        self._request_windows_server_wlanapi_install = request_windows_server_wlanapi_install
         self._request_launch_conflict_action = request_launch_conflict_action
 
     def build_action_callback(self, action: dict, bar):
@@ -92,6 +95,12 @@ class WindowNotificationActionHandler:
 
         if kind == "autofix":
             return lambda: self._request_windivert_autofix(str(action.get("value") or ""), bar)
+
+        if kind == "install_windows_server_wlanapi":
+            return lambda: self._request_windows_server_wlanapi_install(bar)
+
+        if kind == "dismiss":
+            return lambda: self._close_bar(bar)
 
         return None
 

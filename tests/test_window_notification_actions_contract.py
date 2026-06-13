@@ -35,6 +35,16 @@ class WindowNotificationActionsContractTests(unittest.TestCase):
         self.assertNotIn("self._external_actions", center_source)
         self.assertIn("features.external_actions", setup_source)
 
+    def test_windows_server_wlanapi_action_runs_through_external_worker(self) -> None:
+        handler_source = inspect.getsource(WindowNotificationActionHandler)
+        center_source = inspect.getsource(WindowNotificationCenter)
+        setup_source = inspect.getsource(window_notifications_setup.attach_window_notifications)
+
+        self.assertIn("install_windows_server_wlanapi", handler_source)
+        self.assertIn("_request_windows_server_wlanapi_install", center_source)
+        self.assertIn("_notify_windows_server_wlanapi_install_result", center_source)
+        self.assertIn("install_windows_server_wlanapi=features.runtime.install_windows_server_wlanapi", setup_source)
+
     def test_notification_pending_state_uses_shared_latest_worker_state(self) -> None:
         center_source = inspect.getsource(WindowNotificationCenter)
         center_init_source = inspect.getsource(WindowNotificationCenter.__init__)
