@@ -1234,7 +1234,19 @@ class PresetRawEditorPage(BasePage):
         else:
             snapshot = self.__dict__.get("_raw_editor_text_snapshot")
             if snapshot is not None:
-                return str(snapshot or "")
+                text = str(snapshot or "")
+                if text:
+                    return text
+                editor = self.__dict__.get("editor")
+                if editor is not None and callable(getattr(editor, "toPlainText", None)):
+                    try:
+                        text = str(editor.toPlainText() or "")
+                    except Exception:
+                        text = ""
+                    if text:
+                        self._raw_editor_text_snapshot = text
+                        return text
+                return text
             text = ""
         self._raw_editor_text_snapshot = text
         return text
