@@ -32,8 +32,31 @@ class _ButtonStub:
 
 class _MessageBoxStub:
     def __init__(self) -> None:
+        self.title = "Удалить пресет"
+        self.body = "Пресет будет удалён из списка."
         self.yesButton = _ButtonStub()
         self.cancelButton = _ButtonStub()
+        self._accessible_name = ""
+        self._accessible_description = ""
+        self._properties = {}
+
+    def accessibleName(self) -> str:  # noqa: N802
+        return self._accessible_name
+
+    def setAccessibleName(self, text: str) -> None:  # noqa: N802
+        self._accessible_name = str(text)
+
+    def accessibleDescription(self) -> str:  # noqa: N802
+        return self._accessible_description
+
+    def setAccessibleDescription(self, text: str) -> None:  # noqa: N802
+        self._accessible_description = str(text)
+
+    def property(self, name: str) -> object:
+        return self._properties.get(name)
+
+    def setProperty(self, name: str, value: object) -> None:  # noqa: N802
+        self._properties[name] = value
 
 
 class MessageBoxAccessibilityTests(unittest.TestCase):
@@ -60,6 +83,12 @@ class MessageBoxAccessibilityTests(unittest.TestCase):
             "Отменить удаление пользовательского пресета",
         )
         self.assertIn("без удаления", box.cancelButton.accessibleDescription())
+        self.assertEqual(box.accessibleName(), "Диалог: Удалить пресет. Пресет будет удалён из списка.")
+        self.assertEqual(
+            box.property("screenReaderStateText"),
+            "Диалог: Удалить пресет. Пресет будет удалён из списка.",
+        )
+        self.assertEqual(box.accessibleDescription(), "Пресет будет удалён из списка.")
 
 
 if __name__ == "__main__":
