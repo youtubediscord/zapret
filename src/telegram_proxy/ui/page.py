@@ -855,7 +855,7 @@ class TelegramProxyPage(BasePage):
         self._cloudflare_worker_toggle.setChecked(state.cloudflare_worker_enabled, block_signals=True)
         self._cloudflare_worker_domains_edit.setText(", ".join(state.cloudflare_worker_domains))
         self._apply_advanced_settings_ui()
-        self._apply_local_proxy_mode_ui()
+        self._apply_local_proxy_mode_ui(auto_open_mtproxy=False)
         self._apply_cloudflare_ui()
         self._apply_auto_advanced_section_visibility()
 
@@ -1732,7 +1732,7 @@ class TelegramProxyPage(BasePage):
             enable_setting_card_group_auto_height(self._settings_card)
             return
         self._advanced_card.setVisible(advanced)
-        self._apply_local_proxy_mode_ui()
+        self._apply_local_proxy_mode_ui(auto_open_mtproxy=False)
         self._apply_cloudflare_ui()
         self._apply_auto_advanced_section_visibility()
         enable_setting_card_group_auto_height(self._settings_card)
@@ -1772,11 +1772,11 @@ class TelegramProxyPage(BasePage):
 
         enable_setting_card_group_auto_height(self._advanced_card)
 
-    def _apply_local_proxy_mode_ui(self) -> None:
+    def _apply_local_proxy_mode_ui(self, *, auto_open_mtproxy: bool = True) -> None:
         is_mtproxy = self._local_proxy_mode() == "mtproxy"
         if is_mtproxy:
             self._ensure_advanced_settings_built()
-        if is_mtproxy and not self._advanced_toggle.isChecked():
+        if auto_open_mtproxy and is_mtproxy and not self._advanced_toggle.isChecked():
             self._advanced_toggle.setChecked(True)
         if not self.__dict__.get("_advanced_settings_built", False):
             self._update_manual_instructions()
