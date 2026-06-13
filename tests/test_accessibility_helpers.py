@@ -501,6 +501,24 @@ class AccessibilityHelpersTests(unittest.TestCase):
             "Режим запуска: Ручной, выбран",
         )
 
+    def test_combo_widget_itself_reads_current_selection(self) -> None:
+        from qfluentwidgets import ComboBox
+
+        from ui.combo_accessibility import set_combo_items_accessibility
+
+        combo = ComboBox()
+        self.addCleanup(combo.deleteLater)
+        combo.addItem("Авто")
+        combo.addItem("Ручной")
+        combo.setCurrentIndex(1)
+
+        set_combo_items_accessibility(combo, name="Режим запуска")
+
+        self.assertEqual(combo.accessibleName(), "Режим запуска, выбрано: Ручной")
+        self.assertEqual(combo.property("screenReaderStateText"), "Режим запуска, выбрано: Ручной")
+        self.assertIn("стрелками", combo.accessibleDescription())
+        self.assertIn("Enter", combo.accessibleDescription())
+
     def test_set_tooltip_also_sets_accessible_description(self) -> None:
         from unittest.mock import patch
 

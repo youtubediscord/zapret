@@ -6,9 +6,35 @@ from PyQt6.QtCore import QPoint, Qt
 from PyQt6.QtGui import QAction
 from qfluentwidgets import MenuAnimationType
 
+from ui.accessibility import set_accessible_description, set_control_accessibility, set_state_text
+
 
 def _clean_text(text: object) -> str:
     return " ".join(str(text or "").strip().split())
+
+
+def _combo_accessible_name(combo) -> str:
+    try:
+        return _clean_text(combo.accessibleName())
+    except Exception:
+        return _clean_text(getattr(combo, "accessible_name", ""))
+
+
+def _combo_accessible_description(combo) -> str:
+    try:
+        return _clean_text(combo.accessibleDescription())
+    except Exception:
+        return _clean_text(getattr(combo, "accessible_description", ""))
+
+
+def _combo_description(combo) -> str:
+    keyboard_hint = "Откройте список и выберите пункт стрелками, затем нажмите Enter."
+    current = _combo_accessible_description(combo)
+    if not current:
+        return keyboard_hint
+    if "Enter" in current:
+        return current
+    return f"{current} {keyboard_hint}"
 
 
 def _combo_count(combo) -> int:
@@ -59,6 +85,7 @@ def _sync_combo_items_accessibility(combo) -> None:
         current_index = int(combo.currentIndex())
     except Exception:
         current_index = -1
+    current_label = ""
     for index in range(_combo_count(combo)):
         label = _combo_item_text(combo, index)
         if clean_label is not None:
@@ -69,7 +96,21 @@ def _sync_combo_items_accessibility(combo) -> None:
         if not label:
             continue
         state = selected_word if index == current_index else unselected_word
+        if index == current_index:
+            current_label = label
         set_combo_item_accessible_text(combo, index, f"{name}: {label}, {state}")
+    combo_text = f"{name}, выбрано: {current_label}" if current_label else name
+    previous_combo_text = _clean_text(getattr(combo, "_accessible_combo_widget_text", ""))
+    existing_name = _combo_accessible_name(combo)
+    if not existing_name or existing_name == previous_combo_text:
+        set_control_accessibility(combo, name=combo_text, description=_combo_description(combo))
+        set_state_text(combo, combo_text)
+        try:
+            setattr(combo, "_accessible_combo_widget_text", combo_text)
+        except Exception:
+            pass
+    else:
+        set_accessible_description(combo, _combo_description(combo))
 
 
 def _ensure_combo_items_accessibility_signal(combo) -> None:
