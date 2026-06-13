@@ -196,7 +196,11 @@ class ProfileOrderPageTests(unittest.TestCase):
         order_list = ProfileOrderList()
         self.addCleanup(order_list.deleteLater)
 
-        self.assertEqual(order_list.accessibleName(), "Порядок profile")
+        self.assertEqual(order_list.accessibleName(), "Порядок profile: список пока загружается")
+        self.assertEqual(
+            order_list.property("screenReaderStateText"),
+            "Порядок profile: список пока загружается",
+        )
         self.assertIn("PageUp и PageDown", order_list.accessibleDescription())
         self.assertEqual(order_list._view.accessibleName(), "Порядок profile: список пока загружается")
         self.assertEqual(
@@ -246,6 +250,22 @@ class ProfileOrderPageTests(unittest.TestCase):
         self.assertEqual(order_list._view.currentIndex().row(), 0)
         self.assertIn("Позиция 1", order_list._view.property("screenReaderStateText"))
         self.assertIn("A", order_list._view.property("screenReaderStateText"))
+
+    def test_order_list_empty_loaded_state_is_read_for_screen_reader(self) -> None:
+        from profile.order_view_state import build_profile_order_list_view_state
+        from profile.ui.profile_order_list import ProfileOrderList
+
+        order_list = ProfileOrderList()
+        self.addCleanup(order_list.deleteLater)
+
+        state = build_profile_order_list_view_state(())
+        order_list.apply_view_state(state)
+
+        self.assertEqual(order_list._model.rowCount(), 0)
+        self.assertEqual(order_list.accessibleName(), "Порядок profile: список пуст")
+        self.assertEqual(order_list.property("screenReaderStateText"), "Порядок profile: список пуст")
+        self.assertEqual(order_list._view.accessibleName(), "Порядок profile: список пуст")
+        self.assertEqual(order_list._view.property("screenReaderStateText"), "Порядок profile: список пуст")
 
     def test_order_list_moves_selected_profile_from_keyboard(self) -> None:
         from profile.ui.profile_order_list import ProfileOrderList

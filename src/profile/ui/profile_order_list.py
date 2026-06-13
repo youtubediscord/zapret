@@ -260,6 +260,7 @@ class ProfileOrderList(QWidget):
         set_control_accessibility(self._view, name="Порядок profile", description=order_list_description)
         self._view.set_screen_reader_list_name("Порядок profile")
         self._view.setModel(self._model)
+        set_state_text(self, "Порядок profile: список пока загружается")
         set_state_text(self._view, "Порядок profile: список пока загружается")
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setFocusProxy(self._view)
@@ -363,7 +364,10 @@ class ProfileOrderList(QWidget):
 
     def apply_view_state(self, view_state) -> None:
         self._model.apply_view_state(view_state)
-        if not self._view.currentIndex().isValid() and self._model.rowCount() > 0:
+        if self._model.rowCount() <= 0:
+            set_state_text(self, "Порядок profile: список пуст")
+            set_state_text(self._view, "Порядок profile: список пуст")
+        elif not self._view.currentIndex().isValid():
             self._view.setCurrentIndex(self._model.index(0, 0))
         self._view_state_items = None
 
