@@ -7,13 +7,14 @@ from profile.list_file_editor import count_profile_list_entries
 from profile.setup_apply_signature import profile_setup_payload_apply_signature
 
 
-def _profile_setup_load_result(payload):
-    return ProfileSetupLoadResult(payload=payload)
+def _profile_setup_load_result(payload, *, apply_result=None):
+    return ProfileSetupLoadResult(payload=payload, apply_result=apply_result)
 
 
 class ProfileSetupLoadResult:
-    def __init__(self, *, payload, apply_signature=None) -> None:
+    def __init__(self, *, payload, apply_signature=None, apply_result=None) -> None:
         self.payload = payload
+        self.apply_result = apply_result
         self.apply_signature = (
             tuple(apply_signature)
             if apply_signature is not None
@@ -644,25 +645,24 @@ class ProfileStrategyApplyWorker(QThread):
             }
             if self._strategy_branch_id:
                 kwargs["strategy_branch_id"] = self._strategy_branch_id
-            profile_key = self._apply_strategy(**kwargs)
+            result = self._apply_strategy(**kwargs)
         except Exception as exc:
             log(f"ProfileStrategyApplyWorker: не удалось применить готовую стратегию: {exc}", "ERROR")
             self.failed.emit(self._request_id, str(exc))
             return
-        if not profile_key:
-            self.failed.emit(self._request_id, "Стратегия не применена")
-            return
+        profile_key = str(getattr(result, "profile_key", "") or "").strip()
         payload = None
-        try:
-            payload = self._load_profile(str(profile_key))
-        except Exception as exc:
-            log(f"ProfileStrategyApplyWorker: не удалось загрузить обновлённый profile payload: {exc}", "DEBUG")
+        if profile_key:
+            try:
+                payload = self._load_profile(profile_key)
+            except Exception as exc:
+                log(f"ProfileStrategyApplyWorker: не удалось загрузить обновлённый profile payload: {exc}", "DEBUG")
         self.applied.emit(
             self._request_id,
             self._profile_key,
-            str(profile_key),
+            profile_key,
             self._strategy_id,
-            _profile_setup_load_result(payload),
+            _profile_setup_load_result(payload, apply_result=result),
         )
 
 

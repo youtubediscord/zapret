@@ -83,7 +83,8 @@ class Winws2PayloadStrategyBranchTests(unittest.TestCase):
 
             result = service.apply_strategy("profile:0", "http_vk", strategy_branch_id="branch:1")
 
-        self.assertEqual(result, "profile:0")
+        self.assertEqual(result.status, "applied")
+        self.assertEqual(result.profile_key, "profile:0")
         self.assertEqual(store.save_count, 1)
         self.assertIn("--payload=tls_client_hello", store.text)
         self.assertIn("--lua-desync=hostfakesplit:host=ozon.ru:tcp_ts=-1000:tcp_md5:repeats=4", store.text)

@@ -56,7 +56,14 @@ from .serializer import (
 from .setup_match_text import build_profile_setup_match_tab_text
 from .strategy_state import ProfileStrategyState, ProfileStrategyStateStore
 from .strategy_catalog import StrategyEntry, load_strategy_catalogs
-from .state import ProfileListFileEditorState, ProfileListItem, ProfileListPayload, ProfileSetupPayload, ProfileStrategyBranch
+from .state import (
+    ProfileListFileEditorState,
+    ProfileListItem,
+    ProfileListPayload,
+    ProfileSetupPayload,
+    ProfileStrategyBranch,
+    StrategyApplyResult,
+)
 from .template_library import load_profile_template_library
 from .user_profiles import create_user_profile, delete_user_profile, update_user_profile
 from .editable_settings import (
@@ -524,21 +531,61 @@ class ProfilePresetService:
             return resolved_key
         return None
 
-    def apply_strategy(self, profile_key: str, strategy_id: str, *, strategy_branch_id: str = "") -> str | None:
+    def apply_strategy(self, profile_key: str, strategy_id: str, *, strategy_branch_id: str = "") -> StrategyApplyResult:
+        result = self._apply_strategy_once(
+            profile_key,
+            strategy_id,
+            strategy_branch_id=strategy_branch_id,
+        )
+        if result.status in {"profile_missing", "stale_reloaded"} and result.should_reload:
+            self._invalidate_selected_preset_snapshot()
+            retried = self._apply_strategy_once(
+                profile_key,
+                strategy_id,
+                strategy_branch_id=strategy_branch_id,
+            )
+            return retried
+        return result
+
+    def _apply_strategy_once(
+        self,
+        profile_key: str,
+        strategy_id: str,
+        *,
+        strategy_branch_id: str = "",
+    ) -> StrategyApplyResult:
         strategy_id = str(strategy_id or "").strip()
         if not strategy_id or strategy_id in {"none", "custom"}:
-            return None
+            return _strategy_apply_result("not_applicable", strategy_id=strategy_id)
 
         setup = self.get_profile_setup(profile_key)
         if setup is None:
-            return None
+            return _strategy_apply_result("profile_missing", strategy_id=strategy_id, should_reload=True)
         if setup.item.in_preset and not setup.item.enabled:
-            return None
+            return _strategy_apply_result(
+                "not_applicable",
+                profile_key=setup.item.key,
+                strategy_id=strategy_id,
+                should_reload=True,
+                message="profile_disabled",
+            )
         if setup.item.list_type == "custom":
-            return None
+            return _strategy_apply_result(
+                "not_applicable",
+                profile_key=setup.item.key,
+                strategy_id=strategy_id,
+                should_reload=True,
+                message="custom_profile",
+            )
         entry = setup.strategy_entries.get(strategy_id)
         if entry is None:
-            return None
+            return _strategy_apply_result(
+                "not_applicable",
+                profile_key=setup.item.key,
+                strategy_id=strategy_id,
+                should_reload=True,
+                message="strategy_entry_missing",
+            )
         branch_id = str(strategy_branch_id or "").strip()
         if not branch_id:
             branch_id = str(getattr(setup, "current_strategy_branch_id", "") or "").strip()
@@ -546,44 +593,82 @@ class ProfilePresetService:
         if branch_id and strategy_branches and setup.item.in_preset:
             branch = next((item for item in strategy_branches if item.branch_id == branch_id), None)
             if branch is None:
-                return None
+                return _strategy_apply_result(
+                    "stale_reloaded",
+                    profile_key=setup.item.key,
+                    strategy_id=strategy_id,
+                    should_reload=True,
+                    message="strategy_branch_missing",
+                )
             if (
                 setup.item.in_preset
                 and setup.item.enabled
                 and str(branch.strategy_id or "").strip() == strategy_id
             ):
-                return setup.item.key
+                return _strategy_apply_result(
+                    "already_applied",
+                    profile_key=setup.item.key,
+                    strategy_id=strategy_id,
+                )
             preset, _manifest = self.load_selected_preset()
             index = resolve_preset_profile_reference_index(preset, profile_key)
             if index is None:
-                return None
+                return _strategy_apply_result(
+                    "stale_reloaded",
+                    profile_key=setup.item.key,
+                    strategy_id=strategy_id,
+                    should_reload=True,
+                    message="profile_index_missing",
+                )
             preset = _with_profile_strategy_branch_lines(preset, index, branch_id, entry.args.splitlines())
             preset = with_profile_enabled(preset, index, True)
             self.save_selected_preset(preset)
-            return preset.profiles[index].key if 0 <= index < len(preset.profiles) else None
+            applied_key = preset.profiles[index].key if 0 <= index < len(preset.profiles) else ""
+            return _strategy_apply_result("applied", profile_key=applied_key, strategy_id=strategy_id)
         if setup.item.in_preset and strategy_branches and len(strategy_branches) > 1:
-            return None
+            return _strategy_apply_result(
+                "stale_reloaded",
+                profile_key=setup.item.key,
+                strategy_id=strategy_id,
+                should_reload=True,
+                message="strategy_branch_required",
+            )
         if (
             setup.item.in_preset
             and setup.item.enabled
             and str(setup.item.strategy_id or "").strip() == strategy_id
         ):
-            return setup.item.key
+            return _strategy_apply_result(
+                "already_applied",
+                profile_key=setup.item.key,
+                strategy_id=strategy_id,
+            )
 
         preset, _manifest = self.load_selected_preset()
         resolved_key = profile_key
         if profile_key.startswith("template:"):
             preset, resolved_key = self._append_template_profile_to_preset(preset, profile_key)
             if not resolved_key:
-                return None
+                return _strategy_apply_result(
+                    "profile_missing",
+                    strategy_id=strategy_id,
+                    should_reload=True,
+                    message="template_profile_missing",
+                )
 
         index = resolve_preset_profile_reference_index(preset, resolved_key)
         if index is None:
-            return None
+            return _strategy_apply_result(
+                "profile_missing",
+                strategy_id=strategy_id,
+                should_reload=True,
+                message="profile_index_missing",
+            )
         preset = with_profile_strategy_lines(preset, index, entry.args.splitlines())
         preset = with_profile_enabled(preset, index, True)
         self.save_selected_preset(preset)
-        return preset.profiles[index].key if 0 <= index < len(preset.profiles) else None
+        applied_key = preset.profiles[index].key if 0 <= index < len(preset.profiles) else ""
+        return _strategy_apply_result("applied", profile_key=applied_key, strategy_id=strategy_id)
 
     def set_current_strategy_state(
         self,
@@ -1251,6 +1336,23 @@ class ProfilePresetService:
 
 def _engine_for_method(launch_method: str) -> EngineName:
     return engine_for_launch_method(launch_method)  # type: ignore[return-value]
+
+
+def _strategy_apply_result(
+    status: str,
+    *,
+    profile_key: str = "",
+    strategy_id: str = "",
+    should_reload: bool = False,
+    message: str = "",
+) -> StrategyApplyResult:
+    return StrategyApplyResult(
+        status=str(status or "").strip(),
+        profile_key=str(profile_key or "").strip(),
+        strategy_id=str(strategy_id or "").strip(),
+        should_reload=bool(should_reload),
+        message=str(message or "").strip(),
+    )
 
 
 def _profile_folder_state_revision(folder_state: dict[str, Any]) -> tuple[object, ...]:

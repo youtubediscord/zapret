@@ -86,3 +86,12 @@ class ProfileSetupPayload:
     in_range: str = "x"
     out_range: str = "a"
     current_strategy_state: ProfileStrategyState = ProfileStrategyState()
+
+
+@dataclass(frozen=True)
+class StrategyApplyResult:
+    status: str
+    profile_key: str = ""
+    strategy_id: str = ""
+    should_reload: bool = False
+    message: str = ""

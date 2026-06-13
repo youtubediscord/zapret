@@ -58,7 +58,10 @@ class _PresetLibrary:
 class UserProfilesTests(unittest.TestCase):
     def test_template_profile_addition_has_one_service_path(self) -> None:
         enabled_source = inspect.getsource(ProfilePresetService.set_profile_enabled)
-        strategy_source = inspect.getsource(ProfilePresetService.apply_strategy)
+        strategy_source = (
+            inspect.getsource(ProfilePresetService.apply_strategy)
+            + inspect.getsource(ProfilePresetService._apply_strategy_once)
+        )
         helper_source = inspect.getsource(ProfilePresetService._append_template_profile_to_preset)
         service_source = inspect.getsource(ProfilePresetService)
 
@@ -332,7 +335,8 @@ class UserProfilesTests(unittest.TestCase):
                 service = ProfilePresetService(feature, "zapret2_mode")
                 new_key = service.apply_strategy(f"template:user:{profile_id}", "tls_fake")
 
-        self.assertEqual(new_key, "profile:0")
+        self.assertEqual(new_key.status, "applied")
+        self.assertEqual(new_key.profile_key, "profile:0")
         preset = parse_preset_text(store.text, engine="winws2")
         self.assertEqual(len(preset.profiles), 1)
         lines = [segment.text for segment in preset.profiles[0].segments]
@@ -385,7 +389,8 @@ class UserProfilesTests(unittest.TestCase):
         self.assertTrue(setup.item.in_preset)
         self.assertFalse(setup.item.enabled)
         self.assertEqual(setup.item.strategy_id, "none")
-        self.assertEqual(new_key, None)
+        self.assertEqual(new_key.status, "not_applicable")
+        self.assertEqual(new_key.profile_key, "profile:0")
         self.assertEqual(store.text, source_text)
 
     def test_applying_strategy_to_template_profile_removes_blank_before_strategy(self) -> None:
@@ -439,7 +444,8 @@ class UserProfilesTests(unittest.TestCase):
                 service = ProfilePresetService(feature, "zapret2_mode")
                 new_key = service.apply_strategy("template:all_profiles:0", "tcp_md5")
 
-        self.assertEqual(new_key, "profile:0")
+        self.assertEqual(new_key.status, "applied")
+        self.assertEqual(new_key.profile_key, "profile:0")
         self.assertIn("--hostlist=lists/speedtest.txt\n--out-range=-d8", store.text)
         self.assertNotIn("--hostlist=lists/speedtest.txt\n\n--out-range=-d8", store.text)
         self.assertNotIn("--lua-desync=pass", store.text)

@@ -4,6 +4,7 @@ from settings.mode import normalize_launch_method
 
 from .key_resolution import PresetProfileMoveResult
 from .service import ProfilePresetService
+from .state import StrategyApplyResult
 
 
 def _profile_preset_service(profile_services, launch_method: str) -> ProfilePresetService:
@@ -85,7 +86,7 @@ def apply_strategy_to_profile(
     strategy_id: str,
     *,
     strategy_branch_id: str = "",
-) -> str | None:
+) -> StrategyApplyResult:
     return _profile_preset_service(profile_services, launch_method).apply_strategy(
         profile_key,
         strategy_id,

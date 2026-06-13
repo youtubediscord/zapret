@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from profile.key_resolution import PresetProfileMoveResult
+from profile.state import StrategyApplyResult
 
 
 @dataclass(frozen=True, slots=True)
@@ -484,7 +485,7 @@ class ProfileFeature:
         strategy_id: str,
         *,
         strategy_branch_id: str = "",
-    ) -> str | None:
+    ) -> StrategyApplyResult:
         return self._commands().apply_strategy_to_profile(
             self,
             launch_method,

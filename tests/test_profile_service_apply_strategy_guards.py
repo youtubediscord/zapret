@@ -410,7 +410,66 @@ class ProfileServiceApplyStrategyGuardTests(unittest.TestCase):
                 service = ProfilePresetService(feature, "zapret2_mode")
                 result = service.apply_strategy("profile:0", "tcp_md5")
 
-        self.assertEqual(result, "profile:0")
+        self.assertEqual(result.status, "already_applied")
+        self.assertEqual(result.profile_key, "profile:0")
+        self.assertEqual(store.save_count, 0)
+
+    def test_apply_strategy_reports_profile_missing_without_error_result(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            store = _PresetStore("")
+            feature = SimpleNamespace(
+                _presets_feature=store,
+                _app_paths=AppPaths(user_root=root, local_root=root),
+            )
+
+            service = ProfilePresetService(feature, "zapret2_mode")
+            result = service.apply_strategy("profile:0", "tcp_md5")
+
+        self.assertEqual(result.status, "profile_missing")
+        self.assertEqual(result.profile_key, "")
+        self.assertTrue(result.should_reload)
+        self.assertEqual(store.save_count, 0)
+
+    def test_apply_strategy_reports_stale_reload_when_requested_branch_disappeared(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            catalogs_dir = root / "profile" / "strategy_catalogs" / "winws2"
+            catalogs_dir.mkdir(parents=True)
+            (catalogs_dir / "tcp.txt").write_text(
+                "\n".join(
+                    (
+                        "[tls_fake]",
+                        "name = TLS fake",
+                        "--lua-desync=fake",
+                        "",
+                    )
+                ),
+                encoding="utf-8",
+            )
+            store = _PresetStore(
+                "\n".join(
+                    (
+                        "--name=SpeedTest",
+                        "--filter-tcp=443,8080",
+                        "--hostlist=lists/speedtest.txt",
+                        "--lua-desync=pass",
+                        "",
+                    )
+                )
+            )
+            feature = SimpleNamespace(
+                _presets_feature=store,
+                _app_paths=AppPaths(user_root=root, local_root=root),
+            )
+
+            with patch("settings.store.MAIN_DIRECTORY", str(root)):
+                service = ProfilePresetService(feature, "zapret2_mode")
+                result = service.apply_strategy("profile:0", "tls_fake", strategy_branch_id="branch:9")
+
+        self.assertEqual(result.status, "stale_reloaded")
+        self.assertEqual(result.profile_key, "profile:0")
+        self.assertTrue(result.should_reload)
         self.assertEqual(store.save_count, 0)
 
 

@@ -1494,6 +1494,10 @@ def _profile_setup_apply_signature_from_worker_result(result):
     return tuple(apply_signature) if apply_signature is not None else None
 
 
+def _profile_setup_apply_result_from_worker_result(result):
+    return getattr(result, "apply_result", None)
+
+
 def _profile_setup_payload_and_apply_signature(result):
     return (
         _profile_setup_payload_from_worker_result(result),
@@ -4858,26 +4862,48 @@ class ProfileSetupPageBase(BasePage):
             pending_strategy_id = str(pending or "").strip()
         if pending_strategy_id and pending_strategy_id != str(strategy_id or "").strip():
             return
+        apply_result = _profile_setup_apply_result_from_worker_result(payload)
+        result_payload, apply_signature = (
+            _profile_setup_payload_and_apply_signature(payload)
+            if payload is not None
+            else (None, None)
+        )
         previous_key = self._profile_key
         new_key = str(profile_key or "").strip()
         if new_key:
             self._profile_key = new_key
+        if apply_result is not None and bool(getattr(apply_result, "should_reload", False)):
+            if result_payload is not None:
+                branch_id = str(getattr(self, "_strategy_apply_runtime_branch_id", "") or "").strip()
+                if branch_id:
+                    result_payload = _payload_with_strategy_branch(result_payload, branch_id)
+                    apply_signature = None
+                self._payload = result_payload
+                self._schedule_profile_setup_payload_apply(result_payload, apply_signature=apply_signature)
+                self._on_profile_changed_callback(
+                    self._profile_key,
+                    "strategy",
+                    getattr(result_payload, "item", None),
+                )
+                return
+            self.reload_current_profile()
+            self._on_profile_changed_callback(self._profile_key, "strategy")
+            return
         item = getattr(getattr(self, "_payload", None), "item", None)
         if self._profile_key == previous_key and strategy_id == _current_strategy_id(self._payload):
             self._on_profile_changed_callback(self._profile_key, "strategy", item)
             return
-        if payload is not None:
-            payload, apply_signature = _profile_setup_payload_and_apply_signature(payload)
+        if result_payload is not None:
             branch_id = str(getattr(self, "_strategy_apply_runtime_branch_id", "") or "").strip()
             if branch_id:
-                payload = _payload_with_strategy_branch(payload, branch_id)
+                result_payload = _payload_with_strategy_branch(result_payload, branch_id)
                 apply_signature = None
-            self._payload = payload
-            self._schedule_profile_setup_payload_apply(payload, apply_signature=apply_signature)
+            self._payload = result_payload
+            self._schedule_profile_setup_payload_apply(result_payload, apply_signature=apply_signature)
             self._on_profile_changed_callback(
                 self._profile_key,
                 "strategy",
-                getattr(payload, "item", None),
+                getattr(result_payload, "item", None),
             )
             return
         applied_locally = self._apply_strategy_locally(strategy_id)

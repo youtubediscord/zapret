@@ -5570,6 +5570,33 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         page.reload_current_profile.assert_not_called()
         page._on_profile_changed_callback.assert_not_called()
 
+    def test_strategy_apply_reload_result_refreshes_profile_without_local_reapply(self) -> None:
+        page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
+        page._profile_key = "profile-1"
+        page._strategy_apply_request_id = 1
+        page._pending_strategy_apply = None
+        page._apply_strategy_locally = Mock(side_effect=AssertionError("reload result must not be applied locally"))
+        page.reload_current_profile = Mock()
+        page._on_profile_changed_callback = Mock()
+        worker_result = SimpleNamespace(
+            payload=None,
+            apply_signature=(None,),
+            apply_result=SimpleNamespace(status="profile_missing", profile_key="", should_reload=True),
+        )
+
+        ProfileSetupPageBase._on_strategy_apply_finished(
+            page,
+            1,
+            "profile-1",
+            "",
+            "tls_fake",
+            worker_result,
+        )
+
+        page.reload_current_profile.assert_called_once_with()
+        page._on_profile_changed_callback.assert_called_once_with("profile-1", "strategy")
+        page._apply_strategy_locally.assert_not_called()
+
     def test_stale_strategy_apply_worker_finished_does_not_flush_pending_choice(self) -> None:
         page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
         page._strategy_apply_request_id = 4
@@ -5942,7 +5969,8 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         page._strategy_list.set_current_strategy_id.assert_called_once_with("http_fake")
 
     def test_strategy_apply_worker_emits_new_profile_key(self) -> None:
-        apply_strategy = Mock(return_value="profile-1")
+        apply_result = SimpleNamespace(status="applied", profile_key="profile-1", should_reload=False)
+        apply_strategy = Mock(return_value=apply_result)
         load_profile = Mock()
         payload = SimpleNamespace(item=SimpleNamespace(key="profile-1"))
         load_profile.return_value = payload
@@ -5970,6 +5998,33 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         self.assertEqual(applied[0][:4], (9, "template:profile-1", "profile-1", "tls_fake"))
         self.assertIs(applied[0][4].payload, payload)
         self.assertTrue(applied[0][4].apply_signature)
+
+    def test_strategy_apply_worker_emits_reload_result_without_error_when_profile_is_missing(self) -> None:
+        apply_result = SimpleNamespace(status="profile_missing", profile_key="", should_reload=True)
+        apply_strategy = Mock(return_value=apply_result)
+        load_profile = Mock(side_effect=AssertionError("missing profile must not be loaded"))
+        worker = ProfileStrategyApplyWorker(9, apply_strategy, load_profile, "profile:0", "tls_fake")
+        applied = []
+        failed = []
+
+        worker.applied.connect(
+            lambda request_id, requested_profile_key, profile_key, strategy_id, emitted_payload: applied.append((
+                request_id,
+                requested_profile_key,
+                profile_key,
+                strategy_id,
+                emitted_payload,
+            ))
+        )
+        worker.failed.connect(lambda request_id, error: failed.append((request_id, error)))
+
+        worker.run()
+
+        self.assertEqual(failed, [])
+        self.assertEqual(len(applied), 1)
+        self.assertEqual(applied[0][:4], (9, "profile:0", "", "tls_fake"))
+        self.assertIsNone(applied[0][4].payload)
+        self.assertIs(applied[0][4].apply_result, apply_result)
 
     def test_strategy_feedback_updates_payload_without_reloading_profile(self) -> None:
         class _Signal:
