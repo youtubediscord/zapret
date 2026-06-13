@@ -7,7 +7,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PyQt6.QtCore import QPoint, Qt
 from PyQt6.QtTest import QTest
-from PyQt6.QtWidgets import QApplication, QWidget
+from PyQt6.QtWidgets import QApplication, QSizePolicy, QWidget
 
 from presets.ui.common.preset_subpage_base import PresetRawEditorPage, RawPresetRuntimeActions, _RenameDialog
 
@@ -101,6 +101,9 @@ class PresetSubpageAccessibilityTests(unittest.TestCase):
         self.assertEqual(page.searchInput.property("screenReaderStateText"), "Поиск по тексту пресета")
         self.assertIn("После ввода перейдите к тексту пресета клавишей Tab", page.searchInput.accessibleDescription())
         self.assertIn("или нажмите Стрелка вниз", page.searchInput.accessibleDescription())
+        self.assertGreaterEqual(page.searchInput.minimumWidth(), 320)
+        self.assertGreaterEqual(page.searchInput.maximumWidth(), 460)
+        self.assertEqual(page.searchInput.sizePolicy().horizontalPolicy(), QSizePolicy.Policy.Expanding)
         self.assertEqual(page.editor.accessibleName(), "Текст открытого пресета")
         self.assertEqual(page.editor.property("screenReaderStateText"), "Текст открытого пресета")
 

@@ -374,7 +374,7 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertIn("SearchLineEdit", build_source)
         self.assertIn("self.searchInput.setPlaceholderText", build_source)
         self.assertIn("actions_layout.addStretch(1)", build_source)
-        self.assertIn("actions_layout.addWidget(self.searchInput, 0)", build_source)
+        self.assertIn("actions_layout.addWidget(self.searchInput, 1)", build_source)
         self.assertIn(".find(query", search_source)
         self.assertIn("QTextDocument.FindFlag(0)", search_source)
 

@@ -6,7 +6,7 @@ from typing import Callable
 
 from PyQt6.QtCore import QEvent, Qt, QTimer
 from PyQt6.QtGui import QTextCursor, QTextDocument
-from PyQt6.QtWidgets import QApplication, QHBoxLayout, QVBoxLayout, QWidget, QFileDialog
+from PyQt6.QtWidgets import QApplication, QHBoxLayout, QSizePolicy, QVBoxLayout, QWidget, QFileDialog
 
 from ui.pages.base_page import BasePage
 from ui.fluent_widgets import set_tooltip, style_semantic_caption_label
@@ -770,12 +770,13 @@ class PresetRawEditorPage(BasePage):
         self.searchInput.setClearButtonEnabled(True)
         remove_line_edit_buttons_from_tab_order(self.searchInput)
         self.searchInput.setFixedHeight(34)
-        self.searchInput.setMinimumWidth(220)
-        self.searchInput.setMaximumWidth(300)
+        self.searchInput.setMinimumWidth(320)
+        self.searchInput.setMaximumWidth(460)
+        self.searchInput.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.searchInput.setProperty("noDrag", True)
         self.searchInput.textChanged.connect(self._search_preset_text)
         self.searchInput.installEventFilter(self)
-        actions_layout.addWidget(self.searchInput, 0)
+        actions_layout.addWidget(self.searchInput, 1)
         self.add_widget(actions)
 
         self.editor = PlainTextEdit(self)
