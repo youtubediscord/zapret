@@ -105,7 +105,9 @@ class ProfileTypeSelectorTests(unittest.TestCase):
         selector = ProfileTypeSelector()
         self.addCleanup(selector.deleteLater)
 
-        self.assertIn("стрелками влево и вправо", selector.accessibleDescription().lower())
+        self.assertIn("стрелками вверх и вниз", selector.accessibleDescription().lower())
+        self.assertIn("влево и вправо", selector.accessibleDescription().lower())
+        self.assertIn("стрелками вверх, вниз, влево и вправо", selector._buttons["tcp"].accessibleDescription().lower())
         self.assertIn("Enter или Пробел", selector._buttons["tcp"].accessibleDescription())
 
     def test_arrow_keys_move_focus_between_profile_type_buttons(self) -> None:
@@ -123,6 +125,27 @@ class ProfileTypeSelectorTests(unittest.TestCase):
         self._app.processEvents()
 
         self.assertIs(self._app.focusWidget(), selector._buttons["tcp"])
+
+    def test_up_down_keys_move_focus_between_profile_type_buttons(self) -> None:
+        from profile.ui.widgets.profile_type_selector import ProfileTypeSelector
+
+        selector = ProfileTypeSelector()
+        self.addCleanup(selector.deleteLater)
+        selector.show()
+        self._app.processEvents()
+
+        selector._buttons["all"].setFocus()
+        self._app.processEvents()
+
+        QTest.keyClick(selector._buttons["all"], Qt.Key.Key_Down)
+        self._app.processEvents()
+
+        self.assertIs(self._app.focusWidget(), selector._buttons["tcp"])
+
+        QTest.keyClick(selector._buttons["tcp"], Qt.Key.Key_Up)
+        self._app.processEvents()
+
+        self.assertIs(self._app.focusWidget(), selector._buttons["all"])
 
     def test_enter_toggles_profile_type_button_and_updates_screen_reader_state(self) -> None:
         from profile.ui.widgets.profile_type_selector import ProfileTypeSelector
