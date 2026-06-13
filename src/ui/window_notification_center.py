@@ -796,6 +796,7 @@ class WindowNotificationCenter(QObject):
                 duration=duration,
                 parent=self._parent,
             )
+            self._apply_infobar_layout_limits(bar, content=content)
             self._set_infobar_accessibility(bar, level=level, title=title, content=content)
 
             for action in payload.get("buttons") or []:
@@ -823,6 +824,39 @@ class WindowNotificationCenter(QObject):
                 bar.addWidget(btn)
         except Exception as e:
             log(f"Не удалось показать InfoBar уведомление: {e}", "DEBUG")
+
+    def _apply_infobar_layout_limits(self, bar, *, content: str) -> None:
+        if bar is None:
+            return
+
+        try:
+            parent_width = 0
+            width_fn = getattr(self._parent, "width", None)
+            if callable(width_fn):
+                parent_width = int(width_fn() or 0)
+            max_width = 760
+            if parent_width > 0:
+                max_width = max(420, min(max_width, parent_width - 96))
+
+            if callable(getattr(bar, "setMaximumWidth", None)):
+                bar.setMaximumWidth(max_width)
+            if callable(getattr(bar, "setMinimumWidth", None)):
+                bar.setMinimumWidth(min(420, max_width))
+
+            for label_name in ("contentLabel", "titleLabel"):
+                label = getattr(bar, label_name, None)
+                if label is None:
+                    continue
+                if callable(getattr(label, "setWordWrap", None)):
+                    label.setWordWrap(True)
+                if callable(getattr(label, "setMaximumWidth", None)):
+                    label.setMaximumWidth(max(260, max_width - 96))
+
+            text = str(content or "")
+            if len(text) > 160 and callable(getattr(bar, "adjustSize", None)):
+                bar.adjustSize()
+        except Exception:
+            return
 
     def _set_infobar_accessibility(self, bar, *, level: str, title: str, content: str) -> None:
         level_text = {

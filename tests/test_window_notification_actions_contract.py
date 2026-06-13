@@ -154,6 +154,67 @@ class WindowNotificationActionsContractTests(unittest.TestCase):
         self.assertEqual(bar.property("screenReaderStateText"), expected)
         self.assertIn("уведомление", bar.accessibleDescription().lower())
 
+    def test_infobar_notification_wraps_long_content_inside_window(self) -> None:
+        import qfluentwidgets
+
+        class _FakeLabel:
+            def __init__(self) -> None:
+                self.word_wrap = False
+                self.maximum_width = 0
+
+            def setWordWrap(self, value: bool) -> None:  # noqa: N802
+                self.word_wrap = bool(value)
+
+            def setMaximumWidth(self, value: int) -> None:  # noqa: N802
+                self.maximum_width = int(value)
+
+        class _FakeBar:
+            def __init__(self) -> None:
+                self.contentLabel = _FakeLabel()
+                self.titleLabel = _FakeLabel()
+                self.maximum_width = 0
+                self.minimum_width = 0
+                self.adjusted = False
+
+            def setMaximumWidth(self, value: int) -> None:  # noqa: N802
+                self.maximum_width = int(value)
+
+            def setMinimumWidth(self, value: int) -> None:  # noqa: N802
+                self.minimum_width = int(value)
+
+            def adjustSize(self) -> None:  # noqa: N802
+                self.adjusted = True
+
+            def addWidget(self, _widget) -> None:  # noqa: N802
+                return None
+
+        bar = _FakeBar()
+        center = WindowNotificationCenter.__new__(WindowNotificationCenter)
+        center._parent = SimpleNamespace(width=lambda: 1200)
+        center._action_handler = SimpleNamespace(build_action_callback=lambda _action, _bar: None)
+
+        with (
+            patch.object(qfluentwidgets.InfoBar, "warning", return_value=bar),
+            patch.object(qfluentwidgets.InfoBar, "info", return_value=bar),
+            patch.object(qfluentwidgets.InfoBar, "success", return_value=bar),
+            patch.object(qfluentwidgets.InfoBar, "error", return_value=bar),
+        ):
+            WindowNotificationCenter._show_infobar_notification(
+                center,
+                {
+                    "level": "error",
+                    "title": "Ошибка",
+                    "content": "Очень длинное уведомление. " * 12,
+                },
+            )
+
+        self.assertLessEqual(bar.maximum_width, 760)
+        self.assertGreaterEqual(bar.minimum_width, 420)
+        self.assertTrue(bar.contentLabel.word_wrap)
+        self.assertTrue(bar.titleLabel.word_wrap)
+        self.assertLessEqual(bar.contentLabel.maximum_width, bar.maximum_width)
+        self.assertTrue(bar.adjusted)
+
     def test_notification_open_url_pending_restarts_after_event_loop_turn(self) -> None:
         import ui.window_notification_center as notification_center
 
