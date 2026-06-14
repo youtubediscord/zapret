@@ -202,6 +202,14 @@
 
 --new
 
+--name=Steam
+--filter-tcp=80,443
+--hostlist=lists/steam.txt
+--out-range=-d8
+--lua-desync=pass
+
+--new
+
 --name=Roblox TCP
 --filter-tcp=80,443-65535
 --hostlist=lists/roblox.txt
