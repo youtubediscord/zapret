@@ -42,6 +42,17 @@ class AboutHelpAccessibilityTests(unittest.TestCase):
         self.assertFalse(hasattr(widgets, "youtube_card"))
         self.assertFalse(hasattr(widgets, "youtube_playlist_card"))
 
+        self.assertEqual(widgets.docs_group.accessibleName(), "Раздел справки: Документация")
+        self.assertEqual(
+            widgets.docs_group.property("screenReaderStateText"),
+            "Раздел справки: Документация",
+        )
+        self.assertEqual(widgets.news_group.accessibleName(), "Раздел справки: Новости")
+        self.assertEqual(
+            widgets.news_group.property("screenReaderStateText"),
+            "Раздел справки: Новости",
+        )
+
         expected = {
             widgets.forum_card: ("Открыть вики-сайт", "Документация и инструкции"),
             widgets.info_card: ("Открыть руководство и ответы", "Руководство и ответы на вопросы"),

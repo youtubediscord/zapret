@@ -9,6 +9,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QLabel, QVBoxLayout, QHBoxLayout, QFrame, QSizePolicy
 
 from ui.pages.about_page_help_accessibility import set_help_card_accessibility
+from ui.accessibility import set_state_text
 
 
 @dataclass(slots=True)
@@ -115,10 +116,12 @@ def build_about_page_help_content(
     layout.addSpacing(6)
     layout.addWidget(make_section_label(tr_fn("page.about.help.section.links", "Ссылки")))
 
+    docs_title = tr_fn("page.about.help.group.docs", "Документация")
     docs_group = setting_card_group_cls(
-        tr_fn("page.about.help.group.docs", "Документация"),
+        docs_title,
         content_parent,
     )
+    set_state_text(docs_group, f"Раздел справки: {docs_title}")
 
     forum_card = push_setting_card_cls(
         tr_fn("page.about.help.button.open", "Открыть"),
@@ -201,10 +204,12 @@ def build_about_page_help_content(
     layout.addWidget(docs_group)
     layout.addSpacing(8)
 
+    news_title = tr_fn("page.about.help.group.news", "Новости")
     news_group = setting_card_group_cls(
-        tr_fn("page.about.help.group.news", "Новости"),
+        news_title,
         content_parent,
     )
+    set_state_text(news_group, f"Раздел справки: {news_title}")
 
     telegram_card = push_setting_card_cls(
         tr_fn("page.about.help.button.open", "Открыть"),
