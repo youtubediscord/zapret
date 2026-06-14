@@ -240,6 +240,15 @@
 
 --new
 
+--name=Мои сайты UDP
+--filter-udp=*
+--ipset=lists/ipset-all.txt
+--out-range=-n8
+--payload=all
+--lua-desync=fake:blob=quic_google:ip_autottl=-2,3-20:ip6_autottl=-2,3-20:payload=all:repeats=10
+
+--new
+
 --name=Cloudflare legacy UDP
 --filter-udp=443-65535
 --ipset=lists/cloudflare-ipset.txt
