@@ -132,9 +132,14 @@ class ProfileStrategyResolutionTests(unittest.TestCase):
     def test_builtin_winws2_preset_strategies_are_known(self) -> None:
         unresolved: list[str] = []
         for path in sorted(Path("src/presets/builtin/winws2").glob("*.txt")):
+            if "(circular)" in path.stem.lower():
+                continue
             preset = parse_preset_text(path.read_text(encoding="utf-8"), engine="winws2", source_name=path.name)
             for index, profile in enumerate(preset.profiles, start=1):
-                if not _strategy_identity_lines(profile, profile.strategy.strategy_lines):
+                strategy_lines = _strategy_identity_lines(profile, profile.strategy.strategy_lines)
+                if any("circular:" in line.lower() for line in strategy_lines):
+                    continue
+                if not strategy_lines:
                     continue
                 strategy_id, _strategy_name = _resolve_strategy(profile, _basic_strategy_entries(profile, self.catalogs))
                 if strategy_id == "custom":

@@ -404,46 +404,6 @@ description = Добавлено, чтобы встроенный профиль
 --lua-desync=syndata:blob=stun_pat
 --lua-desync=hostfakesplit_multi:hosts=google.com,vimeo.com:tcp_ts=-1000:tcp_md5:repeats=2
 
-[stock_builtin_coverage_udp_002]
-name = Default (circular) v2 / Все сайты UDP (исключение)
-author = builtin
-label = stock
-description = Добавлено, чтобы встроенный профиль из Default (circular) v2.txt (Все сайты UDP (исключение)) определялся как готовая стратегия, а не custom.
---lua-desync=circular:fails=1:time=300:retrans=3:nld=2
---lua-desync=fake:blob=quic_google:ip_autottl=-2,3-20:ip6_autottl=-2,3-20:repeats=10:payload=all:strategy=1
---lua-desync=fake:blob=fake_default_quic:repeats=11:ip_autottl=2,3-20:ip6_autottl=2,3-20:payload=all:strategy=2
---lua-desync=fake:repeats=6:blob=fake_default_quic:strategy=3
---lua-desync=fake:blob=0x00000000000000000000000000000000:repeats=2:strategy=4
---lua-desync=fake:blob=quic_google:repeats=6:strategy=5
---lua-desync=fake:blob=quic_google:repeats=2:strategy=6
---lua-desync=fake:blob=quic_google:repeats=9:ip_autottl=2,3-20:ip6_autottl=2,3-20:payload=all:strategy=7
---lua-desync=fake:blob=quic_google:repeats=10:ip_autottl=2,3-20:ip6_autottl=2,3-20:payload=all:strategy=8
---lua-desync=fake:blob=0x00:strategy=9
---lua-desync=fake:blob=quic6:repeats=2:ip_ttl=7:ip6_ttl=7:payload=all:strategy=10
---lua-desync=fake:blob=quic_test:repeats=2:payload=all:strategy=11
---lua-desync=fake:blob=fake_default_quic:repeats=11:payload=all:strategy=12
---lua-desync=fake:blob=quic_google:repeats=15:ip_ttl=0:ip6_ttl=0:badsum:payload=all:strategy=13
-
-[stock_builtin_coverage_udp_003]
-name = Default (circular) / Все сайты UDP (исключение)
-author = builtin
-label = stock
-description = Добавлено, чтобы встроенный профиль из Default (circular).txt (Все сайты UDP (исключение)) определялся как готовая стратегия, а не custom.
---lua-desync=circular:fails=1:udp_out=2:udp_in=0:nld=2
---lua-desync=fake:blob=quic_google:ip_autottl=-2,3-20:ip6_autottl=-2,3-20:repeats=10:payload=all:strategy=1
---lua-desync=fake:blob=fake_default_quic:repeats=11:ip_autottl=2,3-20:ip6_autottl=2,3-20:payload=all:strategy=2
---lua-desync=fake:repeats=6:blob=fake_default_quic:strategy=3
---lua-desync=fake:blob=0x00000000000000000000000000000000:repeats=2:strategy=4
---lua-desync=fake:blob=quic_google:repeats=6:strategy=5
---lua-desync=fake:blob=quic_google:repeats=2:strategy=6
---lua-desync=fake:blob=quic_google:repeats=9:ip_autottl=2,3-20:ip6_autottl=2,3-20:payload=all:strategy=7
---lua-desync=fake:blob=quic_google:repeats=10:ip_autottl=2,3-20:ip6_autottl=2,3-20:payload=all:strategy=8
---lua-desync=fake:blob=0x00:strategy=9
---lua-desync=fake:blob=quic6:repeats=2:ip_ttl=7:ip6_ttl=7:payload=all:strategy=10
---lua-desync=fake:blob=quic_test:repeats=2:payload=all:strategy=11
---lua-desync=fake:blob=fake_default_quic:repeats=11:payload=all:strategy=12
---lua-desync=fake:blob=quic_google:repeats=15:ip_ttl=0:ip6_ttl=0:badsum:payload=all:strategy=13
-
 [stock_builtin_coverage_udp_004]
 name = Default (game filter) / Все сайты UDP (исключение)
 author = builtin
