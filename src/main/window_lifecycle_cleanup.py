@@ -98,6 +98,14 @@ def cleanup_subscription_for_close(premium_feature) -> None:
 
 def cleanup_theme_for_close(window) -> None:
     try:
+        watcher = window.visual_state.windows_system_theme_watcher
+        if watcher is not None:
+            watcher.cleanup()
+            window.visual_state.windows_system_theme_watcher = None
+    except Exception as e:
+        log(f"Ошибка при очистке слежения за темой Windows: {e}", "DEBUG")
+
+    try:
         theme_manager = window.visual_state.theme_manager
         if theme_manager is not None:
             theme_manager.cleanup()

@@ -129,6 +129,17 @@ def _configure_window_appearance(window, appearance_actions) -> None:
     except Exception:
         pass
 
+    try:
+        from PyQt6.QtWidgets import QApplication
+        from ui.windows_system_theme import install_windows_system_theme_watcher
+
+        window.visual_state.windows_system_theme_watcher = install_windows_system_theme_watcher(
+            QApplication.instance(),
+            window,
+        )
+    except Exception:
+        pass
+
 
 def _finish_event_loop_bootstrap(*, app, window, application_controller, start_in_tray: bool) -> None:
     from main.windows_session_shutdown import connect_windows_session_shutdown

@@ -10,3 +10,4 @@ class WindowVisualState:
 
     holiday_effects: Any | None = None
     theme_manager: Any | None = None
+    windows_system_theme_watcher: Any | None = None
