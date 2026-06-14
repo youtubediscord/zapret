@@ -50,6 +50,7 @@ DNS_SERVER_PROPERTY_VERSION1 = 0x0001
 DNS_DOH_SERVER_SETTINGS_ENABLE = 0x0002
 DNS_DOH_SERVER_SETTINGS_FALLBACK_TO_UDP = 0x0004
 DnsServerDohProperty = 1
+_last_dns_winapi_error = ""
 
 class IP_ADDR_STRING(Structure):
     pass
@@ -335,6 +336,28 @@ def _format_dns_servers(dns_servers: list[str], is_ipv6: bool) -> str | None:
     return separator.join(dns_servers)
 
 
+def get_last_dns_winapi_error() -> str:
+    return _last_dns_winapi_error
+
+
+def _set_last_dns_winapi_error(message: str) -> None:
+    global _last_dns_winapi_error
+    _last_dns_winapi_error = (message or "").strip()
+
+
+def _format_winapi_result(api_name: str, result: int) -> str:
+    detail = ""
+    formatter = getattr(ctypes, "FormatError", None)
+    if formatter is not None:
+        try:
+            detail = str(formatter(int(result)) or "").strip()
+        except Exception:
+            detail = ""
+    if detail:
+        return f"{api_name} вернул ошибку Windows {result}: {detail}"
+    return f"{api_name} вернул ошибку Windows {result}"
+
+
 def _build_doh_server_properties(
     dns_servers: list[str],
     doh_templates: dict[str, str],
@@ -382,6 +405,7 @@ def set_dns_via_winapi(
 ) -> bool:
     """Устанавливает DNS через SetInterfaceDnsSettings."""
     try:
+        _set_last_dns_winapi_error("")
         normalized_servers = _normalize_dns_servers(dns_servers)
         name_server = _format_dns_servers(normalized_servers, is_ipv6)
         flags = DNS_SETTING_NAMESERVER
@@ -419,13 +443,17 @@ def set_dns_via_winapi(
             byref(settings),
         )
         if result != ERROR_SUCCESS:
-            log(f"SetInterfaceDnsSettings failed: {result}", "ERROR")
+            message = _format_winapi_result("SetInterfaceDnsSettings", int(result))
+            _set_last_dns_winapi_error(message)
+            log(message, "ERROR")
             return False
 
         return True
 
     except Exception as e:
-        log(f"Error setting DNS via WinAPI: {e}", "ERROR")
+        message = f"SetInterfaceDnsSettings не выполнен: {e}"
+        _set_last_dns_winapi_error(message)
+        log(message, "ERROR")
         return False
 
 def notify_dns_change():
@@ -797,15 +825,31 @@ class DNSManager:
                 return False, "GUID not found"
             
             families = ["IPv4", "IPv6"] if address_family is None else [address_family]
+            errors: list[str] = []
             
             for family in families:
                 is_ipv6 = (family.lower() == "ipv6")
-                set_dns_via_winapi(
+                success = set_dns_via_winapi(
                     guid,
                     [],
                     is_ipv6,
                     doh_templates={} if not is_ipv6 else None,
                 )
+                if not success:
+                    detail = get_last_dns_winapi_error()
+                    if detail:
+                        errors.append(
+                            "Не удалось вернуть DNS в автоматический режим "
+                            f"для адаптера «{adapter_name}» ({family}). {detail}"
+                        )
+                    else:
+                        errors.append(
+                            "Не удалось вернуть DNS в автоматический режим "
+                            f"для адаптера «{adapter_name}» ({family})."
+                        )
+
+            if errors:
+                return False, " ".join(errors)
             
             notify_dns_change()
             return True, "OK"

@@ -180,6 +180,52 @@ class DnsCoreWinApiTests(unittest.TestCase):
         self.assertEqual(fake_iphlpapi.call["flags"], dns_core.DNS_SETTING_NAMESERVER)
         self.assertIsNone(fake_iphlpapi.call["name_server"])
 
+    def test_auto_dns_reports_winapi_failure_instead_of_ok(self) -> None:
+        dns_core = _load_dns_core()
+        manager = dns_core.DNSManager()
+        manager.get_adapter_guid = lambda _adapter: "{C78087CA-DCB3-4993-B9D1-7CC33D0A288B}"
+        dns_core.set_dns_via_winapi = lambda *_args, **_kwargs: False
+        dns_core.get_last_dns_winapi_error = (
+            lambda: "SetInterfaceDnsSettings вернул ошибку Windows 87: Параметр задан неверно."
+        )
+        dns_core.notify_dns_change = lambda: True
+
+        ok, message = manager.set_auto_dns("Ethernet", "IPv4")
+
+        self.assertFalse(ok)
+        self.assertIn("Ethernet", message)
+        self.assertIn("IPv4", message)
+        self.assertIn("SetInterfaceDnsSettings", message)
+        self.assertIn("87", message)
+
+    def test_force_dns_dhcp_reset_returns_adapter_winapi_error(self) -> None:
+        _load_dns_core()
+        sys.modules.pop("dns.dns_force", None)
+        dns_force = importlib.import_module("dns.dns_force")
+
+        class _DnsManagerStub:
+            def set_auto_dns(self, adapter: str, family: str):
+                return (
+                    False,
+                    f"Не удалось вернуть DNS в автоматический режим для адаптера «{adapter}» ({family}). "
+                    "SetInterfaceDnsSettings вернул ошибку Windows 87: Параметр задан неверно.",
+                )
+
+            def flush_dns_cache(self):
+                return True, "OK"
+
+        manager = dns_force.DNSForceManager()
+        manager.dns_manager = _DnsManagerStub()
+        manager._ipv6_available = False
+
+        ok, message = manager._reset_to_auto(adapters=["Ethernet"])
+
+        self.assertFalse(ok)
+        self.assertIn("Ethernet", message)
+        self.assertIn("IPv4", message)
+        self.assertIn("SetInterfaceDnsSettings", message)
+        self.assertIn("87", message)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -33,6 +33,7 @@ class DNSForceManager:
         self.status_callback = status_callback
         self.dns_manager = DNSManager()
         self._ipv6_available = None
+        self._last_reset_error = ""
     
     def _set_status(self, text: str):
         """Обновляет статус"""
@@ -216,7 +217,8 @@ class DNSForceManager:
     def reset_dns_to_auto(self, adapter_name: str, ip_version: Optional[str] = None) -> bool:
         """Сбрасывает DNS на автоматический"""
         family = None if ip_version is None else ("IPv4" if ip_version == 'ipv4' else "IPv6")
-        success, _ = self.dns_manager.set_auto_dns(adapter_name, family)
+        success, message = self.dns_manager.set_auto_dns(adapter_name, family)
+        self._last_reset_error = "" if success else str(message or "").strip()
         return success
     
     def get_all_adapters_with_status(self) -> List[Dict]:
@@ -292,6 +294,7 @@ class DNSForceManager:
     def _reset_to_auto(self, adapters: Optional[List[str]] = None) -> Tuple[bool, str]:
         """Сбрасывает DNS на автоматическое получение на всех адаптерах"""
         log("Сброс DNS на автоматическое получение...", "DNS")
+        self._last_reset_error = ""
         
         if adapters is None:
             adapters = self.get_network_adapters(include_disconnected=True)
@@ -303,15 +306,19 @@ class DNSForceManager:
             ]
             adapters = list(dict.fromkeys(adapters))
         success_count = 0
+        errors: list[str] = []
         
         for adapter in adapters:
             # Сбрасываем IPv4
             if self.reset_dns_to_auto(adapter, 'ipv4'):
                 success_count += 1
+            elif self._last_reset_error:
+                errors.append(self._last_reset_error)
             
             # Сбрасываем IPv6 (если доступен)
             if self.ipv6_available:
-                self.reset_dns_to_auto(adapter, 'ipv6')
+                if not self.reset_dns_to_auto(adapter, 'ipv6') and self._last_reset_error:
+                    errors.append(self._last_reset_error)
         
         # Очищаем кэш DNS
         self.dns_manager.flush_dns_cache()
@@ -321,7 +328,8 @@ class DNSForceManager:
             log(f"DNS сброшен на авто: {success_count}/{len(adapters)} адаптеров", "INFO")
             return (True, msg)
         else:
-            msg = "Не удалось сбросить DNS ни на одном адаптере."
+            details = " ".join(dict.fromkeys(error for error in errors if error))
+            msg = details or "Не удалось сбросить DNS ни на одном адаптере."
             return (False, msg)
         
 # ──────────────────────────────────────────────────────────────────────
