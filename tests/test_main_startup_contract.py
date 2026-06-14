@@ -2666,6 +2666,7 @@ class StartupRuntimeSetupTests(unittest.TestCase):
         )
 
     def test_profile_warmup_staggers_current_and_secondary_methods_after_interactive_ready(self) -> None:
+        from app.page_names import PageName
         from main import post_startup_profile_warmup
         from main.post_startup_profile_warmup import install_profile_warmup
 
@@ -2684,6 +2685,8 @@ class StartupRuntimeSetupTests(unittest.TestCase):
             startup_interactive_ready=signal,
             startup_state=SimpleNamespace(interactive_logged=False),
             is_alive=Mock(return_value=True),
+            ensure_page=Mock(return_value=object()),
+            show_page=Mock(),
         )
         profile_feature = SimpleNamespace(warm_profile_list=Mock(return_value=object()))
         metric = Mock()
@@ -2716,7 +2719,7 @@ class StartupRuntimeSetupTests(unittest.TestCase):
             )
             signal.emit("interactive")
 
-        self.assertEqual(delays, [0, 1800])
+        self.assertEqual(delays, [0, 1800, 2200])
         self.assertEqual(
             queued_tasks,
             [("profile", "ProfileWarmup-zapret1_mode"), ("profile", "ProfileWarmup-zapret2_mode")],
@@ -2732,6 +2735,10 @@ class StartupRuntimeSetupTests(unittest.TestCase):
         )
         metric.assert_any_call("StartupProfileWarmupStarted", "zapret1_mode")
         metric.assert_any_call("StartupProfileWarmupStarted", "zapret2_mode")
+        startup_host.ensure_page.assert_called_once_with(PageName.ZAPRET1_PRESET_SETUP)
+        startup_host.show_page.assert_not_called()
+        metric.assert_any_call("StartupPresetSetupUiWarmupQueued", "2200ms after interactive")
+        metric.assert_any_call("StartupPresetSetupUiWarmupFinished", "ZAPRET1_PRESET_SETUP")
 
     def test_user_presets_warmup_staggers_current_and_secondary_methods_after_interactive_ready(self) -> None:
         from main import post_startup_user_presets_warmup
