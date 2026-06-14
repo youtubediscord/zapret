@@ -161,7 +161,7 @@ class DnsCoreWinApiTests(unittest.TestCase):
         dns_core.get_windows_version = lambda: (10, 0, 22000)
         self.assertTrue(dns_core.is_doh_supported())
 
-    def test_empty_dns_reset_does_not_set_doh_flag_without_name_server(self) -> None:
+    def test_empty_dns_reset_passes_empty_name_server_to_clear_manual_dns(self) -> None:
         dns_core = _load_dns_core()
         fake_iphlpapi = _FakeIpHelper(dns_core)
         dns_core.iphlpapi = fake_iphlpapi
@@ -178,7 +178,7 @@ class DnsCoreWinApiTests(unittest.TestCase):
         self.assertTrue(ok)
         self.assertEqual(fake_iphlpapi.call["version"], 1)
         self.assertEqual(fake_iphlpapi.call["flags"], dns_core.DNS_SETTING_NAMESERVER)
-        self.assertIsNone(fake_iphlpapi.call["name_server"])
+        self.assertEqual(fake_iphlpapi.call["name_server"], "")
 
     def test_auto_dns_reports_winapi_failure_instead_of_ok(self) -> None:
         dns_core = _load_dns_core()

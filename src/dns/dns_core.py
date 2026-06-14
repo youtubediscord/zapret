@@ -329,9 +329,9 @@ def _normalize_dns_servers(dns_servers: List[str]) -> list[str]:
     return normalized
 
 
-def _format_dns_servers(dns_servers: list[str], is_ipv6: bool) -> str | None:
+def _format_dns_servers(dns_servers: list[str], is_ipv6: bool) -> str:
     if not dns_servers:
-        return None
+        return ""
     separator = " " if is_ipv6 else ","
     return separator.join(dns_servers)
 
