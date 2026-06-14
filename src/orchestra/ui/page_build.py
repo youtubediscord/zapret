@@ -55,11 +55,13 @@ def _clean_orchestra_status_text(text: object) -> str:
     return value
 
 
-def set_orchestra_status_accessibility(status_label, text: object) -> None:
+def set_orchestra_status_accessibility(status_label, text: object, *, status_icon=None) -> None:
     status_text = _clean_orchestra_status_text(text)
     if not status_text:
         return
     set_state_text(status_label, f"Статус обучения Оркестратора: {status_text}")
+    if status_icon is not None:
+        set_state_text(status_icon, f"Индикатор обучения Оркестратора: {status_text}")
 
 
 def build_orchestra_status_card(
@@ -77,7 +79,7 @@ def build_orchestra_status_card(
     status_icon = QLabel()
     status_icon.setFixedSize(24, 24)
     status_label = body_label_cls(tr_fn("page.orchestra.status.not_started", "Не запущен"))
-    set_orchestra_status_accessibility(status_label, status_label.text())
+    set_orchestra_status_accessibility(status_label, status_label.text(), status_icon=status_icon)
     status_row.addWidget(status_icon)
     status_row.addWidget(status_label)
     status_row.addStretch()

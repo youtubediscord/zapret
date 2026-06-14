@@ -484,6 +484,11 @@ class OrchestraAccessibilityTests(unittest.TestCase):
             widgets.status_label.property("screenReaderStateText"),
             "Статус обучения Оркестратора: Не запущен",
         )
+        self.assertEqual(widgets.status_icon.accessibleName(), "Индикатор обучения Оркестратора: Не запущен")
+        self.assertEqual(
+            widgets.status_icon.property("screenReaderStateText"),
+            "Индикатор обучения Оркестратора: Не запущен",
+        )
 
     def test_status_update_exposes_status_as_screen_reader_state(self) -> None:
         page = OrchestraPage(
@@ -501,6 +506,14 @@ class OrchestraAccessibilityTests(unittest.TestCase):
         self.assertEqual(
             page.status_label.property("screenReaderStateText"),
             "Статус обучения Оркестратора: RUNNING - работает на лучших стратегиях",
+        )
+        self.assertEqual(
+            page.status_icon.accessibleName(),
+            "Индикатор обучения Оркестратора: RUNNING - работает на лучших стратегиях",
+        )
+        self.assertEqual(
+            page.status_icon.property("screenReaderStateText"),
+            "Индикатор обучения Оркестратора: RUNNING - работает на лучших стратегиях",
         )
 
     def test_log_card_controls_are_named_for_screen_reader(self) -> None:
