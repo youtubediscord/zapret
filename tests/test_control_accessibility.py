@@ -18,6 +18,7 @@ class _ButtonTarget:
         self._accessible_name = ""
         self._accessible_description = ""
         self._properties = {}
+        self.fixed_width = None
 
     def text(self) -> str:
         return self._text
@@ -42,6 +43,9 @@ class _ButtonTarget:
 
     def setMinimumWidth(self, _width: int) -> None:  # noqa: N802
         pass
+
+    def setFixedWidth(self, width: int) -> None:  # noqa: N802
+        self.fixed_width = int(width)
 
     def property(self, name: str) -> object:  # noqa: A003
         return self._properties.get(name)
@@ -196,7 +200,7 @@ class ControlAccessibilityTests(unittest.TestCase):
             get_icon.assert_called_once_with("fa5s.stop")
 
     def test_push_setting_card_button_has_specific_screen_reader_name(self) -> None:
-        from presets.ui.control.shared_builders import build_push_setting_card_common
+        from presets.ui.control.shared_builders import ACTION_CARD_BUTTON_WIDTH, build_push_setting_card_common
 
         card = build_push_setting_card_common(
             push_setting_card_cls=_PushSettingCardTarget,
@@ -209,6 +213,7 @@ class ControlAccessibilityTests(unittest.TestCase):
 
         self.assertEqual(card.button.accessibleName(), "Открыть тест соединения")
         self.assertEqual(card.button.text(), "  Открыть")
+        self.assertEqual(card.button.fixed_width, ACTION_CARD_BUTTON_WIDTH)
         self.assertIn("Проверить доступность сети", card.button.accessibleDescription())
         self.assertEqual(card.button.property("screenReaderStateText"), "Открыть тест соединения")
 

@@ -17,6 +17,9 @@ from ui.accessibility import enable_keyboard_click, set_control_accessibility, s
 from ui.theme import get_themed_qta_icon
 
 
+ACTION_CARD_BUTTON_WIDTH = 156
+
+
 @dataclass(slots=True)
 class LastStatusMessageWidgets:
     card: object
@@ -277,7 +280,7 @@ def build_push_setting_card_common(
             button_icon_name = button_icon_name.icon()
         button.setIcon(button_icon_name)
         button.setProperty(BUTTON_ICON_TEXT_GAP_PROPERTY, True)
-        button.setMinimumWidth(128)
+        button.setFixedWidth(ACTION_CARD_BUTTON_WIDTH)
         set_button_text_accessibility(
             button,
             button_text,
