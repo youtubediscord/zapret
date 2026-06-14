@@ -42,6 +42,7 @@
 Скопируйте из `Actions`
 
 <h2 align="center">Хочу узнать подробнее </h2>
+
 Подробности о блокировках и прочих интересных штучках доступно [на нашей вики](https://publish.obsidian.md/zapret/Privacy/Zapret/home).
 
 > [!CAUTION]  
