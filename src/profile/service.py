@@ -93,6 +93,9 @@ PROFILE_VISIBLE_TIMING_LABELS = frozenset(
     }
 )
 _SERVICE_EXCEPTION_PROFILE_NAMES = frozenset({"исключения (ru сайты)"})
+_SERVICE_EXCLUDE_HOSTLIST_NAME = "netrogat.txt"
+_SERVICE_EXCLUDE_IPSET_NAMES = ("ipset-ru.txt", "ipset-dns.txt", "ipset-exclude.txt")
+_SERVICE_EXCLUDE_IPSET_NAME_SET = frozenset(_SERVICE_EXCLUDE_IPSET_NAMES)
 _SERVICE_EXCEPTION_IPSETS = frozenset(
     {
         "--ipset=lists/ipset-ru.txt",
@@ -763,9 +766,11 @@ class ProfilePresetService:
         if index is None:
             return None
         current = read_editable_profile_settings(preset.profiles[index])
+        next_filter_kind = str(filter_kind or "").strip().lower()
+        next_filter_value = _filter_value_for_settings_update(current, next_filter_kind, filter_value)
         next_settings = EditableProfileSettings(
-            filter_kind=filter_kind,
-            filter_value=filter_value,
+            filter_kind=next_filter_kind,
+            filter_value=next_filter_value,
             filter_role=current.filter_role,
             in_range=in_range,
             out_range=out_range,
@@ -1239,7 +1244,7 @@ class ProfilePresetService:
         if kind not in _available_filter_kinds(current, self._app_paths):
             return profile
 
-        value = normalize_filter_value(filter_value or current.filter_value, kind, filter_role=current.filter_role)
+        value = _filter_value_for_settings_update(current, kind, filter_value)
         if not value:
             return profile
 
@@ -1722,7 +1727,9 @@ def _available_filter_kinds(settings: EditableProfileSettings, app_paths) -> tup
     result: list[str] = []
     for candidate in ("hostlist", "ipset"):
         candidate_value = _filter_value_for_kind_switch(settings, candidate)
-        if candidate == current_kind or _filter_files_available(app_paths, candidate_value):
+        if candidate == current_kind:
+            result.append(candidate)
+        elif candidate_value and _filter_files_available(app_paths, candidate_value):
             result.append(candidate)
     return tuple(result) or (current_kind,)
 
@@ -1734,10 +1741,48 @@ def _filter_value_for_kind_switch(settings: EditableProfileSettings, filter_kind
     if target_kind == current_kind:
         return normalize_filter_value(current_value, target_kind, filter_role=settings.filter_role)
     if str(settings.filter_role or "").strip().lower() == "exclude":
-        return normalize_filter_value(current_value, target_kind, filter_role=settings.filter_role)
+        return _paired_exclude_filter_value(current_value, current_kind, target_kind)
     if "," in current_value:
-        return normalize_filter_value(current_value, target_kind, filter_role=settings.filter_role)
+        return ""
     return _paired_primary_filter_value(current_value, current_kind, target_kind)
+
+
+def _filter_value_for_settings_update(
+    current: EditableProfileSettings,
+    filter_kind: str,
+    filter_value: str,
+) -> str:
+    kind = str(filter_kind or "").strip().lower()
+    raw_value = str(filter_value or "").strip()
+    current_kind = str(current.filter_kind or "").strip().lower()
+    current_value = str(current.filter_value or "").strip()
+    if kind != current_kind and (not raw_value or raw_value == current_value):
+        return _filter_value_for_kind_switch(current, kind)
+    return normalize_filter_value(raw_value or current_value, kind, filter_role=current.filter_role)
+
+
+def _paired_exclude_filter_value(value: str, current_kind: str, target_kind: str) -> str:
+    raw = str(value or "").strip()
+    if not raw:
+        return ""
+
+    values = _filter_reference_values(raw)
+    if current_kind == "hostlist" and target_kind == "ipset":
+        if len(values) != 1:
+            return ""
+        path = PureWindowsPath(values[0])
+        if path.name.lower() != _SERVICE_EXCLUDE_HOSTLIST_NAME:
+            return ""
+        return ",".join(_replace_filter_path_name(values[0], path, name) for name in _SERVICE_EXCLUDE_IPSET_NAMES)
+
+    if current_kind == "ipset" and target_kind == "hostlist":
+        names = [PureWindowsPath(item).name.lower() for item in values]
+        if len(names) != len(_SERVICE_EXCLUDE_IPSET_NAMES) or frozenset(names) != _SERVICE_EXCLUDE_IPSET_NAME_SET:
+            return ""
+        path = PureWindowsPath(values[0])
+        return _replace_filter_path_name(values[0], path, _SERVICE_EXCLUDE_HOSTLIST_NAME)
+
+    return ""
 
 
 def _paired_primary_filter_value(value: str, current_kind: str, target_kind: str) -> str:
@@ -1766,7 +1811,7 @@ def _paired_primary_filter_value(value: str, current_kind: str, target_kind: str
     if current_kind == "ipset" and target_kind == "hostlist":
         if normalized_stem.startswith(("ipset-", "ipset_")):
             return _replace_filter_path_name(raw, path, f"{stem[6:]}{suffix}")
-        return raw
+        return ""
     return normalize_filter_value(raw, target_kind)
 
 

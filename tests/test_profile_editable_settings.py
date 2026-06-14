@@ -34,6 +34,26 @@ class ProfileEditableSettingsTests(unittest.TestCase):
             "lists/other.txt",
         )
 
+    def test_exclude_filter_preserves_explicit_file_names(self) -> None:
+        from profile.editable_settings import normalize_filter_value
+
+        self.assertEqual(
+            normalize_filter_value("lists/netrogat.txt", "ipset", filter_role="exclude"),
+            "lists/netrogat.txt",
+        )
+        self.assertEqual(
+            normalize_filter_value("lists/custom-exclude.txt", "hostlist", filter_role="exclude"),
+            "lists/custom-exclude.txt",
+        )
+        self.assertEqual(
+            normalize_filter_value(
+                "lists/ipset-ru.txt,lists/ipset-dns.txt,lists/ipset-exclude.txt",
+                "hostlist",
+                filter_role="exclude",
+            ),
+            "lists/ipset-ru.txt,lists/ipset-dns.txt,lists/ipset-exclude.txt",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -281,6 +281,106 @@ class ProfileFilterKindSwitchTests(unittest.TestCase):
         self.assertIn("--ipset-exclude=lists/ipset-dns.txt", store.text)
         self.assertIn("--ipset-exclude=lists/ipset-exclude.txt", store.text)
 
+    def test_update_settings_switches_exclusion_hostlist_to_ipsets_in_service(self) -> None:
+        from tempfile import TemporaryDirectory
+
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            lists_dir = root / "lists"
+            (lists_dir / "base").mkdir(parents=True)
+            for name in ("ipset-ru.txt", "ipset-dns.txt", "ipset-exclude.txt", "netrogat.txt"):
+                (lists_dir / "base" / name).write_text("1.1.1.1\n", encoding="utf-8")
+            service, store = self._service(
+                "\n".join(
+                    (
+                        "--name=Исключения",
+                        "--filter-tcp=80,443-65535",
+                        "--hostlist-exclude=lists/netrogat.txt",
+                        "--out-range=-d8",
+                        "--lua-desync=pass",
+                        "",
+                    )
+                ),
+                root=root,
+            )
+
+            new_key = service.update_winws2_editable_settings(
+                "profile:0",
+                filter_kind="ipset",
+                filter_value="lists/netrogat.txt",
+                in_range="x",
+                out_range="-d8",
+            )
+
+        self.assertEqual(new_key, "profile:0")
+        self.assertNotIn("--hostlist-exclude=lists/netrogat.txt", store.text)
+        self.assertIn("--ipset-exclude=lists/ipset-ru.txt", store.text)
+        self.assertIn("--ipset-exclude=lists/ipset-dns.txt", store.text)
+        self.assertIn("--ipset-exclude=lists/ipset-exclude.txt", store.text)
+
+    def test_custom_exclusion_file_is_not_rewritten_to_service_pair(self) -> None:
+        from tempfile import TemporaryDirectory
+
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            lists_dir = root / "lists"
+            (lists_dir / "base").mkdir(parents=True)
+            (lists_dir / "base" / "custom-exclude.txt").write_text("example.com\n", encoding="utf-8")
+            service, store = self._service(
+                "\n".join(
+                    (
+                        "--name=Исключения custom",
+                        "--filter-tcp=80,443-65535",
+                        "--hostlist-exclude=lists/custom-exclude.txt",
+                        "--out-range=-d8",
+                        "--lua-desync=pass",
+                        "",
+                    )
+                ),
+                root=root,
+            )
+
+            setup = service.get_profile_setup("profile:0")
+            new_key = service.set_profile_filter_kind("profile:0", "ipset")
+
+        self.assertIsNotNone(setup)
+        self.assertEqual(setup.editable_filter_kinds, ("hostlist",))
+        self.assertIsNone(new_key)
+        self.assertIn("--hostlist-exclude=lists/custom-exclude.txt", store.text)
+        self.assertNotIn("--ipset-exclude=lists/ipset-ru.txt", store.text)
+        self.assertNotIn("--ipset-exclude=lists/custom-exclude.txt", store.text)
+
+    def test_legacy_cloudflare_ipset_without_hostlist_pair_is_not_switchable(self) -> None:
+        from tempfile import TemporaryDirectory
+
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            lists_dir = root / "lists"
+            (lists_dir / "base").mkdir(parents=True)
+            (lists_dir / "base" / "cloudflare-ipset.txt").write_text("1.1.1.1\n", encoding="utf-8")
+            service, store = self._service(
+                "\n".join(
+                    (
+                        "--name=Cloudflare legacy TCP",
+                        "--filter-tcp=80,443-65535",
+                        "--ipset=lists/cloudflare-ipset.txt",
+                        "--lua-desync=pass",
+                        "",
+                    )
+                ),
+                root=root,
+            )
+
+            setup = service.get_profile_setup("profile:0")
+            new_key = service.set_profile_filter_kind("profile:0", "hostlist")
+
+        self.assertIsNotNone(setup)
+        self.assertEqual(setup.editable_filter_kinds, ("ipset",))
+        self.assertIsNone(new_key)
+        self.assertIn("--ipset=lists/cloudflare-ipset.txt", store.text)
+        self.assertNotIn("--hostlist=lists/cloudflare-ipset.txt", store.text)
+        self.assertNotIn("ipset-cloudflare-ipset.txt", store.text)
+
     def test_missing_generated_ipset_is_not_offered_or_written(self) -> None:
         from tempfile import TemporaryDirectory
 

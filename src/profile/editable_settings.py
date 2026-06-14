@@ -278,8 +278,6 @@ def normalize_filter_value(value: str, filter_kind: str, *, filter_role: str = "
     raw = str(value or "").strip()
     if not raw:
         return ""
-    if str(filter_role or "").strip().lower() == "exclude":
-        return _normalize_exclude_filter_value(raw, filter_kind)
     if "," in raw:
         return ",".join(
             part
@@ -287,26 +285,6 @@ def normalize_filter_value(value: str, filter_kind: str, *, filter_role: str = "
             if part
         )
     return _normalize_single_filter_value_for_kind(raw, filter_kind)
-
-
-def _normalize_exclude_filter_value(value: str, filter_kind: str) -> str:
-    raw = str(value or "").strip()
-    if not raw:
-        return ""
-    first_path = PureWindowsPath(str(raw.split(",", 1)[0]).strip())
-    parent = str(first_path.parent)
-    separator = "\\" if "\\" in raw else "/"
-
-    if filter_kind == "hostlist":
-        return _join_path_name(parent, separator, "netrogat.txt")
-
-    if filter_kind == "ipset":
-        return ",".join(
-            _join_path_name(parent, separator, name)
-            for name in ("ipset-ru.txt", "ipset-dns.txt", "ipset-exclude.txt")
-        )
-
-    return raw
 
 
 def _filter_option_name(filter_kind: str, filter_role: str) -> str:
@@ -325,12 +303,6 @@ def _normalize_single_filter_value_for_kind(value: str, filter_kind: str) -> str
         return ""
 
     return raw
-
-
-def _join_path_name(parent: str, separator: str, new_name: str) -> str:
-    if not parent or parent == ".":
-        return new_name
-    return f"{parent}{separator}{new_name}"
 
 
 def _split_option(line: str) -> tuple[str, str]:
