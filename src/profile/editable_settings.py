@@ -324,24 +324,7 @@ def _normalize_single_filter_value_for_kind(value: str, filter_kind: str) -> str
     if not raw:
         return ""
 
-    path = PureWindowsPath(raw)
-    name = path.name
-    if not name:
-        return raw
-
-    lower_name = name.lower()
-    if filter_kind == "ipset" and lower_name == "other.txt":
-        return _replace_path_name(raw, path, "ipset-all.txt")
-    if filter_kind == "hostlist" and lower_name == "ipset-all.txt":
-        return _replace_path_name(raw, path, "other.txt")
-
     return raw
-
-
-def _replace_path_name(raw: str, path: PureWindowsPath, new_name: str) -> str:
-    parent = str(path.parent)
-    separator = "\\" if "\\" in raw else "/"
-    return _join_path_name(parent, separator, new_name)
 
 
 def _join_path_name(parent: str, separator: str, new_name: str) -> str:
