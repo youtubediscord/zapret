@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 from core.paths import AppPaths
 from presets.file_store import PresetFileStore
-from presets.mode_coordinator import PresetModeCoordinator
+from presets.mode_coordinator import PresetModeCoordinator, PresetModeError
 from presets.selection_service import PresetSelectionService
 from settings.mode import DEFAULT_PRESET_FILE_NAME_BY_ENGINE, ENGINE_WINWS2, ZAPRET2_MODE
 from settings.schema import SETTINGS_DIR_NAME, SETTINGS_FILE_NAME
@@ -87,6 +87,22 @@ class PresetSelectionDefaultsTests(unittest.TestCase):
             settings["program"]["selected_source_preset_file_name_winws2"],
             default_file_name,
         )
+
+    def test_missing_presets_error_names_searched_directories(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+
+            with patch("settings.store.MAIN_DIRECTORY", str(root)):
+                store = PresetFileStore(AppPaths(user_root=root, local_root=root))
+                selection = PresetSelectionService(store)
+                coordinator = PresetModeCoordinator(AppPaths(user_root=root, local_root=root), selection, store)
+
+                with self.assertRaises(PresetModeError) as ctx:
+                    coordinator.get_selected_source_manifest(ZAPRET2_MODE)
+
+        message = str(ctx.exception)
+        self.assertIn(str(root / "presets" / "winws2"), message)
+        self.assertIn(str(root / "presets" / "winws2_builtin"), message)
 
 
 if __name__ == "__main__":

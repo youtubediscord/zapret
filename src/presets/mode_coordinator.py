@@ -236,7 +236,8 @@ class PresetModeCoordinator:
         if manifest is None:
             raise PresetModeError(
                 "Пресеты не найдены. Проверьте папку presets рядом с программой "
-                "и переустановите приложение, если системные пресеты отсутствуют."
+                "и переустановите приложение, если системные пресеты отсутствуют. "
+                f"Искали здесь: {self._preset_search_paths_text(engine)}."
             )
 
         t_cache_key = time.perf_counter()
@@ -257,6 +258,16 @@ class PresetModeCoordinator:
     @staticmethod
     def _has_required_filters(launch_method: str, text: str) -> bool:
         return preset_has_enabled_profiles_for_launch(launch_method, text)
+
+    def _preset_search_paths_text(self, engine: str) -> str:
+        engine_paths = self._app_paths.engine_paths(engine)
+        return "; ".join(
+            str(path)
+            for path in (
+                engine_paths.user_presets_dir,
+                engine_paths.builtin_presets_dir,
+            )
+        )
 
     @staticmethod
     def _emit_timing(

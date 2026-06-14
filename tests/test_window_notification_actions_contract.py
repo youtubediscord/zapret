@@ -57,6 +57,16 @@ class WindowNotificationActionsContractTests(unittest.TestCase):
         self.assertNotIn("self._notification_action_pending = None", center_init_source)
         self.assertNotIn("self._notification_action_start_scheduled = False", center_init_source)
 
+    def test_global_error_notifications_have_retry_storm_dedupe_window(self) -> None:
+        center = WindowNotificationCenter.__new__(WindowNotificationCenter)
+        payloads = []
+        center.notify_threadsafe = lambda payload: payloads.append(payload)
+
+        WindowNotificationCenter.enqueue_global_error_notification(center, "[ERROR] same failure")
+
+        self.assertEqual(len(payloads), 1)
+        self.assertGreaterEqual(int(payloads[0]["dedupe_window_ms"]), 15000)
+
     def test_infobar_action_button_has_screen_reader_text(self) -> None:
         import qfluentwidgets
 

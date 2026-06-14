@@ -12,6 +12,9 @@ from ui.one_shot_worker_runtime import OneShotWorkerRuntime
 from ui.window_notification_actions import WindowNotificationActionHandler, WindowNotificationRuntimeActions
 
 
+GLOBAL_ERROR_DEDUPE_WINDOW_MS = 15000
+
+
 class WindowNotificationCenter(QObject):
     """Единый центр показа верхнеуровневых системных уведомлений."""
 
@@ -82,7 +85,7 @@ class WindowNotificationCenter(QObject):
                 queue="immediate",
                 duration=10000,
                 dedupe_key=f"global_logger:{' '.join(text.split()).lower()}",
-                dedupe_window_ms=2000,
+                dedupe_window_ms=GLOBAL_ERROR_DEDUPE_WINDOW_MS,
             )
         )
 
