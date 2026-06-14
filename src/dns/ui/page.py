@@ -14,7 +14,7 @@ import qtawesome as qta
 
 from qfluentwidgets import (
     BodyLabel, CaptionLabel, CheckBox, IndeterminateProgressBar, InfoBar,
-    LineEdit, MessageBox, PushButton, RoundMenu, SettingCardGroup, StrongBodyLabel,
+    InfoBarPosition, LineEdit, MessageBox, PushButton, RoundMenu, SettingCardGroup, StrongBodyLabel,
 )
 
 from settings.store import get_custom_dns_servers, set_custom_dns_servers
@@ -59,9 +59,7 @@ from dns.page_force_dns_workflow import (
     apply_force_dns_status_state,
 )
 from dns.ui.isp_warning import (
-    build_isp_warning_ui,
     hide_isp_warning_widget,
-    insert_isp_warning_widget,
     render_isp_warning_styles,
 )
 from dns.page_diagnostics_warning_workflow import (
@@ -1936,30 +1934,13 @@ class NetworkPage(BasePage):
         show_isp_dns_warning(
             cleanup_in_progress=self._cleanup_in_progress,
             plan=plan,
-            get_theme_tokens_fn=get_theme_tokens,
-            build_warning_ui_fn=build_isp_warning_ui,
-            insert_warning_widget_fn=insert_isp_warning_widget,
-            render_warning_styles_fn=self._render_isp_warning_styles,
-            parent=self,
-            qframe_cls=QFrame,
-            qvbox_layout_cls=QVBoxLayout,
-            qhbox_layout_cls=QHBoxLayout,
-            qlabel_cls=QLabel,
             qpush_button_cls=PushButton,
             qt_namespace=Qt,
-            add_widget_fn=self.add_widget,
-            before_widget=self.dns_cards_container,
             on_accept=self._accept_isp_dns_recommendation,
-            on_dismiss=self._dismiss_isp_dns_warning,
-            set_warning_widgets_fn=lambda widgets: (
-                setattr(self, "_isp_warning", widgets.frame),
-                setattr(self, "_isp_warning_title", widgets.title),
-                setattr(self, "_isp_warning_content", widgets.content),
-                setattr(self, "_isp_warning_icon", widgets.icon),
-                setattr(self, "_isp_warning_accept_btn", widgets.accept_button),
-                setattr(self, "_isp_warning_dismiss_btn", widgets.dismiss_button),
-            ),
             log_fn=log,
+            info_bar_cls=InfoBar,
+            info_bar_position_cls=InfoBarPosition,
+            parent_window=self.window(),
         )
 
     def _on_isp_dns_warning_plan_failed(self, request_id: int, error: str) -> None:

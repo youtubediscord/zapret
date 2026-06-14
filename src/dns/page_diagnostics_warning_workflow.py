@@ -56,23 +56,13 @@ def show_isp_dns_warning(
     *,
     cleanup_in_progress: bool,
     plan,
-    get_theme_tokens_fn,
-    build_warning_ui_fn,
-    insert_warning_widget_fn,
-    render_warning_styles_fn,
-    parent,
-    qframe_cls,
-    qvbox_layout_cls,
-    qhbox_layout_cls,
-    qlabel_cls,
     qpush_button_cls,
     qt_namespace,
-    add_widget_fn,
-    before_widget,
     on_accept,
-    on_dismiss,
-    set_warning_widgets_fn,
     log_fn,
+    info_bar_cls,
+    info_bar_position_cls,
+    parent_window,
 ) -> None:
     if cleanup_in_progress:
         return
@@ -80,28 +70,28 @@ def show_isp_dns_warning(
         if not plan.should_show:
             return
 
-        tokens = get_theme_tokens_fn()
-        warning_widgets = build_warning_ui_fn(
-            parent=parent,
-            plan=plan,
-            qframe_cls=qframe_cls,
-            qvbox_layout_cls=qvbox_layout_cls,
-            qhbox_layout_cls=qhbox_layout_cls,
-            qlabel_cls=qlabel_cls,
-            qpush_button_cls=qpush_button_cls,
-            qt_namespace=qt_namespace,
-            on_accept=on_accept,
-            on_dismiss=on_dismiss,
+        bar = info_bar_cls.warning(
+            title=plan.title,
+            content=plan.content,
+            isClosable=True,
+            position=info_bar_position_cls.TOP_RIGHT,
+            duration=10000,
+            parent=parent_window,
         )
-        set_warning_widgets_fn(warning_widgets)
 
-        insert_warning_widget_fn(
-            layout=parent.vBoxLayout,
-            before_widget=before_widget,
-            add_widget_fn=add_widget_fn,
-            warning_widget=warning_widgets.frame,
-        )
-        render_warning_styles_fn(tokens)
+        if bar is not None and getattr(plan, "action_text", ""):
+            action_btn = qpush_button_cls(plan.action_text)
+            action_btn.setCursor(qt_namespace.CursorShape.PointingHandCursor)
+
+            def _accept_from_infobar():
+                try:
+                    bar.close()
+                except Exception:
+                    pass
+                on_accept()
+
+            action_btn.clicked.connect(_accept_from_infobar)
+            bar.addWidget(action_btn)
     except Exception as exc:
         log_fn(f"Ошибка показа ISP DNS предупреждения: {exc}", "DEBUG")
 
