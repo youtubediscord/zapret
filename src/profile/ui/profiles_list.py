@@ -32,6 +32,7 @@ class ProfileListViewStateWorker(QThread):
         items: tuple[Any, ...],
         active_profile_types: set[str],
         search_query: str,
+        show_only_added: bool,
         group_expanded: dict[str, bool] | None,
         folder_state: dict[str, Any] | None = None,
         move_request: dict[str, str] | None = None,
@@ -42,6 +43,7 @@ class ProfileListViewStateWorker(QThread):
         self._items = tuple(items or ())
         self._active_profile_types = set(active_profile_types or {"all"})
         self._search_query = str(search_query or "")
+        self._show_only_added = bool(show_only_added)
         self._group_expanded = dict(group_expanded) if isinstance(group_expanded, dict) else None
         self._folder_state = dict(folder_state) if isinstance(folder_state, dict) else None
         self._move_request = dict(move_request or {}) if isinstance(move_request, dict) else None
@@ -69,6 +71,7 @@ class ProfileListViewStateWorker(QThread):
                 items,
                 active_profile_types=self._active_profile_types,
                 search_query=self._search_query,
+                show_only_added=self._show_only_added,
                 group_expanded=group_expanded,
                 folder_state=self._folder_state,
             )
@@ -93,6 +96,7 @@ class ProfilesList(QWidget):
         super().__init__(parent)
         self._active_profile_types: set[str] = {"all"}
         self._search_query = ""
+        self._show_only_added = False
         self._view_state_runtime = OneShotWorkerRuntime()
         self._view_state_state = LatestValueWorkerState(self._view_state_runtime, empty_value=False)
         self._view_state_group_expanded: dict[str, bool] | None = None
@@ -226,6 +230,7 @@ class ProfilesList(QWidget):
     def apply_view_state(self, view_state) -> None:
         self._active_profile_types = set(getattr(view_state, "active_profile_types", None) or {"all"})
         self._search_query = str(getattr(view_state, "search_query", "") or "")
+        self._show_only_added = bool(getattr(view_state, "show_only_added", False))
         self._view_state_group_expanded = dict(getattr(view_state, "group_expanded", None) or {})
         try:
             self._profile_type_selector.set_active_profile_types(self._active_profile_types)
@@ -243,6 +248,8 @@ class ProfilesList(QWidget):
     def _empty_profile_list_state_text(self) -> str:
         if str(self._search_query or "").strip():
             return "Список профилей: по фильтру ничего не найдено"
+        if bool(self._show_only_added):
+            return "Список профилей: добавленных профилей не найдено"
         if self._active_profile_types and "all" not in self._active_profile_types:
             return "Список профилей: по выбранным типам ничего не найдено"
         return "Список профилей: список пуст"
@@ -251,6 +258,7 @@ class ProfilesList(QWidget):
         options = self._model.view_state_options()
         options["active_profile_types"] = set(self._active_profile_types or {"all"})
         options["search_query"] = str(self._search_query or "")
+        options["show_only_added"] = bool(self._show_only_added)
         return options
 
     def update_profiles(self, items: tuple[Any, ...]) -> bool:
@@ -397,6 +405,13 @@ class ProfilesList(QWidget):
         self._search_query = value
         self._request_view_state_rebuild()
 
+    def set_show_only_added(self, enabled: bool) -> None:
+        value = bool(enabled)
+        if self._show_only_added == value:
+            return
+        self._show_only_added = value
+        self._request_view_state_rebuild()
+
     def _on_view_clicked(self, index) -> None:
         if not index.isValid():
             return
@@ -510,6 +525,7 @@ class ProfilesList(QWidget):
         move_request = self.__dict__.pop("_view_state_move_request", None)
         active_profile_types = set(self._active_profile_types or {"all"})
         search_query = str(self._search_query or "")
+        show_only_added = bool(self._show_only_added)
 
         runtime.start_qthread_worker(
             worker_factory=lambda request_id: ProfileListViewStateWorker(
@@ -517,6 +533,7 @@ class ProfilesList(QWidget):
                 items=items,
                 active_profile_types=active_profile_types,
                 search_query=search_query,
+                show_only_added=show_only_added,
                 group_expanded=group_expanded,
                 folder_state=folder_state,
                 move_request=move_request,

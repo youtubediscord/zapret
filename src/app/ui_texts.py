@@ -2869,6 +2869,18 @@ TEXTS: dict[str, dict[str, str]] = {
         "ru": "Свернуть",
         "en": "Collapse",
     },
+    "page.winws1_pages.toolbar.view_menu": {
+        "ru": "Вид",
+        "en": "View",
+    },
+    "page.winws1_pages.toolbar.show_added_only": {
+        "ru": "Показать только добавленные",
+        "en": "Show added only",
+    },
+    "page.winws1_pages.toolbar.show_all_profiles": {
+        "ru": "Показать все профили",
+        "en": "Show all profiles",
+    },
     "page.winws1_pages.toolbar.info": {
         "ru": "Что это?",
         "en": "What is this?",
@@ -3344,6 +3356,18 @@ TEXTS: dict[str, dict[str, str]] = {
     "page.winws2_pages.toolbar.collapse": {
         "ru": "Свернуть",
         "en": "Collapse",
+    },
+    "page.winws2_pages.toolbar.view_menu": {
+        "ru": "Вид",
+        "en": "View",
+    },
+    "page.winws2_pages.toolbar.show_added_only": {
+        "ru": "Показать только добавленные",
+        "en": "Show added only",
+    },
+    "page.winws2_pages.toolbar.show_all_profiles": {
+        "ru": "Показать все профили",
+        "en": "Show all profiles",
     },
     "page.winws2_pages.toolbar.info": {
         "ru": "Что это такое?",

@@ -54,6 +54,7 @@ class ProfileListModel(QAbstractListModel):
         self._group_expanded: dict[str, bool] = {}
         self._active_profile_types: set[str] = {"all"}
         self._search_query = ""
+        self._show_only_added = False
 
     def set_profiles(
         self,
@@ -66,12 +67,14 @@ class ProfileListModel(QAbstractListModel):
             tuple(items or ()),
             active_profile_types=self._active_profile_types if active_profile_types is None else active_profile_types,
             search_query=self._search_query if search_query is None else search_query,
+            show_only_added=self._show_only_added,
         )
         if (
             self._all_items == state.all_items
             and self._group_expanded == state.group_expanded
             and self._active_profile_types == state.active_profile_types
             and self._search_query == state.search_query
+            and self._show_only_added == state.show_only_added
         ):
             return
         self.apply_view_state(state)
@@ -82,6 +85,7 @@ class ProfileListModel(QAbstractListModel):
         next_group_expanded = dict(state.group_expanded or {})
         next_active_profile_types = set(state.active_profile_types or {"all"})
         next_search_query = str(state.search_query or "")
+        next_show_only_added = bool(getattr(state, "show_only_added", False))
         next_rows = list(state.rows or [])
         if (
             self._all_items == next_all_items
@@ -89,6 +93,7 @@ class ProfileListModel(QAbstractListModel):
             and self._group_expanded == next_group_expanded
             and self._active_profile_types == next_active_profile_types
             and self._search_query == next_search_query
+            and self._show_only_added == next_show_only_added
             and self._rows == next_rows
         ):
             return
@@ -101,6 +106,7 @@ class ProfileListModel(QAbstractListModel):
             self._group_expanded = next_group_expanded
             self._active_profile_types = next_active_profile_types
             self._search_query = next_search_query
+            self._show_only_added = next_show_only_added
             self._set_rows(next_rows)
             self._emit_data_changed_for_rows(changed_rows)
             return
@@ -110,6 +116,7 @@ class ProfileListModel(QAbstractListModel):
         self._group_expanded = next_group_expanded
         self._active_profile_types = next_active_profile_types
         self._search_query = next_search_query
+        self._show_only_added = next_show_only_added
         self._set_rows(next_rows)
         self.endResetModel()
 
@@ -118,6 +125,7 @@ class ProfileListModel(QAbstractListModel):
             "items": tuple(self._all_items or ()),
             "active_profile_types": set(self._active_profile_types or {"all"}),
             "search_query": str(self._search_query or ""),
+            "show_only_added": bool(self._show_only_added),
             "group_expanded": dict(self._group_expanded or {}),
         }
 
@@ -208,6 +216,31 @@ class ProfileListModel(QAbstractListModel):
 
         self.beginResetModel()
         self._active_profile_types = active
+        self._set_rows(next_rows)
+        self.endResetModel()
+
+    def set_show_only_added(self, enabled: bool) -> None:
+        value = bool(enabled)
+        if self._show_only_added == value:
+            return
+        previous_value = self._show_only_added
+        self._show_only_added = value
+        try:
+            next_rows = self._build_rows()
+        finally:
+            self._show_only_added = previous_value
+
+        old_ids = [_stable_row_identity(row) for row in self._rows]
+        next_ids = [_stable_row_identity(row) for row in next_rows]
+        if old_ids == next_ids:
+            changed_rows = tuple(index for index, row in enumerate(next_rows) if self._rows[index] != row)
+            self._show_only_added = value
+            self._set_rows(next_rows)
+            self._emit_data_changed_for_rows(changed_rows)
+            return
+
+        self.beginResetModel()
+        self._show_only_added = value
         self._set_rows(next_rows)
         self.endResetModel()
 
@@ -710,6 +743,7 @@ class ProfileListModel(QAbstractListModel):
             group_expanded,
             active_profile_types=self._active_profile_types,
             search_query=self._search_query,
+            show_only_added=self._show_only_added,
         )
 
     def _set_rows(self, rows: list[dict[str, Any]]) -> None:
@@ -735,6 +769,7 @@ class ProfileListModel(QAbstractListModel):
             item,
             active_profile_types=self._active_profile_types,
             search_query=self._search_query,
+            show_only_added=self._show_only_added,
         )
 
     def _row_index_for_profile_key(self, profile_key: str) -> int:

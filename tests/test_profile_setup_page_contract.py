@@ -922,6 +922,7 @@ class ProfileSetupPageContractTests(unittest.TestCase):
             items=(first, second),
             active_profile_types={"all"},
             search_query="",
+            show_only_added=False,
             group_expanded={"common": True, "video": True},
             move_request={
                 "source_profile_key": "profile-1",
@@ -1214,6 +1215,51 @@ class ProfileSetupPageContractTests(unittest.TestCase):
 
         self.assertEqual(model.rowCount(), 2)
         self.assertEqual(model.index(1, 0).data(ProfileListModel.ProfileKeyRole), "profile:1")
+
+    def test_profile_list_view_state_can_show_only_added_profiles(self) -> None:
+        from profile.list_view_state import build_profile_list_view_state
+
+        added = SimpleNamespace(
+            key="profile:added",
+            persistent_key="p-added",
+            profile_index=1,
+            display_name="YouTube",
+            enabled=True,
+            in_preset=True,
+            strategy_id="fake",
+            strategy_name="Fake",
+            match_lines=("--filter-tcp=443",),
+            list_type="hostlist",
+            rating="",
+            favorite=False,
+            group="video",
+            group_name="Video",
+            order=1,
+            order_is_manual=False,
+            group_collapsed=False,
+        )
+        unused = SimpleNamespace(
+            **{
+                **vars(added),
+                "key": "profile:unused",
+                "persistent_key": "p-unused",
+                "display_name": "Unused",
+                "in_preset": False,
+            }
+        )
+
+        state = build_profile_list_view_state(
+            (added, unused),
+            show_only_added=True,
+        )
+
+        profile_keys = [
+            row.get("key")
+            for row in state.rows
+            if row.get("kind") == "profile"
+        ]
+        self.assertEqual(profile_keys, ["profile:added"])
+        self.assertTrue(state.show_only_added)
 
     def test_profile_model_apply_view_state_updates_stable_rows_without_full_reset(self) -> None:
         from profile.list_view_state import build_profile_list_view_state

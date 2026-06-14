@@ -760,6 +760,7 @@ class ProfileFeature:
         options = dict(view_state_options or {})
         active_profile_types = options.get("active_profile_types")
         search_query = str(options.get("search_query") or "")
+        show_only_added = bool(options.get("show_only_added", False))
         group_expanded = options.get("group_expanded")
 
         def _build_profile_list_result(payload):
@@ -769,6 +770,7 @@ class ProfileFeature:
                     tuple(getattr(payload, "items", ()) or ()),
                     active_profile_types=active_profile_types if isinstance(active_profile_types, set) else None,
                     search_query=search_query,
+                    show_only_added=show_only_added,
                     group_expanded=group_expanded if isinstance(group_expanded, dict) else None,
                 ),
             )

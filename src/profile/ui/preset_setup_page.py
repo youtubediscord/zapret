@@ -109,13 +109,13 @@ class PresetSetupPageBase(BasePage):
         self._profiles_list: ProfilesList | None = None
         self._empty_state_label = None
         self._content_host_layout = None
-        self._expand_btn = None
-        self._collapse_btn = None
+        self._view_menu_btn = None
         self._request_btn = None
         self._info_btn = None
         self._add_profile_btn = None
         self._profile_search_input = None
         self._profile_search_query = ""
+        self._profile_show_only_added = False
         self._toolbar_actions_bar = None
         self._profile_load_request_id = 0
         self._profile_load_runtime = OneShotWorkerRuntime()
@@ -263,6 +263,8 @@ class PresetSetupPageBase(BasePage):
             on_add_user_profile=self._on_add_user_profile_clicked,
             on_expand_all=self._expand_all,
             on_collapse_all=self._collapse_all,
+            on_show_added_only=self._show_added_profiles_only,
+            on_show_all_profiles=self._show_all_profiles,
             on_open_profile_order=self._open_profile_order,
             on_show_info_popup=self._show_profile_info,
             on_profile_search_text_changed=self._on_profile_search_text_changed,
@@ -270,8 +272,7 @@ class PresetSetupPageBase(BasePage):
         self._toolbar_actions_bar = shell.toolbar_actions_bar
         self._add_profile_btn = shell.add_profile_btn
         self._request_btn = shell.request_btn
-        self._expand_btn = shell.expand_btn
-        self._collapse_btn = shell.collapse_btn
+        self._view_menu_btn = shell.view_menu_btn
         self._info_btn = shell.info_btn
         self._profile_search_input = shell.profile_search_input
         self._content_host_layout = shell.content_host_layout
@@ -397,6 +398,7 @@ class PresetSetupPageBase(BasePage):
         return {
             "active_profile_types": {"all"},
             "search_query": str(self.__dict__.get("_profile_search_query", "") or ""),
+            "show_only_added": bool(self.__dict__.get("_profile_show_only_added", False)),
             "group_expanded": {},
         }
 
@@ -540,6 +542,7 @@ class PresetSetupPageBase(BasePage):
             else:
                 profiles_list.update_profiles(tuple(payload.items))
                 profiles_list.set_search_query(self._profile_search_query)
+                self._apply_profile_visibility_filter(profiles_list)
             self._log_ui_timing("profile_ui.profile_list.update", started_at, extra=f"{len(payload.items)} items")
             self._log_ui_timing("profile_ui.apply_payload.total", total_started_at)
             return
@@ -565,6 +568,7 @@ class PresetSetupPageBase(BasePage):
         else:
             profiles_list.build_profiles(tuple(payload.items or ()))
             profiles_list.set_search_query(self._profile_search_query)
+            self._apply_profile_visibility_filter(profiles_list)
         self._log_ui_timing("profile_ui.profile_list.build", started_at, extra=f"{len(payload.items)} items")
 
         attach_started_at = time.perf_counter()
@@ -578,6 +582,20 @@ class PresetSetupPageBase(BasePage):
         self._profile_search_query = str(text or "")
         if self._profiles_list is not None:
             self._profiles_list.set_search_query(self._profile_search_query)
+
+    def _apply_profile_visibility_filter(self, profiles_list=None) -> None:
+        target = profiles_list if profiles_list is not None else self.__dict__.get("_profiles_list")
+        setter = getattr(target, "set_show_only_added", None)
+        if callable(setter):
+            setter(bool(self.__dict__.get("_profile_show_only_added", False)))
+
+    def _show_added_profiles_only(self) -> None:
+        self._profile_show_only_added = True
+        self._apply_profile_visibility_filter()
+
+    def _show_all_profiles(self) -> None:
+        self._profile_show_only_added = False
+        self._apply_profile_visibility_filter()
 
     def apply_sidebar_search_query(self, text: str) -> bool:
         query = str(text or "")

@@ -5,13 +5,15 @@ from __future__ import annotations
 from dataclasses import dataclass
 from types import MethodType
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import QPoint, Qt
 from PyQt6.QtWidgets import QWidget, QVBoxLayout
 
 from profile.ui.shell_accessibility import apply_profile_shell_accessibility
 from ui.fluent_widgets import set_tooltip
+from ui.popup_menu import exec_popup_menu
+from ui.presets_menu.common import fluent_icon, make_menu_action
 from ui.presets_menu.toolbar import PresetsToolbarLayout
-from qfluentwidgets import FluentIcon, PrimaryPushButton, PrimaryToolButton, PushButton, SearchLineEdit
+from qfluentwidgets import FluentIcon, PrimaryPushButton, PrimaryToolButton, PushButton, RoundMenu, SearchLineEdit
 
 
 @dataclass(slots=True)
@@ -19,8 +21,7 @@ class ProfileShellWidgets:
     toolbar_actions_bar: object
     add_profile_btn: object
     request_btn: object
-    expand_btn: object
-    collapse_btn: object
+    view_menu_btn: object
     order_btn: object
     info_btn: object
     profile_search_input: object
@@ -73,6 +74,8 @@ def build_profile_shell(
     on_add_user_profile,
     on_expand_all,
     on_collapse_all,
+    on_show_added_only,
+    on_show_all_profiles,
     on_open_profile_order,
     on_show_info_popup,
     on_profile_search_text_changed,
@@ -115,32 +118,29 @@ def build_profile_shell(
         request_hint,
     )
 
-    expand_description = tr_fn(
-        _toolbar_key("expand.description"),
-        "Развернуть все группы профилей в списке.",
+    view_menu_description = tr_fn(
+        _toolbar_key("view_menu.description"),
+        "Открывает меню, где можно развернуть или свернуть группы и выбрать, какие профили показывать.",
     )
-    expand_btn = PushButton(
-        tr_fn(_toolbar_key("expand"), "Развернуть"),
-        icon=FluentIcon.FULL_SCREEN,
+    view_menu_btn = PushButton(
+        tr_fn(_toolbar_key("view_menu"), "Вид"),
+        icon=FluentIcon.MENU,
     )
-    expand_btn.clicked.connect(on_expand_all)
+    view_menu_btn.clicked.connect(
+        lambda: show_profile_view_menu(
+            parent=content_parent,
+            button=view_menu_btn,
+            tr_fn=tr_fn,
+            toolbar_key=_toolbar_key,
+            on_expand_all=on_expand_all,
+            on_collapse_all=on_collapse_all,
+            on_show_added_only=on_show_added_only,
+            on_show_all_profiles=on_show_all_profiles,
+        )
+    )
     set_tooltip(
-        expand_btn,
-        expand_description,
-    )
-
-    collapse_description = tr_fn(
-        _toolbar_key("collapse.description"),
-        "Свернуть все группы профилей в списке.",
-    )
-    collapse_btn = PushButton(
-        tr_fn(_toolbar_key("collapse"), "Свернуть"),
-        icon=FluentIcon.BACK_TO_WINDOW,
-    )
-    collapse_btn.clicked.connect(on_collapse_all)
-    set_tooltip(
-        collapse_btn,
-        collapse_description,
+        view_menu_btn,
+        view_menu_description,
     )
 
     order_description = tr_fn(
@@ -181,8 +181,7 @@ def build_profile_shell(
     apply_profile_shell_accessibility(
         add_profile_btn=add_profile_btn,
         request_btn=request_btn,
-        expand_btn=expand_btn,
-        collapse_btn=collapse_btn,
+        view_menu_btn=view_menu_btn,
         order_btn=order_btn,
         info_btn=info_btn,
         profile_search_input=profile_search_input,
@@ -195,8 +194,7 @@ def build_profile_shell(
     toolbar_actions_bar.set_buttons([
         add_profile_btn,
         request_btn,
-        expand_btn,
-        collapse_btn,
+        view_menu_btn,
         order_btn,
         info_btn,
     ])
@@ -217,11 +215,78 @@ def build_profile_shell(
         toolbar_actions_bar=toolbar_actions_bar,
         add_profile_btn=add_profile_btn,
         request_btn=request_btn,
-        expand_btn=expand_btn,
-        collapse_btn=collapse_btn,
+        view_menu_btn=view_menu_btn,
         order_btn=order_btn,
         info_btn=info_btn,
         profile_search_input=profile_search_input,
         content_host=content_host,
         content_host_layout=content_host_layout,
     )
+
+
+def show_profile_view_menu(
+    *,
+    parent,
+    button,
+    tr_fn,
+    toolbar_key,
+    on_expand_all,
+    on_collapse_all,
+    on_show_added_only,
+    on_show_all_profiles,
+) -> None:
+    menu = RoundMenu(parent=parent)
+    action_map: dict[object, str] = {}
+
+    def _add_action(text: str, *, icon_name: str, command: str, accessible_text: str):
+        action = make_menu_action(text, icon=fluent_icon(icon_name), parent=menu)
+        menu.addAction(action)
+        menu_item = menu.view.item(menu.view.count() - 1)
+        if menu_item is not None:
+            menu_item.setData(Qt.ItemDataRole.AccessibleTextRole, accessible_text)
+            menu_item.setData(Qt.ItemDataRole.AccessibleDescriptionRole, accessible_text)
+        action_map[action] = command
+
+    _add_action(
+        tr_fn(toolbar_key("expand"), "Развернуть все группы"),
+        icon_name="FULL_SCREEN",
+        command="expand",
+        accessible_text=tr_fn(toolbar_key("expand.accessible_name"), "Развернуть все группы профилей"),
+    )
+    _add_action(
+        tr_fn(toolbar_key("collapse"), "Свернуть все группы"),
+        icon_name="BACK_TO_WINDOW",
+        command="collapse",
+        accessible_text=tr_fn(toolbar_key("collapse.accessible_name"), "Свернуть все группы профилей"),
+    )
+    menu.addSeparator()
+    _add_action(
+        tr_fn(toolbar_key("show_added_only"), "Показать только добавленные"),
+        icon_name="ACCEPT",
+        command="show_added_only",
+        accessible_text=tr_fn(
+            toolbar_key("show_added_only.accessible_name"),
+            "Показать только профили, добавленные в текущий пресет",
+        ),
+    )
+    _add_action(
+        tr_fn(toolbar_key("show_all_profiles"), "Показать все профили"),
+        icon_name="VIEW",
+        command="show_all_profiles",
+        accessible_text=tr_fn(toolbar_key("show_all_profiles.accessible_name"), "Показать все профили"),
+    )
+
+    try:
+        global_pos = button.mapToGlobal(QPoint(0, button.height() + 4))
+    except Exception:
+        global_pos = None
+    chosen = exec_popup_menu(menu, global_pos, owner=parent, capture_action=True)
+    command = action_map.get(chosen, "")
+    if command == "expand":
+        on_expand_all()
+    elif command == "collapse":
+        on_collapse_all()
+    elif command == "show_added_only":
+        on_show_added_only()
+    elif command == "show_all_profiles":
+        on_show_all_profiles()

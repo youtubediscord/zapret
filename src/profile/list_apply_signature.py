@@ -85,6 +85,7 @@ def _freeze_signature_value(value) -> object:
             _freeze_signature_value(getattr(value, "group_expanded", {})),
             tuple(sorted(str(item) for item in set(getattr(value, "active_profile_types", set()) or set()))),
             str(getattr(value, "search_query", "") or ""),
+            bool(getattr(value, "show_only_added", False)),
             _freeze_signature_value(getattr(value, "rows", ())),
         )
 

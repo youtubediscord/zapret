@@ -16,6 +16,7 @@ class ProfileListViewState:
     group_expanded: dict[str, bool]
     active_profile_types: set[str]
     search_query: str
+    show_only_added: bool
     rows: list[dict[str, Any]]
 
 
@@ -24,6 +25,7 @@ def build_profile_list_view_state(
     *,
     active_profile_types: set[str] | None = None,
     search_query: str = "",
+    show_only_added: bool = False,
     group_expanded: dict[str, bool] | None = None,
     folder_state: dict[str, Any] | None = None,
 ) -> ProfileListViewState:
@@ -40,11 +42,13 @@ def build_profile_list_view_state(
         group_expanded=next_group_expanded,
         active_profile_types=active,
         search_query=normalized_search,
+        show_only_added=bool(show_only_added),
         rows=_build_profile_rows_from(
             display_items,
             next_group_expanded,
             active_profile_types=active,
             search_query=normalized_search,
+            show_only_added=bool(show_only_added),
         ),
     )
 
@@ -119,6 +123,7 @@ def build_profile_rows_from(
     *,
     active_profile_types: set[str],
     search_query: str,
+    show_only_added: bool = False,
 ) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     grouped = grouped_items(items)
@@ -132,6 +137,7 @@ def build_profile_rows_from(
                 item,
                 active_profile_types=active_profile_types,
                 search_query=search_query,
+                show_only_added=show_only_added,
             )
         )
         if not group_items:
@@ -157,7 +163,10 @@ def profile_matches_filter(
     *,
     active_profile_types: set[str],
     search_query: str,
+    show_only_added: bool = False,
 ) -> bool:
+    if bool(show_only_added) and not bool(getattr(item, "in_preset", False)):
+        return False
     return profile_matches_type_filter(item, active_profile_types) and profile_matches_search_query(item, search_query)
 
 

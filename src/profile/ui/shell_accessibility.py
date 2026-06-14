@@ -9,8 +9,7 @@ def apply_profile_shell_accessibility(
     *,
     add_profile_btn=None,
     request_btn=None,
-    expand_btn=None,
-    collapse_btn=None,
+    view_menu_btn=None,
     order_btn=None,
     info_btn=None,
     profile_search_input=None,
@@ -42,19 +41,11 @@ def apply_profile_shell_accessibility(
         description=request_hint,
     )
     _set_shell_control(
-        expand_btn,
-        name=tr_fn(toolbar_key("expand.accessible_name"), "Развернуть все группы профилей"),
+        view_menu_btn,
+        name=tr_fn(toolbar_key("view_menu.accessible_name"), "Открыть меню вида профилей"),
         description=tr_fn(
-            toolbar_key("expand.description"),
-            "Развернуть все группы профилей в списке.",
-        ),
-    )
-    _set_shell_control(
-        collapse_btn,
-        name=tr_fn(toolbar_key("collapse.accessible_name"), "Свернуть все группы профилей"),
-        description=tr_fn(
-            toolbar_key("collapse.description"),
-            "Свернуть все группы профилей в списке.",
+            toolbar_key("view_menu.description"),
+            "Открывает меню, где можно развернуть или свернуть группы и выбрать, какие профили показывать.",
         ),
     )
     _set_shell_control(
