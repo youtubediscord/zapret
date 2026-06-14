@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from ui.accessibility import set_state_text
 from ui.fluent_widgets import set_tooltip
 from app.ui_texts import tr as tr_catalog
 
@@ -64,6 +65,7 @@ def apply_language_plan_ui(
         actions_title_label.setText(
             tr_catalog("page.blockcheck_public.actions.title", language=language, default="Действия")
         )
+        set_state_text(actions_title_label, f"Раздел подбора стратегии: {actions_title_label.text()}")
     set_tooltip(
         start_btn,
         tr_catalog(

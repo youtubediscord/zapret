@@ -7,7 +7,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QApplication
-from qfluentwidgets import CaptionLabel
+from qfluentwidgets import CaptionLabel, PushButton
 
 from blockcheck import public as blockcheck_public
 from blockcheck.ui.strategy_scan_page import StrategyScanPage
@@ -16,6 +16,7 @@ from blockcheck.ui.strategy_scan_page_results_workflow import (
     apply_phase_change,
     apply_strategy_started_progress,
 )
+from blockcheck.ui.strategy_scan_page_runtime_helpers import apply_language_plan_ui
 
 
 class _BlockcheckFeatureStub:
@@ -235,6 +236,34 @@ class StrategyScanPageAccessibilityTests(unittest.TestCase):
             "Подробный лог подбора стратегии: пока нет записей",
         )
 
+    def test_language_refresh_updates_action_section_screen_reader_state(self) -> None:
+        action_label = CaptionLabel("Old")
+
+        apply_language_plan_ui(
+            blockcheck_feature=blockcheck_public,
+            language="ru",
+            log_expanded=False,
+            control_card=_TitleCardStub(),
+            results_card=_TitleCardStub(),
+            log_card=_TitleCardStub(),
+            expand_log_btn=PushButton(),
+            warning_card=_TitleCardStub(),
+            start_btn=PushButton(),
+            stop_btn=PushButton(),
+            actions_title_label=action_label,
+            prepare_support_btn=PushButton(),
+            protocol_combo=_ComboStub(3),
+            games_scope_label=CaptionLabel("Old UDP"),
+            games_scope_combo=_ComboStub(2),
+            quick_domain_btn=PushButton(),
+        )
+
+        self.assertEqual(action_label.text(), "Действия")
+        self.assertEqual(
+            action_label.property("screenReaderStateText"),
+            "Раздел подбора стратегии: Действия",
+        )
+
 
 class _ProgressFeatureStub:
     def build_progress_plan(self, **_kwargs):
@@ -264,6 +293,22 @@ class _RunRuntimeStub:
 
     def start_qobject_worker(self, *, parent, worker_factory) -> None:
         self.worker = worker_factory(1)
+
+
+class _TitleCardStub:
+    def __init__(self) -> None:
+        self.title = ""
+
+    def set_title(self, title: str) -> None:
+        self.title = str(title)
+
+
+class _ComboStub:
+    def __init__(self, count: int) -> None:
+        self.items = [""] * int(count)
+
+    def setItemText(self, index: int, text: str) -> None:  # noqa: N802
+        self.items[int(index)] = str(text)
 
 
 class _FakeProgressBar:
