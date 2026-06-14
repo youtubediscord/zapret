@@ -167,10 +167,12 @@ def build_about_page_about_content(
     layout.addWidget(sub_card)
     layout.addSpacing(16)
 
+    course_title = tr_fn("page.about.course.group", "Обучение")
     course_group = SettingCardGroup(
-        tr_fn("page.about.course.group", "Обучение"),
+        course_title,
         content_parent,
     )
+    set_state_text(course_group, f"Раздел о программе: {course_title}")
 
     youtube_course_card = HyperlinkCard(
         "https://www.youtube.com/@%D0%9F%D1%80%D0%B8%D0%B2%D0%B0%D1%82%D0%BD%D0%BE%D1%81%D1%82%D1%8C/videos",

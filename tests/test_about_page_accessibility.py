@@ -64,6 +64,11 @@ class AboutPageAccessibilityTests(unittest.TestCase):
         self.assertEqual(widgets.premium_btn.property("screenReaderStateText"), "Открыть Premium и VPN")
         self.assertIn("Premium", widgets.premium_btn.accessibleDescription())
 
+        self.assertEqual(widgets.course_group.accessibleName(), "Раздел о программе: Обучение")
+        self.assertEqual(
+            widgets.course_group.property("screenReaderStateText"),
+            "Раздел о программе: Обучение",
+        )
         self.assertEqual(widgets.youtube_course_card.accessibleName(), "Открыть курс и гайд по Zapret 2")
         self.assertIn("Видео по настройке", widgets.youtube_course_card.accessibleDescription())
         self.assertEqual(
