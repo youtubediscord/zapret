@@ -1738,6 +1738,27 @@ class TelegramWSProxy:
                 self._log(f"[{label}] DC{dc}{media_tag} upstream failed, unmarked for re-probe")
             return
 
+        if (
+            is_media
+            and dc not in WSS_DOMAINS
+            and should_route_upstream(self._upstream, mode="fallback")
+        ):
+            self._log(f"[{label}] DC{dc}{media_tag} no WSS -> upstream proxy")
+            self._record_route(
+                dc=dc,
+                is_media=is_media,
+                route="TCP",
+                status="пропуск",
+                reason="медиа DC без WSS relay",
+            )
+            ok = await self._upstream_proxy_connect(
+                client_reader, client_writer,
+                target_host, target_port, init, label, dc, is_media,
+            )
+            if ok:
+                return
+            self._log(f"[{label}] DC{dc}{media_tag} upstream failed -> direct TCP probe")
+
         self._log(f"[{label}] DC{dc}{media_tag} TCP fallback -> {target_host}:{target_port}")
         t_connect = time.monotonic()
         try:

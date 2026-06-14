@@ -1259,6 +1259,50 @@ class TelegramProxyCloudflareRuntimeTests(unittest.TestCase):
         self.assertEqual(upstream_calls, [("149.154.175.100", 443, 3, False)])
         self.assertIn("DC3 TCP failed -> trying upstream", "\n".join(logs))
 
+    def test_no_wss_media_dc_uses_upstream_without_direct_tcp_probe(self) -> None:
+        from telegram_proxy.proxy.routing import UpstreamProxyConfig
+        from telegram_proxy.wss_proxy import TelegramWSProxy
+
+        async def fake_upstream(_client_reader, _client_writer, target_host, target_port, _init, _label, dc, is_media):
+            upstream_calls.append((target_host, target_port, dc, is_media))
+            return True
+
+        async def unexpected_direct_tcp(*_args, **_kwargs):
+            direct_calls.append(True)
+            raise AssertionError("media DC without WSS should skip direct TCP")
+
+        direct_calls: list[bool] = []
+        upstream_calls: list[tuple[str, int, int, bool]] = []
+        logs: list[str] = []
+        proxy = TelegramWSProxy(
+            on_log=logs.append,
+            upstream_config=UpstreamProxyConfig(
+                enabled=True,
+                host="proxy.local",
+                port=443,
+                mode="fallback",
+            ),
+        )
+        proxy._upstream_proxy_connect = fake_upstream
+
+        with patch("telegram_proxy.wss_proxy.asyncio.open_connection", side_effect=unexpected_direct_tcp):
+            asyncio.run(
+                proxy._tcp_fallback(
+                    object(),
+                    object(),
+                    "149.154.175.211",
+                    443,
+                    b"x" * 64,
+                    "test",
+                    1,
+                    True,
+                )
+            )
+
+        self.assertEqual(direct_calls, [])
+        self.assertEqual(upstream_calls, [("149.154.175.211", 443, 1, True)])
+        self.assertIn("DC1 media no WSS -> upstream proxy", "\n".join(logs))
+
     def test_http_upstream_relay_does_not_block_mtproto_upstream_relay(self) -> None:
         from telegram_proxy.proxy.routing import UpstreamProxyConfig
         from telegram_proxy.wss_proxy import TelegramWSProxy
