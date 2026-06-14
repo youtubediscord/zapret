@@ -5,7 +5,8 @@ from unittest.mock import patch
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QApplication
+from PyQt6.QtWidgets import QApplication, QLabel, QTableWidget, QWidget
+from qfluentwidgets import PushButton
 
 from blockcheck.page_run_workflow import reset_blockcheck_running_ui, start_blockcheck_page_run
 from blockcheck.ui.page import BlockcheckPage
@@ -101,6 +102,39 @@ class BlockcheckPageAccessibilityTests(unittest.TestCase):
         self.assertEqual(
             page._support_status_label.property("screenReaderStateText"),
             "Статус обращения BlockCheck: нет статуса",
+        )
+
+    def test_blockcheck_section_labels_have_screen_reader_state(self) -> None:
+        from blockcheck.ui.sections_build import build_actions_section, build_results_section
+
+        actions = build_actions_section(
+            tr_fn=lambda _key, default: default,
+            strong_body_label_cls=QLabel,
+            quick_actions_bar_cls=_ActionBarStub,
+            content_parent=QWidget(),
+            push_button_cls=PushButton,
+            qta_module=None,
+            on_start=lambda: None,
+            on_stop=lambda: None,
+        )
+        results = build_results_section(
+            tr_fn=lambda _key, default: default,
+            settings_card_cls=_SettingsCardStub,
+            strong_body_label_cls=QLabel,
+            table_widget_cls=QTableWidget,
+        )
+
+        self.assertEqual(
+            actions.title_label.property("screenReaderStateText"),
+            "Раздел BlockCheck: Действия",
+        )
+        self.assertEqual(
+            results.domains_section_label.property("screenReaderStateText"),
+            "Раздел результатов BlockCheck: Часть 1: Проверка доменов (TLS + HTTP injection)",
+        )
+        self.assertEqual(
+            results.tcp_section_label.property("screenReaderStateText"),
+            "Раздел результатов BlockCheck: Часть 2: Проверка TCP 16-20KB",
         )
 
     def test_first_open_does_not_build_run_output_until_needed(self) -> None:
@@ -247,6 +281,23 @@ class BlockcheckPageAccessibilityTests(unittest.TestCase):
 class _SignalStub:
     def connect(self, _callback) -> None:
         pass
+
+
+class _ActionBarStub:
+    def __init__(self, *_args, **_kwargs) -> None:
+        self.buttons = []
+
+    def add_button(self, button) -> None:
+        self.buttons.append(button)
+
+
+class _SettingsCardStub:
+    def __init__(self, title: str) -> None:
+        self.title = str(title)
+        self.widgets = []
+
+    def add_widget(self, widget) -> None:
+        self.widgets.append(widget)
 
 
 class _WorkerStub:

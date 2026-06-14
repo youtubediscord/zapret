@@ -44,6 +44,7 @@ def build_actions_section(
     title_label = strong_body_label_cls(
         tr_fn("page.blockcheck.actions.title", "Действия")
     )
+    set_state_text(title_label, f"Раздел BlockCheck: {title_label.text()}")
 
     actions_bar = quick_actions_bar_cls(content_parent)
 
@@ -109,6 +110,7 @@ def build_results_section(
             "Часть 1: Проверка доменов (TLS + HTTP injection)",
         )
     )
+    set_state_text(domains_section_label, f"Раздел результатов BlockCheck: {domains_section_label.text()}")
     results_card.add_widget(domains_section_label)
 
     results_table = table_widget_cls()
@@ -151,6 +153,7 @@ def build_results_section(
     tcp_section_label = strong_body_label_cls(
         tr_fn("page.blockcheck.tcp_section", "Часть 2: Проверка TCP 16-20KB")
     )
+    set_state_text(tcp_section_label, f"Раздел результатов BlockCheck: {tcp_section_label.text()}")
     results_card.add_widget(tcp_section_label)
 
     tcp_table = table_widget_cls()
