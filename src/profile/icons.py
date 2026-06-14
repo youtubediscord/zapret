@@ -38,6 +38,7 @@ _KNOWN_ICONS: dict[str, ProfileIconSpec] = {
     "anydesk": ProfileIconSpec("simple:anydesk:AD", "#EF443B"),
     "speedtest": ProfileIconSpec("simple:speedtest:ST", "#141526"),
     "cloudflare": ProfileIconSpec("simple:cloudflare:CF", "#F38020"),
+    "hetzner": ProfileIconSpec("fa5s.server", "#D50C2D"),
     "ovh": ProfileIconSpec("simple:ovh:OV", "#123F6D"),
     "warp": ProfileIconSpec("simple:cloudflare:CF", "#F6821F"),
     "roblox": ProfileIconSpec("simple:roblox:RB", "#E2231A"),
@@ -89,6 +90,7 @@ _ICON_ALIASES: dict[str, str] = {
 
 _NAMED_COLORS: dict[str, str] = {
     "cloudflare": "#F38020",
+    "hetzner": "#D50C2D",
     "ovh": "#123F6D",
     "warp": "#F6821F",
     "timeweb": "#2F80ED",

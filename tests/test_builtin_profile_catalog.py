@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ipaddress
 from pathlib import Path, PureWindowsPath
 from types import SimpleNamespace
 import unittest
@@ -358,6 +359,34 @@ class BuiltinProfileCatalogTests(unittest.TestCase):
                 offenders.append(f"{profile.display_name}: {sorted(primary_lines)}")
 
         self.assertEqual(offenders, [])
+
+    def test_hetzner_profiles_have_shipped_ipset(self) -> None:
+        preset = parse_preset_text(
+            ALL_PROFILES_PATH.read_text(encoding="utf-8"),
+            engine="winws2",
+            source_name=ALL_PROFILES_PATH.name,
+        )
+        expected_keys = {
+            "winws2|ipset=ipset-hetzner.txt|tcp=80,443-65535",
+            "winws2|ipset=ipset-hetzner.txt|udp=443-65535",
+        }
+        actual_keys = {
+            _profile_catalog_key("winws2", profile)
+            for profile in preset.profiles
+            if str(profile.name or "").startswith("Hetzner ")
+        }
+
+        self.assertEqual(actual_keys, expected_keys)
+
+        list_path = PRIVATE_ROOT / "dist" / "lists" / "ipset-hetzner.txt"
+        entries = [
+            line.strip()
+            for line in list_path.read_text(encoding="utf-8").splitlines()
+            if line.strip() and not line.lstrip().startswith("#")
+        ]
+        self.assertEqual(len(entries), 86)
+        for entry in entries:
+            ipaddress.ip_network(entry, strict=False)
 
     def test_builtin_presets_do_not_put_wide_discord_tcp_filter_on_other_lists(self) -> None:
         template_keys = _all_profile_keys()

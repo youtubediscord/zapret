@@ -83,7 +83,7 @@ def classify_profile_folder(text: object) -> str:
         return "roblox"
     if any(token in value for token in ("game", "valorant", "riot", "steam", "itch.io", "tanki", "tankix", "lol", "league of legends", "battlenet", "battle.net", "wow", "dead by daylight")):
         return "games"
-    if any(token in value for token in ("amazon", "cloudflare", "ovh", "warp")):
+    if any(token in value for token in ("amazon", "cloudflare", "hetzner", "ovh", "warp")):
         return "hosters"
     if any(token in value for token in ("timeweb", "zapretkvn")):
         return "zapretkvn"

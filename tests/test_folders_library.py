@@ -54,6 +54,7 @@ class FolderDefaultsTests(unittest.TestCase):
         self.assertEqual(classify_profile_folder("cloudflare --ipset=lists/ipset-cloudflare.txt"), "hosters")
         self.assertEqual(classify_profile_folder("amazon --ipset=lists/ipset-amazon.txt"), "hosters")
         self.assertEqual(classify_profile_folder("ovh --ipset=lists/ipset-ovh.txt"), "hosters")
+        self.assertEqual(classify_profile_folder("hetzner --ipset=lists/ipset-hetzner.txt"), "hosters")
         self.assertEqual(classify_profile_folder("timeweb --ipset=lists/ipset-timeweb.txt"), "zapretkvn")
         self.assertEqual(classify_profile_folder("zapretkvn --ipset=lists/ipset-zapretkvn.txt"), "zapretkvn")
         self.assertEqual(classify_profile_folder("--filter-tcp=80,443 --hostlist-exclude=ru.txt"), "all-sites")

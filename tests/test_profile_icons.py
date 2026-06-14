@@ -116,6 +116,15 @@ class ProfileIconTests(unittest.TestCase):
         self.assertEqual(tcp_icon.icon_name, "simple:anydesk:AD")
         self.assertEqual(udp_icon.icon_name, "simple:anydesk:AD")
 
+    def test_hetzner_profile_uses_hoster_icon(self) -> None:
+        icon = resolve_profile_icon(
+            "Hetzner TCP",
+            ("--filter-tcp=80,443-65535", "--ipset=lists/ipset-hetzner.txt"),
+        )
+
+        self.assertEqual(icon.icon_name, "fa5s.server")
+        self.assertEqual(icon.color, "#D50C2D")
+
     def test_speedtest_profile_uses_brand_icon_from_list_file(self) -> None:
         icon = resolve_profile_icon(
             "Speedtest",
