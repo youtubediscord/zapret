@@ -167,6 +167,7 @@ class ChangelogCard(CardWidget):
             name="Установить обновление",
             description="Запускает установку доступного обновления.",
         )
+        set_state_text(self.install_btn, "Установить обновление")
         self.install_btn.clicked.connect(self._on_install)
         buttons_layout.addWidget(self.install_btn)
 

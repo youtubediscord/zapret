@@ -39,6 +39,15 @@ class UpdaterChangelogAccessibilityTests(unittest.TestCase):
         self.assertEqual(card.install_btn.property("screenReaderStateText"), "Установить обновление 9.9.9")
         self.assertIn("установку", card.install_btn.accessibleDescription().lower())
 
+    def test_install_button_has_initial_screen_reader_state_text(self) -> None:
+        card = ChangelogCard(language="ru")
+
+        self.assertEqual(card.install_btn.accessibleName(), "Установить обновление")
+        self.assertEqual(
+            card.install_btn.property("screenReaderStateText"),
+            "Установить обновление",
+        )
+
     def test_update_text_labels_are_named_for_screen_reader(self) -> None:
         card = ChangelogCard(language="ru")
 
