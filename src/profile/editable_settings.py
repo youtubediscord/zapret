@@ -335,25 +335,7 @@ def _normalize_single_filter_value_for_kind(value: str, filter_kind: str) -> str
     if filter_kind == "hostlist" and lower_name == "ipset-all.txt":
         return _replace_path_name(raw, path, "other.txt")
 
-    suffix = "".join(path.suffixes)
-    stem = name[: -len(suffix)] if suffix else name
-    normalized_stem = stem.lower()
-
-    if filter_kind == "ipset":
-        if normalized_stem.startswith(("ipset-", "ipset_")):
-            return raw
-        new_name = f"ipset-{stem}{suffix}"
-    else:
-        if normalized_stem.startswith(("ipset-", "ipset_")):
-            new_name = f"{stem[6:]}{suffix}"
-        else:
-            return raw
-
-    parent = str(path.parent)
-    if not parent or parent == ".":
-        return new_name
-    separator = "\\" if "\\" in raw else "/"
-    return f"{parent}{separator}{new_name}"
+    return raw
 
 
 def _replace_path_name(raw: str, path: PureWindowsPath, new_name: str) -> str:
