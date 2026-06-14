@@ -30,6 +30,17 @@ class AboutKvnAccessibilityTests(unittest.TestCase):
             on_open_kvn_github=lambda: None,
         )
 
+        self.assertEqual(widgets.features_group.accessibleName(), "Раздел Zapret KVN: Возможности")
+        self.assertEqual(
+            widgets.features_group.property("screenReaderStateText"),
+            "Раздел Zapret KVN: Возможности",
+        )
+        self.assertEqual(widgets.links_group.accessibleName(), "Раздел Zapret KVN: Ссылки")
+        self.assertEqual(
+            widgets.links_group.property("screenReaderStateText"),
+            "Раздел Zapret KVN: Ссылки",
+        )
+
         expected = {
             widgets.tg_card: ("Открыть канал Zapret KVN", "Новости и обновления"),
             widgets.bot_card: ("Купить подписку Zapret KVN", "Оформление через Telegram-бота"),

@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from PyQt6.QtWidgets import QLabel, QVBoxLayout, QFrame
 from qfluentwidgets import SubtitleLabel, SettingCardGroup, SettingCard, PushSettingCard, PrimaryPushSettingCard
 from ui.pages.about_page_kvn_accessibility import set_kvn_card_accessibility
+from ui.accessibility import set_state_text
 from ui.theme import get_cached_qta_pixmap, get_themed_qta_icon
 
 
@@ -69,7 +70,9 @@ def build_about_page_kvn_content(
     layout.addWidget(hero_wrap)
     layout.addSpacing(8)
 
-    features_group = SettingCardGroup("Возможности", content_parent)
+    features_title = "Возможности"
+    features_group = SettingCardGroup(features_title, content_parent)
+    set_state_text(features_group, f"Раздел Zapret KVN: {features_title}")
 
     yt_card = SettingCard(
         get_themed_qta_icon("fa5s.rocket", color=tokens.accent_hex),
@@ -87,7 +90,9 @@ def build_about_page_kvn_content(
     layout.addWidget(features_group)
     layout.addSpacing(16)
 
-    links_group = SettingCardGroup("Ссылки", content_parent)
+    links_title = "Ссылки"
+    links_group = SettingCardGroup(links_title, content_parent)
+    set_state_text(links_group, f"Раздел Zapret KVN: {links_title}")
 
     tg_card = PushSettingCard(
         "Открыть",
