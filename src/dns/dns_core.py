@@ -28,6 +28,7 @@ ERROR_BUFFER_OVERFLOW = 111
 MIB_IF_TYPE_ETHERNET = 6
 MIB_IF_TYPE_PPP = 23
 MIB_IF_TYPE_LOOPBACK = 24
+MIB_IF_TYPE_IEEE80211 = 71
 
 class IP_ADDR_STRING(Structure):
     pass
@@ -71,8 +72,25 @@ DEFAULT_EXCLUSIONS: list[str] = [
     "tap-windows", "tuntap", "wireguard", "protonvpn", "proton vpn",
     "radmin vpn", "hamachi", "nordvpn", "expressvpn", "surfshark",
     "pritunl", "zerotier", "tailscale", "loopback", "teredo", "isatap",
-    "6to4", "bluetooth", "docker", "wsl", "vethernet"
+    "6to4", "bluetooth", "docker", "wsl", "vethernet", "wan miniport",
+    "pppoe", "pptp", "l2tp", "sstp", "ndiswan", "raspppoe", "raspptp",
 ]
+
+SOFTWARE_PNP_PREFIXES = (
+    "ROOT\\",
+    "SWD\\",
+    "BTH\\",
+    "HTREE\\",
+)
+
+PHYSICAL_NETWORK_PNP_PREFIXES = (
+    "PCI\\",
+    "USB\\",
+    "PCMCIA\\",
+)
+
+WMI_DNS_ADAPTER_TYPE_IDS = {0, 9}
+NATIVE_DNS_ADAPTER_TYPES = {MIB_IF_TYPE_ETHERNET, MIB_IF_TYPE_IEEE80211}
 
 # ──────────────────────────────────────────────────────────────────────
 #  Вспомогательные функции
@@ -504,6 +522,49 @@ class DNSManager:
             if pattern in name.lower() or pattern in description.lower():
                 return True
         return False
+
+    @staticmethod
+    def is_supported_dns_adapter(
+        name: str,
+        description: str,
+        *,
+        pnp_device_id: str = "",
+        service_name: str = "",
+        adapter_type_id: int | None = None,
+        native_type: int | None = None,
+    ) -> bool:
+        """Проверяет, можно ли менять DNS на этом адаптере."""
+        if DNSManager.should_ignore_adapter(name, description):
+            return False
+
+        pnp_upper = _normalize_alias(pnp_device_id or "").upper()
+        service_lower = _normalize_alias(service_name or "").lower()
+
+        if service_lower and any(
+            pattern in service_lower
+            for pattern in _get_dynamic_exclusions()
+        ):
+            return False
+
+        if native_type is not None:
+            try:
+                return int(native_type) in NATIVE_DNS_ADAPTER_TYPES
+            except (TypeError, ValueError):
+                return False
+
+        if pnp_upper:
+            if pnp_upper.startswith(SOFTWARE_PNP_PREFIXES):
+                return False
+            if pnp_upper.startswith(PHYSICAL_NETWORK_PNP_PREFIXES):
+                return True
+
+        if adapter_type_id is not None:
+            try:
+                return int(adapter_type_id) in WMI_DNS_ADAPTER_TYPE_IDS
+            except (TypeError, ValueError):
+                return False
+
+        return False
     
     def get_network_adapters_fast(
         self,
@@ -527,8 +588,18 @@ class DNSManager:
                     alias = _normalize_alias(adapter.NetConnectionID)
                     desc = adapter.Description
                     
-                    # Проверяем исключения
-                    if not include_ignored and self.should_ignore_adapter(alias, desc):
+                    pnp_device_id = str(getattr(adapter, "PNPDeviceID", "") or "")
+                    service_name = str(getattr(adapter, "ServiceName", "") or "")
+                    adapter_type_id = getattr(adapter, "AdapterTypeID", None)
+
+                    # Проверяем исключения и оставляем только обычные Wi-Fi/Ethernet.
+                    if not include_ignored and not self.is_supported_dns_adapter(
+                        alias,
+                        desc,
+                        pnp_device_id=pnp_device_id,
+                        service_name=service_name,
+                        adapter_type_id=adapter_type_id,
+                    ):
                         continue
                     
                     adapters.append((adapter.NetConnectionID, desc))
@@ -545,7 +616,11 @@ class DNSManager:
             for adapter in native_adapters:
                 name = adapter['name']
                 
-                if not include_ignored and self.should_ignore_adapter(name, name):
+                if not include_ignored and not self.is_supported_dns_adapter(
+                    name,
+                    name,
+                    native_type=adapter.get("type"),
+                ):
                     continue
                 
                 adapters.append((name, name))

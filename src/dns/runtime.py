@@ -54,23 +54,18 @@ def load_page_data() -> NetworkPageData:
     from dns.dns_force import ensure_default_force_dns
 
     dns_manager = _get_dns_manager()
-    all_adapters = dns_manager.get_network_adapters_fast(
-        include_ignored=True,
+    adapters = dns_manager.get_network_adapters_fast(
+        include_ignored=False,
         include_disconnected=True,
     )
-    filtered = [
-        (name, desc)
-        for name, desc in all_adapters
-        if not dns_manager.should_ignore_adapter(name, desc)
-    ]
-    adapter_names = [name for name, _ in all_adapters]
+    adapter_names = [name for name, _ in adapters]
     dns_info = dns_manager.get_all_dns_info_fast(adapter_names)
 
     ensure_default_force_dns()
     force_dns_active = _new_force_dns_manager().is_force_dns_enabled()
 
     return NetworkPageData(
-        adapters=filtered,
+        adapters=adapters,
         dns_info=dns_info,
         ipv6_available=ipv6_available,
         force_dns_active=force_dns_active,
