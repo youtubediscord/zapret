@@ -220,63 +220,37 @@ def check_path_for_onedrive() -> tuple[bool, str]:
     return False, ""
 
 import re
-import platform
+
+from startup.windows_version_guard import current_windows_support
 
 def check_windows_version() -> tuple[bool, str]:
     """
-    Проверяет версию Windows. Если Windows 7 или 8 - возвращает ошибку.
-    Windows 7 = 6.1, Windows 8 = 6.2, Windows 8.1 = 6.3
+    Проверяет, подходит ли Windows для GUI-версии.
+
+    Главная граница сейчас: Windows 10 1809+ (build 17763+).
+    Старые системы получают подсказку про консольную версию.
     """
     try:
         from log.log import log
 
     except ImportError:
         log = lambda msg, **kw: print(msg)
-    
+
+    result = current_windows_support()
+    if not result.supported:
+        log(f"ERROR: Неподдерживаемая версия Windows: {result.os_name}", level="❌ ERROR")
+        return True, result.message
+
     try:
         version = sys.getwindowsversion()
-        major = version.major
-        minor = version.minor
-        
-        log(f"Версия Windows: {major}.{minor}", level="DEBUG")
-        
-        # Windows 7 = 6.1, Windows 8 = 6.2, Windows 8.1 = 6.3
-        if major == 6 and minor in (1, 2, 3):
-            if minor == 1:
-                os_name = "Windows 7"
-            elif minor == 2:
-                os_name = "Windows 8"
-            else:
-                os_name = "Windows 8.1"
-            
-            error_message = (
-                f"Обнаружена устаревшая версия Windows: {os_name}\n\n"
-                "Данная GUI-версия программы не поддерживает Windows 7/8/8.1.\n\n"
-                "Для вашей операционной системы доступна консольная версия:\n"
-                "https://t.me/bypassblock/666\n\n"
-                "Рекомендуем обновить Windows до версии 10 или 11 для использования GUI-версии."
-            )
-            
-            log(f"ERROR: Неподдерживаемая версия Windows: {os_name}", level="❌ ERROR")
-            return True, error_message
-        
-        # Windows XP/Vista (major < 6) тоже не поддерживаются
-        if major < 6:
-            error_message = (
-                "Обнаружена неподдерживаемая версия Windows.\n\n"
-                "Данная GUI-версия программы требует Windows 10 или новее.\n\n"
-                "Для старых версий Windows доступна консольная версия:\n"
-                "https://t.me/bypassblock/666"
-            )
-            
-            log(f"ERROR: Неподдерживаемая версия Windows: {major}.{minor}", level="❌ ERROR")
-            return True, error_message
-        
+        log(
+            f"Версия Windows поддерживается: {version.major}.{version.minor}, build {version.build}",
+            level="DEBUG",
+        )
+    except Exception:
         return False, ""
-        
-    except Exception as e:
-        log(f"Ошибка определения версии Windows: {e}", level="WARNING")
-        return False, ""
+
+    return False, ""
 
 
 def contains_special_chars(path: str) -> bool:
