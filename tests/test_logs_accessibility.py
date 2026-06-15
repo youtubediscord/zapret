@@ -41,6 +41,9 @@ class _FakeLabel:
     def setProperty(self, name: str, value: object) -> None:  # noqa: N802
         self.properties[name] = value
 
+    def property(self, name: str) -> object:
+        return self.properties.get(name)
+
 
 class _FakeLogCombo:
     def __init__(self) -> None:
@@ -395,6 +398,34 @@ class LogsAccessibilityTests(unittest.TestCase):
         self.assertIn("def _set_info_text", source)
         self.assertIn("set_info_text_fn=self._set_info_text", source)
         self.assertIn("self._set_info_text(", source)
+
+    def test_log_page_info_text_updates_screen_reader_context(self) -> None:
+        page = logs_page.LogsPage.__new__(logs_page.LogsPage)
+        page._ui_language = "ru"
+        page.info_label = _FakeLabel()
+
+        logs_page.LogsPage._set_info_text(page, "Лог скопирован")
+
+        self.assertEqual(page.info_label.text, "Лог скопирован")
+        self.assertEqual(page.info_label.accessible_name, "Сообщение страницы логов: Лог скопирован")
+        self.assertEqual(
+            page.info_label.property("screenReaderStateText"),
+            "Сообщение страницы логов: Лог скопирован",
+        )
+
+    def test_log_page_stats_text_updates_screen_reader_context(self) -> None:
+        page = logs_page.LogsPage.__new__(logs_page.LogsPage)
+        page._ui_language = "ru"
+        page.stats_label = _FakeLabel()
+
+        logs_page.LogsPage._set_stats_text(page, "Ошибок: 2")
+
+        self.assertEqual(page.stats_label.text, "Ошибок: 2")
+        self.assertEqual(page.stats_label.accessible_name, "Статистика логов: Ошибок: 2")
+        self.assertEqual(
+            page.stats_label.property("screenReaderStateText"),
+            "Статистика логов: Ошибок: 2",
+        )
 
     def test_log_combo_accessible_name_includes_selected_file(self) -> None:
         page = logs_page.LogsPage.__new__(logs_page.LogsPage)

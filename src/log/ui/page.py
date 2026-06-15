@@ -74,6 +74,18 @@ ERROR_PATTERNS = [
     r'🔴 CRASH',               # Краш репорты
 ]
 
+
+def _logs_accessible_state(prefix: str, text: str) -> str:
+    prefix_text = " ".join(str(prefix or "").strip().split())
+    value = " ".join(str(text or "").strip().split())
+    if not prefix_text:
+        return value
+    if not value:
+        return prefix_text
+    if value == prefix_text or value.startswith(f"{prefix_text}:"):
+        return value
+    return f"{prefix_text}: {value}"
+
 # Паттерны для ИСКЛЮЧЕНИЯ (не ошибки, хотя содержат ключевые слова)
 EXCLUDE_PATTERNS = [
     r'Faulthandler enabled',   # Информация о включении faulthandler
@@ -688,7 +700,17 @@ class LogsPage(BasePage):
             self.stats_label.setText(
                 tr_catalog("page.logs.stats.loading", language=self._ui_language, default="📊 Загрузка...")
             )
-            set_state_text(self.stats_label, self.stats_label.text())
+            set_state_text(
+                self.stats_label,
+                _logs_accessible_state(
+                    tr_catalog(
+                        "page.logs.accessibility.stats.name",
+                        language=self._ui_language,
+                        default="Статистика логов",
+                    ),
+                    self.stats_label.text(),
+                ),
+            )
         except Exception:
             pass
 
@@ -1063,11 +1085,31 @@ class LogsPage(BasePage):
 
     def _set_info_text(self, text: str) -> None:
         self.info_label.setText(text)
-        set_state_text(self.info_label, text)
+        set_state_text(
+            self.info_label,
+            _logs_accessible_state(
+                tr_catalog(
+                    "page.logs.accessibility.info.name",
+                    language=self._ui_language,
+                    default="Сообщение страницы логов",
+                ),
+                text,
+            ),
+        )
 
     def _set_stats_text(self, text: str) -> None:
         self.stats_label.setText(text)
-        set_state_text(self.stats_label, text)
+        set_state_text(
+            self.stats_label,
+            _logs_accessible_state(
+                tr_catalog(
+                    "page.logs.accessibility.stats.name",
+                    language=self._ui_language,
+                    default="Статистика логов",
+                ),
+                text,
+            ),
+        )
 
     def _stop_logs_overview_worker(self, blocking: bool = False) -> None:
         try:
