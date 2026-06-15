@@ -6,8 +6,9 @@ import unittest
 
 from core.paths import AppPaths
 from profile.editable_settings import EditableProfileSettings
+from profile.filter_switch import build_filter_kind_candidate, resolve_filter_kind_switch
 from profile.parser import parse_preset_text
-from profile.service import ProfilePresetService, _resolve_filter_kind_switch
+from profile.service import ProfilePresetService
 
 
 class _PresetStore:
@@ -515,6 +516,15 @@ class ProfileFilterKindSwitchTests(unittest.TestCase):
 
 
 class FilterKindSwitchResolverTests(unittest.TestCase):
+    def test_candidate_builds_pair_before_file_availability_check(self) -> None:
+        settings = EditableProfileSettings(filter_kind="hostlist", filter_value="lists/youtube.txt")
+
+        candidate = build_filter_kind_candidate(settings, "ipset")
+
+        self.assertEqual(candidate.reason, "")
+        self.assertEqual(candidate.filter_kind, "ipset")
+        self.assertEqual(candidate.filter_value, "lists/ipset-youtube.txt")
+
     def test_resolver_requires_existing_pair_file(self) -> None:
         from tempfile import TemporaryDirectory
 
@@ -526,12 +536,14 @@ class FilterKindSwitchResolverTests(unittest.TestCase):
             app_paths = AppPaths(user_root=root, local_root=root)
             settings = EditableProfileSettings(filter_kind="hostlist", filter_value="lists/youtube.txt")
 
-            self.assertIsNone(_resolve_filter_kind_switch(settings, "ipset", app_paths))
+            missing = resolve_filter_kind_switch(settings, "ipset", app_paths)
 
             (lists_dir / "base" / "ipset-youtube.txt").write_text("1.1.1.1\n", encoding="utf-8")
-            resolved = _resolve_filter_kind_switch(settings, "ipset", app_paths)
+            resolved = resolve_filter_kind_switch(settings, "ipset", app_paths)
 
-        self.assertIsNotNone(resolved)
+        self.assertFalse(missing.allowed)
+        self.assertEqual(missing.reason, "missing_file")
+        self.assertTrue(resolved.allowed)
         self.assertEqual(resolved.filter_kind, "ipset")
         self.assertEqual(resolved.filter_value, "lists/ipset-youtube.txt")
 
@@ -546,9 +558,12 @@ class FilterKindSwitchResolverTests(unittest.TestCase):
             app_paths = AppPaths(user_root=root, local_root=root)
             settings = EditableProfileSettings(filter_kind="ipset", filter_value="lists/cloudflare-ipset.txt")
 
-            resolved = _resolve_filter_kind_switch(settings, "hostlist", app_paths)
+            resolved = resolve_filter_kind_switch(settings, "hostlist", app_paths)
 
-        self.assertIsNone(resolved)
+        self.assertFalse(resolved.allowed)
+        self.assertEqual(resolved.reason, "missing_pair")
+        self.assertEqual(resolved.filter_kind, "hostlist")
+        self.assertEqual(resolved.filter_value, "")
 
     def test_resolver_handles_service_exclude_pair(self) -> None:
         from tempfile import TemporaryDirectory
@@ -566,14 +581,27 @@ class FilterKindSwitchResolverTests(unittest.TestCase):
                 filter_role="exclude",
             )
 
-            resolved = _resolve_filter_kind_switch(settings, "ipset", app_paths)
+            resolved = resolve_filter_kind_switch(settings, "ipset", app_paths)
 
-        self.assertIsNotNone(resolved)
+        self.assertTrue(resolved.allowed)
         self.assertEqual(resolved.filter_kind, "ipset")
         self.assertEqual(
             resolved.filter_value,
             "lists/ipset-ru.txt,lists/ipset-dns.txt,lists/ipset-exclude.txt",
         )
+
+    def test_resolver_reports_not_editable_reason(self) -> None:
+        app_paths = AppPaths(user_root=Path("src").resolve(), local_root=Path("src").resolve())
+        settings = EditableProfileSettings(
+            filter_kind="hostlist",
+            filter_value="lists/youtube.txt",
+            filter_editable=False,
+        )
+
+        resolved = resolve_filter_kind_switch(settings, "ipset", app_paths)
+
+        self.assertFalse(resolved.allowed)
+        self.assertEqual(resolved.reason, "not_editable")
 
 
 if __name__ == "__main__":
