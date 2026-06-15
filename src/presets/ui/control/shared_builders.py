@@ -88,6 +88,15 @@ def build_last_status_message_card_common(
         tr_fn("page.control.last_message.empty", "Пока нет новых сообщений")
     )
     message_label.setWordWrap(True)
+    title_text = str(title_label.text() or "").strip()
+    message_text = str(message_label.text() or "").strip()
+    state_text = f"{title_text}: {message_text}".strip(": ")
+    if state_text:
+        set_state_text(card, state_text)
+    if title_text:
+        set_state_text(title_label, f"Раздел статуса Zapret: {title_text}")
+    if message_text:
+        set_state_text(message_label, f"Последнее сообщение Zapret: {message_text}")
 
     text_layout.addWidget(title_label)
     text_layout.addWidget(message_label)

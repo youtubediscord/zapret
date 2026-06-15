@@ -205,6 +205,23 @@ class ControlAccessibilityTests(unittest.TestCase):
             "Индикатор последнего сообщения: пока нет новых сообщений",
         )
 
+    def test_last_status_message_card_has_initial_screen_reader_text(self) -> None:
+        from presets.ui.control.shared_builders import build_last_status_message_card_common
+
+        widgets = build_last_status_message_card_common(
+            tr_fn=lambda _key, default: default,
+            strong_body_label_cls=StrongBodyLabel,
+            caption_label_cls=CaptionLabel,
+        )
+
+        self.assertEqual(widgets.card.accessibleName(), "Последнее сообщение: Пока нет новых сообщений")
+        self.assertEqual(
+            widgets.card.property("screenReaderStateText"),
+            "Последнее сообщение: Пока нет новых сообщений",
+        )
+        self.assertEqual(widgets.title_label.accessibleName(), "Раздел статуса Zapret: Последнее сообщение")
+        self.assertEqual(widgets.message_label.accessibleName(), "Последнее сообщение Zapret: Пока нет новых сообщений")
+
     def test_stop_button_loads_square_stop_icon_after_first_paint(self) -> None:
         from presets.ui.control.shared_builders import build_mode_management_section_common
 
