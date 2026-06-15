@@ -105,6 +105,12 @@ _SERVICE_EXCEPTION_IPSETS = frozenset(
 )
 
 
+@dataclass(frozen=True, slots=True)
+class _ResolvedFilterKindSwitch:
+    filter_kind: str
+    filter_value: str
+
+
 @dataclass(slots=True)
 class _SelectedPresetSnapshot:
     revision: tuple[object, ...]
@@ -767,11 +773,16 @@ class ProfilePresetService:
             return None
         current = read_editable_profile_settings(preset.profiles[index])
         next_filter_kind = str(filter_kind or "").strip().lower()
-        if next_filter_kind != current.filter_kind and next_filter_kind not in _available_filter_kinds(current, self._app_paths):
-            next_filter_kind = current.filter_kind
-            next_filter_value = current.filter_value
+        if next_filter_kind != current.filter_kind:
+            resolved = _resolve_filter_kind_switch(current, next_filter_kind, self._app_paths)
+            if resolved is None:
+                next_filter_kind = current.filter_kind
+                next_filter_value = current.filter_value
+            else:
+                next_filter_kind = resolved.filter_kind
+                next_filter_value = resolved.filter_value
         else:
-            next_filter_value = _filter_value_for_settings_update(current, next_filter_kind, filter_value)
+            next_filter_value = normalize_filter_value(filter_value or current.filter_value, next_filter_kind, filter_role=current.filter_role)
         next_settings = EditableProfileSettings(
             filter_kind=next_filter_kind,
             filter_value=next_filter_value,
@@ -859,16 +870,16 @@ class ProfilePresetService:
             return None
         if current.filter_kind == filter_kind:
             return profile.key
-        if filter_kind not in _available_filter_kinds(current, self._app_paths):
+        resolved = _resolve_filter_kind_switch(current, filter_kind, self._app_paths)
+        if resolved is None:
             return None
-        filter_value = _filter_value_for_kind_switch(current, filter_kind)
 
         preset = with_editable_profile_settings(
             preset,
             index,
             EditableProfileSettings(
-                filter_kind=filter_kind,
-                filter_value=filter_value,
+                filter_kind=resolved.filter_kind,
+                filter_value=resolved.filter_value,
                 filter_role=current.filter_role,
                 in_range=current.in_range,
                 out_range=current.out_range,
@@ -1245,12 +1256,16 @@ class ProfilePresetService:
         current = read_editable_profile_settings(profile)
         if not current.filter_editable:
             return profile
-        if kind not in _available_filter_kinds(current, self._app_paths):
-            return profile
-
-        value = _filter_value_for_settings_update(current, kind, filter_value)
-        if not value:
-            return profile
+        if kind != current.filter_kind:
+            resolved = _resolve_filter_kind_switch(current, kind, self._app_paths)
+            if resolved is None:
+                return profile
+            kind = resolved.filter_kind
+            value = resolved.filter_value
+        else:
+            value = normalize_filter_value(filter_value or current.filter_value, kind, filter_role=current.filter_role)
+            if not value:
+                return profile
 
         return with_editable_profile(
             profile,
@@ -1730,12 +1745,27 @@ def _available_filter_kinds(settings: EditableProfileSettings, app_paths) -> tup
 
     result: list[str] = []
     for candidate in ("hostlist", "ipset"):
-        candidate_value = _filter_value_for_kind_switch(settings, candidate)
-        if candidate == current_kind:
-            result.append(candidate)
-        elif candidate_value and _filter_files_available(app_paths, candidate_value):
+        if _resolve_filter_kind_switch(settings, candidate, app_paths) is not None:
             result.append(candidate)
     return tuple(result) or (current_kind,)
+
+
+def _resolve_filter_kind_switch(
+    settings: EditableProfileSettings,
+    filter_kind: str,
+    app_paths,
+) -> _ResolvedFilterKindSwitch | None:
+    current_kind = str(settings.filter_kind or "hostlist").strip().lower()
+    target_kind = str(filter_kind or "").strip().lower()
+    if not settings.filter_editable or current_kind not in {"hostlist", "ipset"} or target_kind not in {"hostlist", "ipset"}:
+        return None
+
+    target_value = _filter_value_for_kind_switch(settings, target_kind)
+    if not target_value:
+        return None
+    if target_kind != current_kind and not _filter_files_available(app_paths, target_value):
+        return None
+    return _ResolvedFilterKindSwitch(filter_kind=target_kind, filter_value=target_value)
 
 
 def _filter_value_for_kind_switch(settings: EditableProfileSettings, filter_kind: str) -> str:
@@ -1749,20 +1779,6 @@ def _filter_value_for_kind_switch(settings: EditableProfileSettings, filter_kind
     if "," in current_value:
         return ""
     return _paired_primary_filter_value(current_value, current_kind, target_kind)
-
-
-def _filter_value_for_settings_update(
-    current: EditableProfileSettings,
-    filter_kind: str,
-    filter_value: str,
-) -> str:
-    kind = str(filter_kind or "").strip().lower()
-    raw_value = str(filter_value or "").strip()
-    current_kind = str(current.filter_kind or "").strip().lower()
-    current_value = str(current.filter_value or "").strip()
-    if kind != current_kind and (not raw_value or raw_value == current_value):
-        return _filter_value_for_kind_switch(current, kind)
-    return normalize_filter_value(raw_value or current_value, kind, filter_role=current.filter_role)
 
 
 def _paired_exclude_filter_value(value: str, current_kind: str, target_kind: str) -> str:

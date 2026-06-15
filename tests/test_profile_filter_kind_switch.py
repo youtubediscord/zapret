@@ -5,8 +5,9 @@ from types import SimpleNamespace
 import unittest
 
 from core.paths import AppPaths
+from profile.editable_settings import EditableProfileSettings
 from profile.parser import parse_preset_text
-from profile.service import ProfilePresetService
+from profile.service import ProfilePresetService, _resolve_filter_kind_switch
 
 
 class _PresetStore:
@@ -511,6 +512,68 @@ class ProfileFilterKindSwitchTests(unittest.TestCase):
         ).profiles[0]
 
         self.assertNotEqual(hostlist.persistent_key, ipset.persistent_key)
+
+
+class FilterKindSwitchResolverTests(unittest.TestCase):
+    def test_resolver_requires_existing_pair_file(self) -> None:
+        from tempfile import TemporaryDirectory
+
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            lists_dir = root / "lists"
+            (lists_dir / "base").mkdir(parents=True)
+            (lists_dir / "base" / "youtube.txt").write_text("youtube.com\n", encoding="utf-8")
+            app_paths = AppPaths(user_root=root, local_root=root)
+            settings = EditableProfileSettings(filter_kind="hostlist", filter_value="lists/youtube.txt")
+
+            self.assertIsNone(_resolve_filter_kind_switch(settings, "ipset", app_paths))
+
+            (lists_dir / "base" / "ipset-youtube.txt").write_text("1.1.1.1\n", encoding="utf-8")
+            resolved = _resolve_filter_kind_switch(settings, "ipset", app_paths)
+
+        self.assertIsNotNone(resolved)
+        self.assertEqual(resolved.filter_kind, "ipset")
+        self.assertEqual(resolved.filter_value, "lists/ipset-youtube.txt")
+
+    def test_resolver_rejects_cloudflare_legacy_ipset_without_hostlist_pair(self) -> None:
+        from tempfile import TemporaryDirectory
+
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            lists_dir = root / "lists"
+            (lists_dir / "base").mkdir(parents=True)
+            (lists_dir / "base" / "cloudflare-ipset.txt").write_text("1.1.1.1\n", encoding="utf-8")
+            app_paths = AppPaths(user_root=root, local_root=root)
+            settings = EditableProfileSettings(filter_kind="ipset", filter_value="lists/cloudflare-ipset.txt")
+
+            resolved = _resolve_filter_kind_switch(settings, "hostlist", app_paths)
+
+        self.assertIsNone(resolved)
+
+    def test_resolver_handles_service_exclude_pair(self) -> None:
+        from tempfile import TemporaryDirectory
+
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            lists_dir = root / "lists"
+            (lists_dir / "base").mkdir(parents=True)
+            for name in ("ipset-ru.txt", "ipset-dns.txt", "ipset-exclude.txt", "netrogat.txt"):
+                (lists_dir / "base" / name).write_text("1.1.1.1\n", encoding="utf-8")
+            app_paths = AppPaths(user_root=root, local_root=root)
+            settings = EditableProfileSettings(
+                filter_kind="hostlist",
+                filter_value="lists/netrogat.txt",
+                filter_role="exclude",
+            )
+
+            resolved = _resolve_filter_kind_switch(settings, "ipset", app_paths)
+
+        self.assertIsNotNone(resolved)
+        self.assertEqual(resolved.filter_kind, "ipset")
+        self.assertEqual(
+            resolved.filter_value,
+            "lists/ipset-ru.txt,lists/ipset-dns.txt,lists/ipset-exclude.txt",
+        )
 
 
 if __name__ == "__main__":
