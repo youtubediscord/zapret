@@ -17,7 +17,6 @@ from ui.theme_refresh import ThemeRefreshBinding
 from ui.pulsing_dot import PulsingDot
 from ui.accessibility import (
     set_accessible_description,
-    set_accessible_name,
     set_control_accessibility,
     set_state_text,
 )
@@ -53,7 +52,6 @@ def set_tooltip(widget, text: str, *, position=None, delay: int = 300) -> None:
             widget.setToolTip(value)
     except Exception:
         widget.setToolTip(value)
-    set_accessible_description(widget, value)
     try:
         widget_text = str(widget.text() or "").strip()
     except Exception:
@@ -62,8 +60,17 @@ def set_tooltip(widget, text: str, *, position=None, delay: int = 300) -> None:
         accessible_name = str(widget.accessibleName() or "").strip()
     except Exception:
         accessible_name = ""
-    if value and not widget_text and not accessible_name:
-        set_accessible_name(widget, value)
+    if accessible_name:
+        screen_reader_name = accessible_name
+    elif value and not widget_text:
+        screen_reader_name = value
+    else:
+        screen_reader_name = None
+    set_control_accessibility(
+        widget,
+        name=screen_reader_name,
+        description=value,
+    )
     # Install only once — skip if already done for this widget.
     if getattr(widget, "_fluent_tooltip_filter", None) is None:
         pos = position if position is not None else ToolTipPosition.TOP
