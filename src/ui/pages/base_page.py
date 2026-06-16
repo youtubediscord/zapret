@@ -306,6 +306,11 @@ class BasePage(_FluentScrollArea):
         step_started_at = _time.perf_counter()
         self._schedule_page_theme_refresh_flush()
         self._log_show_step_timing("show.event.schedule_theme_flush", step_started_at)
+        self.request_keyboard_focus()
+
+    def request_keyboard_focus(self) -> None:
+        """Просит страницу поставить фокус на первый удобный для клавиатуры элемент."""
+
         self._schedule_first_keyboard_focus()
 
     def _schedule_first_keyboard_focus(self) -> None:

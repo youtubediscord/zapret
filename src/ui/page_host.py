@@ -370,6 +370,7 @@ class WindowPageHost:
         except Exception:
             pass
         self._log_step_timing(page_name, "show.navigation", step_started_at)
+        self._request_page_keyboard_focus(page)
         self._shown_pages.add(page_name)
         log_page_metric(
             page_name,
@@ -382,6 +383,18 @@ class WindowPageHost:
             ),
         )
         return True
+
+    @staticmethod
+    def _request_page_keyboard_focus(page: QWidget | None) -> None:
+        if page is None:
+            return
+        request_focus = getattr(page, "request_keyboard_focus", None)
+        if not callable(request_focus):
+            return
+        try:
+            request_focus()
+        except Exception:
+            pass
 
 
 __all__ = ["WindowPageHost"]
