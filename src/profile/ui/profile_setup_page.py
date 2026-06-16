@@ -236,7 +236,9 @@ class ProfileStrategyListDelegate(QStyledItemDelegate):
         rect = profile_hover_row_rect(option.rect)
         is_active = bool(index.data(ProfileStrategyListWidget._ROLE_IS_ACTIVE))
         hovered = bool(option.state & QStyle.StateFlag.State_MouseOver)
-        selected = bool(option.state & QStyle.StateFlag.State_Selected)
+        selected = bool(option.state & QStyle.StateFlag.State_Selected) or bool(
+            option.state & QStyle.StateFlag.State_HasFocus
+        )
 
         paint_profile_hover_row(
             painter,
@@ -545,7 +547,7 @@ class ProfileStrategyListWidget(QWidget):
         self._list = ProfileStrategyListView(self)
         self._list.setItemDelegate(ProfileStrategyListDelegate(self._list))
         self._list.setUniformItemSizes(True)
-        self._list.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self._list.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
         self._list.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self._list.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
@@ -676,7 +678,6 @@ class ProfileStrategyListWidget(QWidget):
         self._list.setCurrentRow(row)
         item = self._list.currentItem()
         if item is not None:
-            item.setSelected(True)
             self._update_current_strategy_accessibility(item)
         return True
 
@@ -855,8 +856,6 @@ class ProfileStrategyListWidget(QWidget):
         focus_item = current_item or first_item
         if focus_item is not None:
             self._list.setCurrentItem(focus_item)
-        if current_item is not None:
-            current_item.setSelected(True)
         self._update_current_strategy_accessibility(self._list.currentItem())
 
     def _refresh_strategy_item(self, item, strategy_id: str, *, is_current: bool) -> None:
@@ -880,21 +879,6 @@ class ProfileStrategyListWidget(QWidget):
                     changed = True
             except Exception:
                 self._list.setCurrentItem(item)
-                changed = True
-            try:
-                selected = bool(item.isSelected())
-            except Exception:
-                selected = False
-            if not selected:
-                item.setSelected(True)
-                changed = True
-        else:
-            try:
-                selected = bool(item.isSelected())
-            except Exception:
-                selected = True
-            if selected:
-                item.setSelected(False)
                 changed = True
         name = str(item.data(self._ROLE_NAME_TEXT) or "")
         if name:
@@ -1118,8 +1102,6 @@ class ProfileStrategyListWidget(QWidget):
         focus_item = current_item or first_item
         if focus_item is not None:
             self._list.setCurrentItem(focus_item)
-        if current_item is not None:
-            current_item.setSelected(True)
         self._update_current_strategy_accessibility(self._list.currentItem())
 
     def _cleanup_strategy_filter_worker(self, *_args) -> None:

@@ -10,7 +10,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PyQt6.QtCore import QEvent, Qt
 from PyQt6.QtGui import QKeyEvent
 from PyQt6.QtTest import QTest
-from PyQt6.QtWidgets import QApplication, QListWidgetItem
+from PyQt6.QtWidgets import QApplication, QAbstractItemView, QListWidgetItem
 
 from profile.ui.profile_setup_page import ProfileStrategyListWidget
 
@@ -298,6 +298,30 @@ class StrategyListAccessibilityTests(unittest.TestCase):
         self.assertIs(self._app.focusWidget(), widget._list)
         self.assertEqual(widget._list.currentItem().data(ProfileStrategyListWidget._ROLE_NAME_TEXT), "Beta")
         self.assertIn("Готовая стратегия: Beta", widget._list.property("screenReaderStateText"))
+
+    def test_strategy_list_navigation_does_not_use_native_selection_state(self) -> None:
+        widget = _make_sync_strategy_list()
+        self.addCleanup(widget.deleteLater)
+        widget.set_rows(
+            entries={
+                "alpha": SimpleNamespace(name="Alpha", args="--alpha"),
+                "beta": SimpleNamespace(name="Beta", args="--beta"),
+            },
+            states={},
+            current_strategy_id="alpha",
+        )
+        widget.show()
+        self._app.processEvents()
+        widget._list.setFocus()
+        self._app.processEvents()
+
+        QTest.keyClick(widget._list, Qt.Key.Key_Down)
+        self._app.processEvents()
+
+        self.assertEqual(widget._list.selectionMode(), QAbstractItemView.SelectionMode.NoSelection)
+        self.assertEqual(widget._list.currentItem().data(ProfileStrategyListWidget._ROLE_NAME_TEXT), "Beta")
+        self.assertEqual(widget._list.selectedItems(), [])
+        self.assertIn("Beta, не выбрана", widget._list.property("screenReaderStateText"))
 
     def test_strategy_widget_forwards_arrow_and_enter_keys_to_list(self) -> None:
         widget = _make_sync_strategy_list()
