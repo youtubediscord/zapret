@@ -112,6 +112,36 @@ class AccessibilityHelpersTests(unittest.TestCase):
 
         self.assertEqual(clicked, [True])
 
+    def test_set_control_accessibility_adds_default_keyboard_hint_for_clickable_button(self) -> None:
+        from qfluentwidgets import PushButton
+
+        from ui.accessibility import set_control_accessibility
+
+        button = PushButton("Открыть")
+        self.addCleanup(button.deleteLater)
+
+        set_control_accessibility(button, name="Открыть логи")
+
+        self.assertEqual(
+            button.accessibleDescription(),
+            "Нажмите Enter или Пробел, чтобы выполнить действие.",
+        )
+
+    def test_set_control_accessibility_adds_default_keyboard_hint_for_toggle(self) -> None:
+        from qfluentwidgets import CheckBox
+
+        from ui.accessibility import set_control_accessibility
+
+        checkbox = CheckBox("Включить")
+        self.addCleanup(checkbox.deleteLater)
+
+        set_control_accessibility(checkbox, name="Автозапуск, выключено")
+
+        self.assertEqual(
+            checkbox.accessibleDescription(),
+            "Нажмите Enter или Пробел, чтобы переключить.",
+        )
+
     def test_set_control_accessibility_updates_checkable_state_after_enter(self) -> None:
         from PyQt6.QtCore import Qt
         from PyQt6.QtTest import QTest

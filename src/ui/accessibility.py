@@ -92,6 +92,7 @@ def set_control_accessibility(
     _sync_spinbox_children_accessibility(widget, name=name, description=description)
     _remember_keyboard_toggle_accessibility(widget, name=name)
     _enable_keyboard_click_for_button(widget)
+    _ensure_keyboard_activation_description(widget)
 
 
 def set_state_text(widget, text: object) -> None:
@@ -322,6 +323,21 @@ def _enable_keyboard_click_for_button(widget) -> None:
     if not _has_keyboard_click_target(widget):
         return
     enable_keyboard_click(widget)
+
+
+def _ensure_keyboard_activation_description(widget) -> None:
+    if widget is None:
+        return
+    try:
+        if _clean_text(widget.accessibleDescription()):
+            return
+    except Exception:
+        return
+    if _is_checkable_widget(widget):
+        set_accessible_description(widget, "Нажмите Enter или Пробел, чтобы переключить.")
+        return
+    if _has_keyboard_click_target(widget):
+        set_accessible_description(widget, "Нажмите Enter или Пробел, чтобы выполнить действие.")
 
 
 def _is_checkable_widget(widget) -> bool:
