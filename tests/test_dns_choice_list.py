@@ -6,8 +6,8 @@ import unittest
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PyQt6.QtCore import QEvent, QPointF, Qt
-from PyQt6.QtGui import QFocusEvent, QKeyEvent, QMouseEvent
-from PyQt6.QtWidgets import QApplication, QWidget
+from PyQt6.QtGui import QFocusEvent, QKeyEvent, QMouseEvent, QPainter, QPixmap
+from PyQt6.QtWidgets import QApplication, QStyle, QStyleOptionViewItem, QWidget
 
 
 class DnsChoiceListTests(unittest.TestCase):
@@ -120,6 +120,35 @@ class DnsChoiceListTests(unittest.TestCase):
 
         self.assertTrue(event.isAccepted())
         self.assertEqual(selected, ["auto"])
+
+    def test_choice_focused_row_paints_keyboard_current_state(self) -> None:
+        import dns.ui.choice_list as choice_list
+        from dns.ui.choice_list import DnsChoiceListDelegate, DnsChoiceListWidget
+
+        view = DnsChoiceListWidget()
+        view.add_auto_choice("Автоматически (DHCP)")
+        index = view.model().index(0, 0)
+        option = QStyleOptionViewItem()
+        option.rect = view.visualRect(index)
+        if not option.rect.isValid():
+            option.rect.setRect(0, 0, 360, 38)
+        option.state = QStyle.StateFlag.State_Enabled | QStyle.StateFlag.State_HasFocus
+        painted_states: list[dict] = []
+        original_paint = choice_list.paint_profile_hover_row
+
+        def capture_paint(_painter, _rect, *, active=False, hovered=False, selected=False):
+            painted_states.append({"active": active, "hovered": hovered, "selected": selected})
+
+        choice_list.paint_profile_hover_row = capture_paint
+        try:
+            pixmap = QPixmap(360, 38)
+            painter = QPainter(pixmap)
+            DnsChoiceListDelegate(view).paint(painter, option, index)
+            painter.end()
+        finally:
+            choice_list.paint_profile_hover_row = original_paint
+
+        self.assertEqual(painted_states, [{"active": False, "hovered": False, "selected": True}])
 
     def test_custom_dns_row_reads_selection_state_for_keyboard_navigation(self) -> None:
         from dns.ui.choice_list import DnsChoiceListWidget

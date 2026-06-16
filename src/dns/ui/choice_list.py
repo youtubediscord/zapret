@@ -350,7 +350,9 @@ class DnsChoiceListDelegate(QStyledItemDelegate):
         rect = profile_hover_row_rect(option.rect)
         active = bool(index.data(SELECTED_ROLE))
         hovered = bool(option.state & QStyle.StateFlag.State_MouseOver)
-        selected = bool(option.state & QStyle.StateFlag.State_Selected)
+        selected = bool(option.state & QStyle.StateFlag.State_Selected) or bool(
+            option.state & QStyle.StateFlag.State_HasFocus
+        )
         paint_profile_hover_row(
             painter,
             rect,
