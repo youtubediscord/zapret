@@ -243,7 +243,9 @@ class AdapterChoiceListDelegate(QStyledItemDelegate):
         rect = profile_hover_row_rect(option.rect)
         checked = bool(index.data(CHECKED_ROLE))
         hovered = bool(option.state & QStyle.StateFlag.State_MouseOver)
-        selected = bool(option.state & QStyle.StateFlag.State_Selected)
+        selected = bool(option.state & QStyle.StateFlag.State_Selected) or bool(
+            option.state & QStyle.StateFlag.State_HasFocus
+        )
         paint_profile_hover_row(
             painter,
             rect,

@@ -148,6 +148,39 @@ class AdapterChoiceListTests(unittest.TestCase):
 
         self.assertEqual(painted_states, [{"active": False, "hovered": False, "selected": False}])
 
+    def test_adapter_focused_row_paints_keyboard_current_state(self) -> None:
+        import dns.ui.adapter_list as adapter_list
+        from dns.ui.adapter_list import AdapterChoiceListDelegate, AdapterChoiceListWidget
+
+        view = AdapterChoiceListWidget()
+        build_adapter_cards(
+            adapters=[("Ethernet", "Intel")],
+            dns_info={"Ethernet": {"ipv4": ["8.8.8.8"], "ipv6": []}},
+            adapters_layout=view,
+            normalize_alias_fn=lambda value: value,
+            on_state_changed=lambda _state: None,
+        )
+        index = view.model().index(0, 0)
+        option = QStyleOptionViewItem()
+        option.rect = QRect(0, 0, 360, 38)
+        option.state = QStyle.StateFlag.State_Enabled | QStyle.StateFlag.State_HasFocus
+        painted_states: list[dict] = []
+        original_paint = adapter_list.paint_profile_hover_row
+
+        def capture_paint(_painter, _rect, *, active=False, hovered=False, selected=False):
+            painted_states.append({"active": active, "hovered": hovered, "selected": selected})
+
+        adapter_list.paint_profile_hover_row = capture_paint
+        try:
+            pixmap = QPixmap(360, 38)
+            painter = QPainter(pixmap)
+            AdapterChoiceListDelegate(view).paint(painter, option, index)
+            painter.end()
+        finally:
+            adapter_list.paint_profile_hover_row = original_paint
+
+        self.assertEqual(painted_states, [{"active": False, "hovered": False, "selected": True}])
+
     def test_adapter_card_widget_is_removed_from_dns_cards_module(self) -> None:
         import dns.ui.cards as cards_module
 
