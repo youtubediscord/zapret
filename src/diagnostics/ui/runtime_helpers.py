@@ -29,6 +29,18 @@ def apply_interaction_state(
     stop_btn.setEnabled(stop_enabled)
     test_combo.setEnabled(combo_enabled)
     send_log_btn.setEnabled(send_log_enabled)
+    set_state_text(
+        start_btn,
+        f"Запустить диагностический тест, {'доступно' if start_enabled else 'недоступно'}",
+    )
+    set_state_text(
+        stop_btn,
+        f"Остановить диагностический тест, {'доступно' if stop_enabled else 'недоступно'}",
+    )
+    set_state_text(
+        send_log_btn,
+        f"Подготовить обращение с логами, {'доступно' if send_log_enabled else 'недоступно'}",
+    )
     progress_bar.setVisible(progress_visible)
     progress_state = "выполняется" if progress_visible else "не выполняется"
     set_state_text(progress_bar, f"Ход диагностики соединений: {progress_state}")

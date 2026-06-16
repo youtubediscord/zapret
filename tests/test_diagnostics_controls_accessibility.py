@@ -271,6 +271,26 @@ class DiagnosticsControlsAccessibilityTests(unittest.TestCase):
             widgets.progress_bar.property("screenReaderStateText"),
             "Ход диагностики соединений: выполняется",
         )
+        self.assertEqual(widgets.start_btn.accessibleName(), "Запустить диагностический тест, недоступно")
+        self.assertEqual(widgets.stop_btn.accessibleName(), "Остановить диагностический тест, доступно")
+        self.assertEqual(widgets.send_log_btn.accessibleName(), "Подготовить обращение с логами, недоступно")
+
+        apply_interaction_state(
+            start_btn=widgets.start_btn,
+            stop_btn=widgets.stop_btn,
+            test_combo=widgets.test_combo,
+            send_log_btn=widgets.send_log_btn,
+            progress_bar=widgets.progress_bar,
+            start_enabled=True,
+            stop_enabled=False,
+            combo_enabled=True,
+            send_log_enabled=True,
+            progress_visible=False,
+        )
+
+        self.assertEqual(widgets.start_btn.accessibleName(), "Запустить диагностический тест, доступно")
+        self.assertEqual(widgets.stop_btn.accessibleName(), "Остановить диагностический тест, недоступно")
+        self.assertEqual(widgets.send_log_btn.accessibleName(), "Подготовить обращение с логами, доступно")
 
     def test_connection_language_refresh_keeps_screen_reader_descriptions(self) -> None:
         parent = QWidget()
