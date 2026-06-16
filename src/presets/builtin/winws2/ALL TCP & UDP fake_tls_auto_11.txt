@@ -1,5 +1,5 @@
 # Preset: ALL TCP & UDP fake_tls_auto_11
-# BuiltinVersion: 2.20
+# BuiltinVersion: 2.21
 # Description: 
 
 --lua-init=@lua/zapret-lib.lua

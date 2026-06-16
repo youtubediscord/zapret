@@ -1,5 +1,5 @@
 # Preset: general ALT2 + syndata
-# BuiltinVersion: 2.20
+# BuiltinVersion: 2.21
 # IconColor: #b475f0ff
 
 --lua-init=@lua/zapret-lib.lua

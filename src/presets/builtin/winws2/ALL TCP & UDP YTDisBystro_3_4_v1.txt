@@ -1,5 +1,5 @@
 # Preset: ALL TCP & UDP YTDisBystro 3.4 v1
-# BuiltinVersion: 2.20
+# BuiltinVersion: 2.21
 # Description: 
 
 --lua-init=@lua/zapret-lib.lua
