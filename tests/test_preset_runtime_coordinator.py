@@ -106,6 +106,7 @@ class PresetRuntimeCoordinatorTests(unittest.TestCase):
             )
         )
         content_calls: list[tuple[str, str, str]] = []
+        refresh_calls: list[str] = []
         ui_state = SimpleNamespace(content_revision=0, content_change_kind="")
 
         def bump_preset_content_revision(*, content_change_kind: str = "") -> None:
@@ -118,7 +119,7 @@ class PresetRuntimeCoordinatorTests(unittest.TestCase):
             ui_state_store=ui_state,
             get_launch_method=lambda: ZAPRET2_MODE,
             get_active_preset_path=lambda: active_path,
-            refresh_after_switch=lambda: None,
+            refresh_after_switch=lambda *, reason="": refresh_calls.append(reason),
             request_selected_source_preset_apply=lambda *_args: True,
             request_preset_content_apply=lambda method, reason, file_name: content_calls.append(
                 (method, reason, file_name)
@@ -134,6 +135,13 @@ class PresetRuntimeCoordinatorTests(unittest.TestCase):
         self.assertEqual(content_calls, [(ZAPRET2_MODE, "strategy_only", "Default v5.txt")])
         self.assertEqual(ui_state.content_revision, 1)
         self.assertEqual(ui_state.content_change_kind, "strategy_only")
+        self.assertEqual(refresh_calls, ["strategy_only"])
+
+        coordinator._on_active_preset_file_changed(active_path)
+
+        self.assertEqual(content_calls, [(ZAPRET2_MODE, "strategy_only", "Default v5.txt")])
+        self.assertEqual(ui_state.content_revision, 1)
+        self.assertEqual(refresh_calls, ["strategy_only"])
 
     def test_rapid_active_preset_content_changes_coalesce_to_one_apply(self) -> None:
         from core.runtime.preset_runtime_coordinator import PresetRuntimeCoordinator

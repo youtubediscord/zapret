@@ -108,6 +108,8 @@ class PresetRuntimeCoordinator(QObject):
         self._active_preset_revision_publish_pending = False
         self._active_preset_file_watcher_setup_pending = False
         self._pending_active_preset_watch: PendingPresetWatch | None = None
+        self._pending_refresh_after_switch_reason = ""
+        self._pending_own_preset_content_file_name = ""
         self._preset_content_apply_timer: QTimer | None = None
         self._active_preset_watch_runtime = OneShotWorkerRuntime()
         self._active_preset_watch_runtime_request_id = 0
@@ -130,7 +132,7 @@ class PresetRuntimeCoordinator(QObject):
         if timer is None:
             timer = QTimer(self)
             timer.setSingleShot(True)
-            timer.timeout.connect(self._refresh_after_switch)
+            timer.timeout.connect(self._run_refresh_after_switch)
             self._active_preset_file_refresh_timer = timer
 
         self._active_preset_file_path = watched_path
@@ -321,7 +323,9 @@ class PresetRuntimeCoordinator(QObject):
             launch_method=pending.launch_method,
             preset_file_name=pending.preset_file_name,
         )
+        self._pending_own_preset_content_file_name = self._normalize_preset_file_name(pending.preset_file_name)
         self._publish_active_preset_content_changed(pending.preset_file_name, reason=pending.reason)
+        self._request_refresh_after_switch(reason=pending.reason)
         self._request_preset_content_apply(
             pending.launch_method,
             pending.reason,
@@ -486,20 +490,39 @@ class PresetRuntimeCoordinator(QObject):
         current_method = normalize_launch_method(self._get_launch_method(), default="")
         return bool(current_method and method == current_method)
 
-    def schedule_refresh_after_preset_switch(self, delay_ms: int = PRESET_SWITCH_REFRESH_DEBOUNCE_MS) -> None:
+    def schedule_refresh_after_preset_switch(
+        self,
+        delay_ms: int = PRESET_SWITCH_REFRESH_DEBOUNCE_MS,
+        *,
+        reason: str = "",
+    ) -> None:
+        self._pending_refresh_after_switch_reason = str(reason or "").strip()
         try:
             timer = self._preset_switch_refresh_timer
             if timer is None:
                 timer = QTimer(self)
                 timer.setSingleShot(True)
-                timer.timeout.connect(self._refresh_after_switch)
+                timer.timeout.connect(self._run_refresh_after_switch)
                 self._preset_switch_refresh_timer = timer
             timer.start(max(0, int(delay_ms)))
         except Exception:
             try:
-                self._refresh_after_switch()
+                self._run_refresh_after_switch()
             except Exception:
                 pass
+
+    def _run_refresh_after_switch(self) -> None:
+        reason = str(self.__dict__.get("_pending_refresh_after_switch_reason", "") or "").strip()
+        self._pending_refresh_after_switch_reason = ""
+        self._request_refresh_after_switch(reason=reason)
+
+    def _request_refresh_after_switch(self, *, reason: str = "") -> None:
+        refresh = self._refresh_after_switch
+        clean_reason = str(reason or "").strip()
+        try:
+            refresh(reason=clean_reason)
+        except TypeError:
+            refresh()
 
     def _on_active_preset_file_changed(self, path: str) -> None:
         try:
@@ -512,6 +535,9 @@ class PresetRuntimeCoordinator(QObject):
         except Exception:
             pass
 
+        if self._consume_own_preset_file_change(path):
+            return
+
         try:
             self._publish_active_preset_content_changed(desired or path)
         except Exception:
@@ -520,11 +546,30 @@ class PresetRuntimeCoordinator(QObject):
         try:
             timer = self._active_preset_file_refresh_timer
             if timer is not None:
+                self._pending_refresh_after_switch_reason = "preset_content_changed"
                 timer.start(200)
             else:
-                self.schedule_refresh_after_preset_switch()
+                self.schedule_refresh_after_preset_switch(reason="preset_content_changed")
         except Exception:
             try:
-                self.schedule_refresh_after_preset_switch()
+                self.schedule_refresh_after_preset_switch(reason="preset_content_changed")
             except Exception:
                 pass
+
+    def _consume_own_preset_file_change(self, path: str) -> bool:
+        pending_file_name = str(self.__dict__.get("_pending_own_preset_content_file_name", "") or "").strip()
+        if not pending_file_name:
+            return False
+        changed_file_name = self._normalize_preset_file_name(path)
+        active_file_name = self._normalize_preset_file_name(self.__dict__.get("_active_preset_file_path", ""))
+        if changed_file_name in {pending_file_name, active_file_name}:
+            self._pending_own_preset_content_file_name = ""
+            return True
+        return False
+
+    @staticmethod
+    def _normalize_preset_file_name(path_or_file_name: str) -> str:
+        text = str(path_or_file_name or "").strip().replace("\\", "/")
+        if "/" in text:
+            text = text.rsplit("/", 1)[-1]
+        return text.lower()

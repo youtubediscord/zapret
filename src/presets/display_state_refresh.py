@@ -20,6 +20,7 @@ class PresetProfileStrategySummaryWorker(QThread):
         *,
         method: str,
         profile_feature,
+        refresh_reason: str = "",
         max_items: int = 2,
         parent=None,
     ) -> None:
@@ -27,12 +28,13 @@ class PresetProfileStrategySummaryWorker(QThread):
         self._request_id = int(request_id)
         self._method = normalize_launch_method(method, default="")
         self._profile_feature = profile_feature
+        self._refresh_reason = str(refresh_reason or "").strip()
         self._max_items = max(1, int(max_items))
 
     def run(self) -> None:
         try:
             warm_profile_list = getattr(self._profile_feature, "warm_profile_list", None)
-            if callable(warm_profile_list):
+            if callable(warm_profile_list) and self._refresh_reason != "strategy_only":
                 try:
                     warm_profile_list(self._method)
                 except Exception as exc:
@@ -73,25 +75,26 @@ class PresetProfileStrategySummaryRefreshRuntime(QObject):
             empty_value=False,
         )
 
-    def request_refresh(self) -> None:
+    def request_refresh(self, *, reason: str = "") -> None:
         method = normalize_launch_method(self._get_launch_method(), default="")
         if not method or not is_preset_launch_method(method):
             return
 
         state = self._summary_state_obj()
         if state.is_busy():
-            state.pending = True
+            state.pending = str(reason or "").strip() or True
             return
 
-        self._start_worker(method)
+        self._start_worker(method, reason=str(reason or "").strip())
 
-    def _start_worker(self, method: str) -> None:
+    def _start_worker(self, method: str, *, reason: str = "") -> None:
         self._summary_state_obj().pending = False
         self._summary_runtime.start_qthread_worker(
             worker_factory=lambda request_id: PresetProfileStrategySummaryWorker(
                 request_id,
                 method=method,
                 profile_feature=self._profile_feature,
+                refresh_reason=reason,
                 parent=self,
             ),
             on_loaded=self._on_summary_loaded,
@@ -152,7 +155,13 @@ class PresetProfileStrategySummaryRefreshRuntime(QObject):
         state.start_scheduled = False
         if not state.has_pending():
             return
-        self.request_refresh()
+        pending = state.pending
+        state.pending = False
+        reason = pending if isinstance(pending, str) else ""
+        if reason:
+            self.request_refresh(reason=reason)
+        else:
+            self.request_refresh()
 
     def _summary_state_obj(self) -> LatestValueWorkerState:
         state = self.__dict__.get("_summary_state")
