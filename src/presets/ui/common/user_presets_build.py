@@ -218,7 +218,7 @@ def build_user_presets_page_shell(
     presets_list = LinkedWheelListView(parent)
     presets_list.setObjectName("userPresetsList")
     presets_list.setMouseTracking(True)
-    presets_list.setSelectionMode(QListView.SelectionMode.SingleSelection)
+    presets_list.setSelectionMode(QListView.SelectionMode.NoSelection)
     presets_list.setEditTriggers(QListView.EditTrigger.NoEditTriggers)
     presets_list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
     presets_list.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)

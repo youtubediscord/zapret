@@ -10,7 +10,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QKeyEvent
 from PyQt6.QtTest import QTest
-from PyQt6.QtWidgets import QApplication, QVBoxLayout, QWidget
+from PyQt6.QtWidgets import QApplication, QAbstractItemView, QVBoxLayout, QWidget
 from qfluentwidgets import FluentIcon, LineEdit, PrimaryToolButton, StrongBodyLabel
 
 from app.ui_texts import tr
@@ -285,6 +285,37 @@ class UserPresetsAccessibilityTests(unittest.TestCase):
 
         self.assertIs(self._app.focusWidget(), widgets.presets_list)
         self.assertEqual(widgets.presets_list.currentIndex().row(), 1)
+
+    def test_preset_list_navigation_does_not_use_native_selection_state(self) -> None:
+        parent, widgets = self._build_widgets()
+        self.addCleanup(parent.deleteLater)
+        widgets.presets_model.set_rows(
+            [
+                {
+                    "kind": "preset",
+                    "name": "Default",
+                    "file_name": "Default.txt",
+                },
+                {
+                    "kind": "preset",
+                    "name": "Gaming",
+                    "file_name": "Gaming.txt",
+                },
+            ]
+        )
+        widgets.presets_list.setCurrentIndex(widgets.presets_model.index(0, 0))
+
+        event = QKeyEvent(QKeyEvent.Type.KeyPress, int(Qt.Key.Key_Down), Qt.KeyboardModifier.NoModifier)
+        widgets.presets_list.keyPressEvent(event)
+
+        self.assertTrue(event.isAccepted())
+        self.assertEqual(widgets.presets_list.selectionMode(), QAbstractItemView.SelectionMode.NoSelection)
+        self.assertEqual(widgets.presets_list.currentIndex().row(), 1)
+        self.assertEqual(widgets.presets_list.selectedIndexes(), [])
+        self.assertIn(
+            "Список пользовательских пресетов: Gaming",
+            widgets.presets_list.property("screenReaderStateText"),
+        )
 
     def test_preset_list_toggles_selected_folder_with_space(self) -> None:
         from ui.presets_menu.model import PresetListModel

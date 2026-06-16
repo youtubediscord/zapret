@@ -425,13 +425,14 @@ class PresetListDelegate(QStyledItemDelegate):
         drag_marker_visible = drag_marker_row >= 0
 
         hovered = option.state & QStyle.StateFlag.State_MouseOver
+        focused = bool(option.state & QStyle.StateFlag.State_HasFocus)
         pressed = self._pressed_row == index.row()
 
         row_paint = paint_profile_hover_row(
             painter,
             rect,
             active=is_active and not drag_marker_visible,
-            hovered=bool(hovered),
+            hovered=bool(hovered) or focused,
             pressed=pressed,
             show_active_marker=False,
         )
