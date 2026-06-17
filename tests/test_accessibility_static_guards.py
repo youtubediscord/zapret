@@ -32,6 +32,33 @@ ACCESSIBILITY_MARKERS = (
     "accessibility",
 )
 
+KEYBOARD_COLLECTION_WIDGET_MARKERS = (
+    "QListWidget(",
+    "(QListWidget):",
+    "ListView(",
+    "(ListView):",
+    "QTableWidget(",
+    "(QTableWidget):",
+    "TableWidget(",
+    "(TableWidget):",
+    "SegmentedWidget(",
+)
+
+KEYBOARD_COLLECTION_ACCESS_MARKERS = (
+    "keyPressEvent",
+    "focusInEvent",
+    "currentItemChanged",
+    "currentChanged",
+    "currentCellChanged",
+    "set_segmented_items_accessibility",
+    "AccessibleTextRole",
+    "setFocusPolicy(Qt.FocusPolicy.StrongFocus)",
+    "screenReaderStateText",
+    "enable_keyboard_click",
+    "enable_keyboard_toggle",
+    "set_item_accessible_text",
+)
+
 
 def _source(path: str) -> str:
     return (ROOT / path).read_text(encoding="utf-8")
@@ -47,6 +74,22 @@ def test_ui_files_with_important_controls_keep_accessibility_wiring() -> None:
         if not any(marker in source for marker in IMPORTANT_CONTROL_MARKERS):
             continue
         if any(marker in source for marker in ACCESSIBILITY_MARKERS):
+            continue
+        missing.append(rel_path)
+
+    assert missing == []
+
+
+def test_collection_controls_keep_keyboard_or_row_accessibility() -> None:
+    missing: list[str] = []
+    for path in sorted((ROOT / "src").rglob("*.py")):
+        rel_path = path.relative_to(ROOT).as_posix()
+        if rel_path.startswith("src/themes/cache/"):
+            continue
+        source = path.read_text(encoding="utf-8", errors="ignore")
+        if not any(marker in source for marker in KEYBOARD_COLLECTION_WIDGET_MARKERS):
+            continue
+        if any(marker in source for marker in KEYBOARD_COLLECTION_ACCESS_MARKERS):
             continue
         missing.append(rel_path)
 
