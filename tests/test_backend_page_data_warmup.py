@@ -140,7 +140,15 @@ class BackendPageDataWarmupTests(unittest.TestCase):
             build_services_catalog_plan=Mock(return_value=catalog_plan),
         )
 
-        with patch.dict(sys.modules, {"hosts.public": public}):
+        metric_stages: list[str] = []
+
+        with (
+            patch.dict(sys.modules, {"hosts.public": public}),
+            patch(
+                "app.feature_facades.hosts.log_ui_timing_since",
+                side_effect=lambda _scope, _name, stage, *_args, **_kwargs: metric_stages.append(stage),
+            ),
+        ):
             feature = build_hosts_feature()
 
             self.assertTrue(feature.warm_page_data_cache())
@@ -155,6 +163,17 @@ class BackendPageDataWarmupTests(unittest.TestCase):
         self.assertIs(warmed.plan, catalog_plan)
         self.assertEqual(warmed.catalog_signature, catalog_sig)
         public.build_services_catalog_plan.assert_called_once()
+        self.assertEqual(
+            metric_stages,
+            [
+                "hosts_warmup.selection.load",
+                "hosts_warmup.catalog_signature.before",
+                "hosts_warmup.runtime.create",
+                "hosts_warmup.services_catalog_plan.build",
+                "hosts_warmup.catalog_signature.after",
+                "hosts_warmup.cache_store",
+            ],
+        )
 
     def test_telegram_proxy_page_is_prepared_after_interactive_without_opening_it(self) -> None:
         from app.page_names import PageName

@@ -232,6 +232,11 @@ class PresetSetupPageBase(BasePage):
         except Exception:
             pass
         self._mark_content_ready_safely(stage="content.profiles_list.visible", extra="list=visible")
+        self._mark_content_paint_ready_safely(
+            profile_list,
+            stage="content.profiles_list.painted",
+            extra="list=painted",
+        )
 
     def _mark_content_ready_safely(self, *, stage: str, extra: str = "") -> None:
         marker = getattr(self, "mark_content_ready", None)
@@ -239,6 +244,15 @@ class PresetSetupPageBase(BasePage):
             return
         try:
             marker(stage=stage, extra=extra)
+        except Exception:
+            pass
+
+    def _mark_content_paint_ready_safely(self, target, *, stage: str, extra: str = "") -> None:
+        marker = getattr(self, "mark_content_ready_after_next_paint", None)
+        if not callable(marker):
+            return
+        try:
+            marker(target, stage=stage, extra=extra)
         except Exception:
             pass
 

@@ -2017,6 +2017,10 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertIn("build_profile_list_view_state", source)
         self.assertIn("ProfileListLoadResult", source)
         self.assertIn("_remember_profile_list_load_result", source)
+        self.assertIn("profile_warmup.list_profiles", source)
+        self.assertIn("profile_warmup.view_state", source)
+        self.assertIn("profile_warmup.setup_payloads", source)
+        self.assertIn("profile_warmup.cache_store", source)
         self.assertIn("_profile_list_load_result_cache", remember_source)
         self.assertIn("move_to_end", remember_source)
 

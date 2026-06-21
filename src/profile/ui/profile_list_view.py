@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import json
 
-from PyQt6.QtCore import QPoint, Qt, pyqtSignal
-from PyQt6.QtGui import QDrag
+from PyQt6.QtCore import QEvent, QPoint, Qt, pyqtSignal
+from PyQt6.QtGui import QCursor, QDrag
 from PyQt6.QtWidgets import QApplication
 from qfluentwidgets import ListView
 
@@ -102,6 +102,7 @@ class ProfileListView(ListView):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._drag_start_pos: QPoint | None = None
+        self._drag_wheel_scroll_active = False
         self.set_drop_marker(-1, "")
 
     def set_screen_reader_list_name(self, name: str) -> None:
@@ -215,6 +216,61 @@ class ProfileListView(ListView):
         super().wheelEvent(event)
         event.accept()
 
+    def eventFilter(self, watched, event):  # noqa: N802
+        if (
+            self.__dict__.get("_drag_wheel_scroll_active", False)
+            and event.type() == QEvent.Type.Wheel
+            and self._cursor_is_over_viewport()
+            and self._scroll_from_wheel_event(event)
+        ):
+            return True
+        return super().eventFilter(watched, event)
+
+    def _cursor_is_over_viewport(self) -> bool:
+        viewport = self.viewport()
+        if viewport is None:
+            return False
+        try:
+            point = viewport.mapFromGlobal(QCursor.pos())
+            return viewport.rect().contains(point)
+        except Exception:
+            return False
+
+    def _scroll_from_wheel_event(self, event) -> bool:
+        scrollbar = self.verticalScrollBar()
+        if scrollbar is None:
+            return False
+        minimum = scrollbar.minimum()
+        maximum = scrollbar.maximum()
+        if maximum <= minimum:
+            return False
+
+        pixel_delta = 0
+        angle_delta = 0
+        try:
+            pixel_delta = int(event.pixelDelta().y())
+        except Exception:
+            pixel_delta = 0
+        try:
+            angle_delta = int(event.angleDelta().y())
+        except Exception:
+            angle_delta = 0
+        if pixel_delta == 0 and angle_delta == 0:
+            return False
+
+        current = scrollbar.value()
+        if pixel_delta:
+            next_value = current - pixel_delta
+        else:
+            lines = max(1, int(QApplication.wheelScrollLines()))
+            step = max(1, int(scrollbar.singleStep())) * lines
+            next_value = current - round((angle_delta / 120) * step)
+        next_value = max(minimum, min(maximum, int(next_value)))
+        if next_value != current:
+            scrollbar.setValue(next_value)
+        event.accept()
+        return True
+
     def mousePressEvent(self, event):  # noqa: N802
         if event.button() == Qt.MouseButton.LeftButton:
             self._drag_start_pos = event.position().toPoint()
@@ -248,9 +304,16 @@ class ProfileListView(ListView):
         drag = QDrag(self)
         drag.setMimeData(mime)
         self._drag_start_pos = None
+        app = QApplication.instance()
+        if app is not None:
+            app.installEventFilter(self)
+        self._drag_wheel_scroll_active = True
         try:
             drag.exec(Qt.DropAction.MoveAction)
         finally:
+            self._drag_wheel_scroll_active = False
+            if app is not None:
+                app.removeEventFilter(self)
             self.set_drop_marker(-1, "")
         event.accept()
 

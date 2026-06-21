@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from collections import OrderedDict
 import threading
 from dataclasses import dataclass, field
@@ -8,6 +9,7 @@ from typing import Any
 from log.log import log
 from profile.key_resolution import PresetProfileMoveResult
 from profile.state import StrategyApplyResult
+from ui.performance_metrics import log_ui_timing_since
 
 
 PROFILE_LIST_LOAD_RESULT_CACHE_LIMIT = 24
@@ -59,11 +61,17 @@ class ProfileFeature:
 
         method = normalize_launch_method(launch_method)
         service = self._commands()._profile_preset_service(self, method)
+        started_at = time.perf_counter()
         payload = service.list_profiles()
+        log_ui_timing_since("warmup", method, "profile_warmup.list_profiles", started_at, important=True)
+        started_at = time.perf_counter()
+        view_state = build_profile_list_view_state(tuple(getattr(payload, "items", ()) or ()))
+        log_ui_timing_since("warmup", method, "profile_warmup.view_state", started_at, important=True)
         result = ProfileListLoadResult(
             payload=payload,
-            view_state=build_profile_list_view_state(tuple(getattr(payload, "items", ()) or ())),
+            view_state=view_state,
         )
+        started_at = time.perf_counter()
         service.warm_profile_setups(
             tuple(
                 str(getattr(item, "key", "") or "").strip()
@@ -71,11 +79,14 @@ class ProfileFeature:
                 if str(getattr(item, "key", "") or "").strip()
             )
         )
+        log_ui_timing_since("warmup", method, "profile_warmup.setup_payloads", started_at, important=True)
+        started_at = time.perf_counter()
         cache_entry = service.get_cached_profile_list_entry()
         if cache_entry is not None:
             revision, current_payload = cache_entry
             if current_payload is payload:
                 self._remember_profile_list_load_result(method, tuple(revision), result)
+        log_ui_timing_since("warmup", method, "profile_warmup.cache_store", started_at, important=True)
         return result
 
     def _remember_profile_list_load_result(self, method: str, revision: tuple[object, ...], result: Any) -> None:

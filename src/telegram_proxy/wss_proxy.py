@@ -523,6 +523,10 @@ class TelegramWSProxy:
             )
         )
 
+    def _has_healthy_upstream_proxy(self) -> bool:
+        candidates = self._upstream_proxy_candidates()
+        return any(not self._upstream_penalty_active(endpoint) for endpoint in candidates)
+
     async def _open_upstream_proxy(
         self,
         *,
@@ -532,6 +536,7 @@ class TelegramWSProxy:
         dc: int,
         is_media: bool,
         mtproxy: bool = False,
+        allow_penalized: bool = True,
     ) -> tuple[asyncio.StreamReader, asyncio.StreamWriter, UpstreamProxyEndpoint] | None:
         media_tag = " media" if is_media else ""
         prefix = "MTProxy " if mtproxy else ""
@@ -550,7 +555,13 @@ class TelegramWSProxy:
                 endpoint for endpoint in remaining_candidates
                 if not self._upstream_penalty_active(endpoint)
             )
-            candidates = healthy_candidates or remaining_candidates
+            if healthy_candidates:
+                candidates = healthy_candidates
+            elif not allow_penalized:
+                self._log(f"[{label}] upstream temporarily unavailable; skip penalized fallback")
+                return None
+            else:
+                candidates = remaining_candidates
             if not candidates:
                 return None
             endpoint = candidates[0]
@@ -895,20 +906,22 @@ class TelegramWSProxy:
                     )
                     return
                 if should_route_upstream(self._upstream, mode="fallback"):
-                    self._http_upstream_required = True
-                    self._log(f"[{label}] HTTP transport -> upstream (fallback mode)")
-                    self._record_route(
-                        dc=0,
-                        is_media=False,
-                        route="внешний SOCKS5",
-                        status="пропуск",
-                        reason="HTTP transport, fallback SOCKS5",
-                    )
-                    await self._upstream_proxy_connect(
-                        reader, writer, target_host, target_port,
-                        init, label, dc=0, is_media=False,
-                    )
-                    return
+                    if self._has_healthy_upstream_proxy():
+                        self._http_upstream_required = True
+                        self._log(f"[{label}] HTTP transport -> upstream (fallback mode)")
+                        self._record_route(
+                            dc=0,
+                            is_media=False,
+                            route="внешний SOCKS5",
+                            status="пропуск",
+                            reason="HTTP transport, fallback SOCKS5",
+                        )
+                        await self._upstream_proxy_connect(
+                            reader, writer, target_host, target_port,
+                            init, label, dc=0, is_media=False,
+                        )
+                        return
+                    self._log(f"[{label}] HTTP transport -> direct TCP (upstream temporarily unavailable)")
                 self.stats.passthrough_connections += 1
                 self._log(f"[{label}] HTTP transport -> direct TCP")
                 t_connect = time.monotonic()
@@ -1877,6 +1890,7 @@ class TelegramWSProxy:
                 dc=dc,
                 is_media=is_media,
                 mtproxy=True,
+                allow_penalized=not should_route_upstream(self._upstream, mode="fallback"),
             )
             if opened is None:
                 return False
@@ -2057,6 +2071,9 @@ class TelegramWSProxy:
         Returns True if upstream connected, False on failure."""
         if not self._upstream.enabled:
             return False
+        if should_route_upstream(self._upstream, mode="fallback") and not self._has_healthy_upstream_proxy():
+            self._log(f"[{label}] upstream temporarily unavailable; skip fallback")
+            return False
 
         media_tag = " media" if is_media else ""
         upstream_host, upstream_port = self._upstream_target(target_host, target_port, dc, is_media)
@@ -2072,6 +2089,7 @@ class TelegramWSProxy:
                 label=label,
                 dc=dc,
                 is_media=is_media,
+                allow_penalized=not should_route_upstream(self._upstream, mode="fallback"),
             )
             if opened is None:
                 return False

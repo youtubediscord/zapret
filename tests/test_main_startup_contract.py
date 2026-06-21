@@ -3289,6 +3289,43 @@ class WindowLifecycleEarlyEventTests(unittest.TestCase):
             sync_nav_visibility.assert_called_once_with(window)
             self.assertEqual(calls[-2:], ["flush_theme", "sync_nav"])
 
+    def test_tray_show_window_reapplies_saved_geometry_before_showing_hidden_window(self) -> None:
+        from ui.window_adapter import show_window
+
+        calls: list[str] = []
+        geometry_runtime = SimpleNamespace(
+            restore_geometry=Mock(side_effect=lambda: calls.append("restore_geometry")),
+            remembered_zoom_state=Mock(side_effect=lambda: calls.append("remember_zoom") or "normal"),
+            request_zoom_state=Mock(side_effect=lambda _state: calls.append("request_zoom")),
+        )
+        window = SimpleNamespace(
+            isVisible=Mock(return_value=False),
+            show=Mock(side_effect=lambda: calls.append("show")),
+            showNormal=Mock(side_effect=lambda: calls.append("show_normal")),
+            window_geometry_runtime=geometry_runtime,
+            raise_=Mock(side_effect=lambda: calls.append("raise")),
+            activateWindow=Mock(side_effect=lambda: calls.append("activate")),
+        )
+
+        with (
+            patch("ui.navigation.sidebar_builder.sync_existing_nav_visibility", create=True),
+            patch("ui.window_adapter.QTimer", SimpleNamespace(singleShot=lambda *_args, **_kwargs: None), create=True),
+        ):
+            show_window(window)
+
+        self.assertEqual(
+            calls,
+            [
+                "restore_geometry",
+                "show",
+                "show_normal",
+                "remember_zoom",
+                "request_zoom",
+                "raise",
+                "activate",
+            ],
+        )
+
 
 class WindowsSessionShutdownTests(unittest.TestCase):
     def test_close_flow_receives_launch_state_snapshot_instead_of_full_runtime_feature(self) -> None:

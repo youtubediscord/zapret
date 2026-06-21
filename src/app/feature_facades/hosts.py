@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass
 from threading import Lock
 from typing import Callable
+
+from ui.performance_metrics import log_ui_timing_since
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,10 +45,17 @@ def build_hosts_feature() -> HostsFeature:
     def _warm_page_data_cache() -> bool:
         nonlocal warmed_services_catalog
         public = _public()
+        started_at = time.perf_counter()
         selection = dict(public.load_user_selection() or {})
+        log_ui_timing_since("warmup", "hosts", "hosts_warmup.selection.load", started_at, important=True)
+        started_at = time.perf_counter()
         before_signature = public.get_catalog_signature()
+        log_ui_timing_since("warmup", "hosts", "hosts_warmup.catalog_signature.before", started_at, important=True)
+        started_at = time.perf_counter()
         runtime = public.create_hosts_runtime()
+        log_ui_timing_since("warmup", "hosts", "hosts_warmup.runtime.create", started_at, important=True)
         titles = ("Напрямую из hosts", "ИИ", "Остальные")
+        started_at = time.perf_counter()
         plan = public.build_services_catalog_plan(
             hosts_runtime=runtime,
             current_selection=selection,
@@ -53,7 +63,17 @@ def build_hosts_feature() -> HostsFeature:
             ai_title=titles[1],
             other_title=titles[2],
         )
+        log_ui_timing_since(
+            "warmup",
+            "hosts",
+            "hosts_warmup.services_catalog_plan.build",
+            started_at,
+            important=True,
+        )
+        started_at = time.perf_counter()
         after_signature = public.get_catalog_signature()
+        log_ui_timing_since("warmup", "hosts", "hosts_warmup.catalog_signature.after", started_at, important=True)
+        started_at = time.perf_counter()
         with warmed_lock:
             warmed_services_catalog = HostsWarmedServicesCatalog(
                 plan=plan,
@@ -61,6 +81,7 @@ def build_hosts_feature() -> HostsFeature:
                 selection=selection,
                 titles=titles,
             ) if before_signature == after_signature else None
+        log_ui_timing_since("warmup", "hosts", "hosts_warmup.cache_store", started_at, important=True)
         return True
 
     def _consume_warmed_services_catalog_plan(

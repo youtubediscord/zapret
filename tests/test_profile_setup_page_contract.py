@@ -3598,6 +3598,7 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         page._profiles_list = profile_list
         page._profiles_list_show_scheduled = True
         page.mark_content_ready = Mock()
+        page.mark_content_ready_after_next_paint = Mock()
 
         PresetSetupPageBase._show_profiles_list_after_page_switch(page)
 
@@ -3605,6 +3606,11 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         page.mark_content_ready.assert_called_once_with(
             stage="content.profiles_list.visible",
             extra="list=visible",
+        )
+        page.mark_content_ready_after_next_paint.assert_called_once_with(
+            profile_list,
+            stage="content.profiles_list.painted",
+            extra="list=painted",
         )
         self.assertFalse(page._profiles_list_show_scheduled)
 

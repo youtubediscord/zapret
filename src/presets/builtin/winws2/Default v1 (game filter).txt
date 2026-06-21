@@ -120,6 +120,14 @@
 
 --new
 
+--name=Голосовые звонки/чаты
+--filter-l7=stun,discord
+--out-range=-n8
+--payload=stun,discord_ip_discovery
+--lua-desync=fake:blob=stun_pat:repeats=6
+
+--new
+
 --name=updates.discord.com
 --filter-tcp=443
 --hostlist=lists/discord-updates.txt
@@ -153,14 +161,6 @@
 --out-range=-d10
 --payload=tls_client_hello
 --lua-desync=hostfakesplit_multi:hosts=google.com,vimeo.com:tcp_ts=-1000:tcp_md5:repeats=2
-
---new
-
---name=Голосовые звонки/чаты
---filter-l7=stun,discord
---out-range=-n8
---payload=stun,discord_ip_discovery
---lua-desync=fake:blob=stun_pat:repeats=6
 
 --new
 
@@ -393,6 +393,7 @@
 --payload=tls_client_hello
 --lua-desync=send:repeats=2
 --lua-desync=syndata:blob=stun_pat
+--lua-desync=hostfakesplit_multi:hosts=google.com,vimeo.com:tcp_ts=-1000:tcp_md5:repeats=2
 
 --new
 
@@ -552,23 +553,19 @@
 --new
 
 --name=DigitalOcean UDP
---skip
 --filter-udp=443-65535
 --ipset=lists/ipset-digitalocean.txt
 --out-range=-d8
---lua-desync=fake:blob=quic_google:repeats=12
+--lua-desync=fake:blob=stun_pat:repeats=6
 
 --new
 
 --name=Hetzner UDP
---skip
 --filter-udp=443-65535
 --ipset=lists/ipset-hetzner.txt
 --out-range=-d8
 --payload=all
---lua-desync=send:repeats=2
---lua-desync=syndata:blob=stun_pat
---lua-desync=hostfakesplit_multi:hosts=google.com,vimeo.com:tcp_ts=-1000:tcp_md5:repeats=2
+--lua-desync=fake:blob=quic_google:ip_autottl=-2,3-20:ip6_autottl=-2,3-20:repeats=10:payload=all
 
 --new
 

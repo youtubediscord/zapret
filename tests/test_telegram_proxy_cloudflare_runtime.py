@@ -533,6 +533,155 @@ class TelegramProxyCloudflareRuntimeTests(unittest.TestCase):
         upstream.assert_awaited_once()
         self.assertIn("HTTP transport -> upstream (fallback mode)", "\n".join(logs))
 
+    def test_http_transport_skips_penalized_upstreams_and_uses_direct_tcp(self) -> None:
+        from telegram_proxy.proxy.routing import UpstreamProxyConfig, UpstreamProxyEndpoint
+        from telegram_proxy.wss_proxy import TelegramWSProxy
+
+        class _Reader:
+            async def readexactly(self, size):
+                init = b"GET /api HTTP/1.1\r\nHost: telegram\r\n\r\n"
+                return init[:size].ljust(size, b"x")
+
+        class _Writer:
+            def get_extra_info(self, name, default=None):
+                if name == "peername":
+                    return ("127.0.0.1", 34567)
+                return default
+
+            def close(self):
+                return None
+
+            async def wait_closed(self):
+                return None
+
+        class _RemoteWriter:
+            transport = None
+
+            def write(self, _data):
+                return None
+
+            async def drain(self):
+                return None
+
+        async def fake_relay(*_args, **_kwargs):
+            return (12, False)
+
+        logs: list[str] = []
+        primary = UpstreamProxyEndpoint(host="slow.proxy", port=443, tls=True)
+        backup = UpstreamProxyEndpoint(host="dead.proxy", port=443, tls=True)
+        proxy = TelegramWSProxy(
+            on_log=logs.append,
+            upstream_config=UpstreamProxyConfig(
+                enabled=True,
+                host=primary.host,
+                port=primary.port,
+                tls=primary.tls,
+                mode="fallback",
+                fallback_proxies=(backup,),
+            ),
+        )
+        proxy._mark_upstream_connect_failure(primary, "warmup", TimeoutError())
+        proxy._mark_upstream_connect_failure(backup, "warmup", TimeoutError())
+        proxy._upstream_proxy_connect = AsyncMock(return_value=True)
+        proxy._relay_tcp = fake_relay
+
+        with (
+            patch("telegram_proxy.wss_proxy.socks5.handshake", return_value=("149.154.175.50", 80)),
+            patch(
+                "telegram_proxy.wss_proxy.asyncio.open_connection",
+                new=AsyncMock(return_value=(object(), _RemoteWriter())),
+            ) as direct_tcp,
+        ):
+            asyncio.run(proxy._handle_socks5_client(_Reader(), _Writer()))
+
+        proxy._upstream_proxy_connect.assert_not_awaited()
+        direct_tcp.assert_awaited_once()
+        joined = "\n".join(logs)
+        self.assertIn("HTTP transport -> direct TCP (upstream temporarily unavailable)", joined)
+        self.assertNotIn("HTTP transport -> upstream (fallback mode)", joined)
+
+    def test_fallback_upstream_is_not_reused_when_all_candidates_are_penalized(self) -> None:
+        from telegram_proxy.proxy.routing import UpstreamProxyConfig, UpstreamProxyEndpoint
+        from telegram_proxy.wss_proxy import TelegramWSProxy
+
+        logs: list[str] = []
+        primary = UpstreamProxyEndpoint(host="slow.proxy", port=443, tls=True)
+        backup = UpstreamProxyEndpoint(host="dead.proxy", port=443, tls=True)
+        proxy = TelegramWSProxy(
+            on_log=logs.append,
+            upstream_config=UpstreamProxyConfig(
+                enabled=True,
+                host=primary.host,
+                port=primary.port,
+                tls=primary.tls,
+                mode="fallback",
+                fallback_proxies=(backup,),
+            ),
+        )
+        proxy._mark_upstream_connect_failure(primary, "warmup", TimeoutError())
+        proxy._mark_upstream_connect_failure(backup, "warmup", TimeoutError())
+
+        with patch("telegram_proxy.wss_proxy.socks5.connect_via_socks5", new_callable=AsyncMock) as connect:
+            ok = asyncio.run(
+                proxy._upstream_proxy_connect(
+                    object(),
+                    object(),
+                    "149.154.175.100",
+                    443,
+                    b"x" * 64,
+                    "test",
+                    3,
+                    False,
+                )
+            )
+
+        self.assertFalse(ok)
+        connect.assert_not_awaited()
+        self.assertIn("upstream temporarily unavailable; skip fallback", "\n".join(logs))
+
+    def test_fallback_upstream_stops_when_remaining_candidates_are_penalized(self) -> None:
+        from telegram_proxy.proxy.routing import UpstreamProxyConfig, UpstreamProxyEndpoint
+        from telegram_proxy.wss_proxy import TelegramWSProxy
+
+        logs: list[str] = []
+        primary = UpstreamProxyEndpoint(host="fresh.proxy", port=443, tls=True)
+        backup = UpstreamProxyEndpoint(host="penalized.proxy", port=443, tls=True)
+        proxy = TelegramWSProxy(
+            on_log=logs.append,
+            upstream_config=UpstreamProxyConfig(
+                enabled=True,
+                host=primary.host,
+                port=primary.port,
+                tls=primary.tls,
+                mode="fallback",
+                fallback_proxies=(backup,),
+            ),
+        )
+        proxy._mark_upstream_connect_failure(backup, "warmup", TimeoutError())
+
+        async def fake_connect(proxy_host, *_args, **_kwargs):
+            seen_hosts.append(proxy_host)
+            raise TimeoutError()
+
+        seen_hosts: list[str] = []
+        with patch("telegram_proxy.wss_proxy.socks5.connect_via_socks5", side_effect=fake_connect):
+            ok = asyncio.run(
+                proxy._upstream_proxy_connect(
+                    object(),
+                    object(),
+                    "149.154.175.100",
+                    443,
+                    b"x" * 64,
+                    "test",
+                    3,
+                    False,
+                )
+            )
+
+        self.assertFalse(ok)
+        self.assertEqual(seen_hosts, ["fresh.proxy"])
+        self.assertIn("upstream temporarily unavailable; skip penalized fallback", "\n".join(logs))
+
     def test_http_transport_uses_upstream_immediately_after_learned_direct_block(self) -> None:
         from telegram_proxy.proxy.routing import UpstreamProxyConfig
         from telegram_proxy.wss_proxy import TelegramWSProxy

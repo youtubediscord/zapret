@@ -35,7 +35,7 @@ class BlockcheckStrategyScannerCleanupTests(unittest.TestCase):
 
         self.assertEqual(init_lines, list(WINWS2_LUA_INIT_LINES))
         self.assertIn("--lua-init=@lua/custom_diag.lua", init_lines)
-        self.assertNotIn("--lua-init=@lua/custom-diag.lua", init_lines)
+        self.assertNotIn("--lua-init=@lua/custom_diag.lua", init_lines)
 
     def test_post_scan_cleanup_uses_runtime_windivert_cleanup(self) -> None:
         from blockcheck.strategy_scanner import StrategyScanner

@@ -115,6 +115,24 @@ def _refresh_window_after_show(window) -> None:
         pass
 
 
+def _restore_geometry_before_hidden_show(window) -> None:
+    try:
+        if bool(window.isVisible()):
+            return
+    except Exception:
+        return
+
+    geometry_runtime = getattr(window, "window_geometry_runtime", None)
+    restore_geometry = getattr(geometry_runtime, "restore_geometry", None)
+    if not callable(restore_geometry):
+        return
+
+    try:
+        restore_geometry()
+    except Exception:
+        pass
+
+
 def show_window(window) -> None:
     try:
         from ui.navigation.sidebar_builder import sync_existing_nav_visibility
@@ -123,6 +141,7 @@ def show_window(window) -> None:
     except Exception:
         pass
 
+    _restore_geometry_before_hidden_show(window)
     window.show()
     window.showNormal()
     window.window_geometry_runtime.request_zoom_state(

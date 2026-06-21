@@ -2,7 +2,7 @@
 """Базовый класс для страниц — использует qfluentwidgets ScrollArea."""
 
 import time as _time
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtCore import Qt, QEvent, QTimer
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QFrame, QSizePolicy,
 )
@@ -92,6 +92,8 @@ class BasePage(_FluentScrollArea):
         self._page_load_generation = 0
         self._page_open_metric_started_at = 0.0
         self._page_open_metric_first_show = True
+        self._content_paint_metric_targets: dict[int, dict[str, object]] = {}
+        self._content_paint_metric_next_token = 0
         self._ready_callbacks: list[object] = []
         self._cleanup_in_progress = False
         self._page_theme_refresh = self._create_page_theme_refresh_if_needed()
@@ -224,6 +226,108 @@ class BasePage(_FluentScrollArea):
             important=True,
             threshold_ms=0,
         )
+
+    def mark_content_ready_after_next_paint(
+        self,
+        target,
+        *,
+        stage: str = "content.painted",
+        extra: str = "",
+        timeout_ms: int = 1_500,
+    ) -> None:
+        paint_target = self._resolve_content_paint_target(target)
+        if paint_target is None:
+            self.mark_content_ready(stage=stage, extra=f"{extra}; paint_target=missing" if extra else "paint_target=missing")
+            return
+
+        self._content_paint_metric_next_token = int(
+            self.__dict__.get("_content_paint_metric_next_token", 0) or 0
+        ) + 1
+        token = self._content_paint_metric_next_token
+        pending = self.__dict__.setdefault("_content_paint_metric_targets", {})
+        pending[id(paint_target)] = {
+            "target": paint_target,
+            "token": token,
+            "stage": str(stage or "content.painted"),
+            "extra": str(extra or ""),
+            "started_at": float(self.__dict__.get("_page_open_metric_started_at", 0.0) or 0.0),
+        }
+
+        try:
+            paint_target.installEventFilter(self)
+        except Exception:
+            pending.pop(id(paint_target), None)
+            self.mark_content_ready(stage=stage, extra=f"{extra}; paint_filter=failed" if extra else "paint_filter=failed")
+            return
+        try:
+            paint_target.update()
+        except Exception:
+            pass
+
+        def _timeout() -> None:
+            self._finish_content_paint_metric(paint_target, token, timeout=True)
+
+        try:
+            QTimer.singleShot(max(1, int(timeout_ms)), _timeout)
+        except Exception:
+            pass
+
+    @staticmethod
+    def _resolve_content_paint_target(target):
+        if target is None:
+            return None
+        inner_view = getattr(target, "_view", None)
+        viewport = getattr(inner_view, "viewport", None)
+        if callable(viewport):
+            try:
+                resolved = viewport()
+                if resolved is not None:
+                    return resolved
+            except Exception:
+                pass
+        viewport = getattr(target, "viewport", None)
+        if callable(viewport):
+            try:
+                resolved = viewport()
+                if resolved is not None:
+                    return resolved
+            except Exception:
+                pass
+        return target
+
+    def _finish_content_paint_metric(self, target, token: int, *, timeout: bool = False) -> None:
+        pending = self.__dict__.get("_content_paint_metric_targets") or {}
+        data = pending.get(id(target))
+        if not data or int(data.get("token") or 0) != int(token):
+            return
+        pending.pop(id(target), None)
+        try:
+            target.removeEventFilter(self)
+        except Exception:
+            pass
+        extra = str(data.get("extra") or "")
+        if timeout:
+            extra = f"{extra}; paint=timeout" if extra else "paint=timeout"
+        self.mark_content_ready(
+            stage=str(data.get("stage") or "content.painted"),
+            extra=extra,
+            started_at=float(data.get("started_at") or 0.0),
+        )
+
+    def eventFilter(self, watched, event):  # noqa: N802
+        try:
+            event_type = event.type()
+        except Exception:
+            event_type = None
+        if event_type == QEvent.Type.Paint:
+            pending = self.__dict__.get("_content_paint_metric_targets") or {}
+            data = pending.get(id(watched))
+            if data:
+                self._finish_content_paint_metric(watched, int(data.get("token") or 0))
+        try:
+            return bool(super().eventFilter(watched, event))
+        except Exception:
+            return False
 
     def run_when_page_ready(self, callback) -> bool:
         if not callable(callback):

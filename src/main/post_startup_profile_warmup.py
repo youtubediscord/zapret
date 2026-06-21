@@ -56,7 +56,7 @@ def install_profile_warmup(
         except Exception as exc:
             log(f"Фоновый прогрев профилей {method} не выполнен: {exc}", "DEBUG")
             return
-        log_ui_timing_since("warmup", method, "profile.list", started_at, important=True)
+        log_ui_timing_since("warmup", method, "profile.full", started_at, important=True)
         if not is_startup_host_alive(startup_host):
             return
         if on_profile_warmup_ready is not None:

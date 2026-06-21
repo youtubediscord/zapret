@@ -9,7 +9,7 @@ from unittest.mock import Mock, patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import QPoint, Qt
 from PyQt6.QtGui import QKeyEvent
 from PyQt6.QtWidgets import QApplication, QAbstractItemView
 
@@ -71,6 +71,21 @@ def _item(name: str, *, key: str, in_preset: bool = True, profile_index: int = 0
         order=profile_index,
         profile_name=name,
     )
+
+
+class _WheelEvent:
+    def __init__(self, angle_delta_y: int) -> None:
+        self._angle_delta_y = int(angle_delta_y)
+        self.accepted = False
+
+    def angleDelta(self):  # noqa: N802
+        return QPoint(0, self._angle_delta_y)
+
+    def pixelDelta(self):  # noqa: N802
+        return QPoint(0, 0)
+
+    def accept(self) -> None:
+        self.accepted = True
 
 
 class ProfileOrderPageTests(unittest.TestCase):
@@ -359,6 +374,29 @@ class ProfileOrderPageTests(unittest.TestCase):
         self.assertEqual(order_list._view.selectedIndexes(), [])
         self.assertIn("Порядок profile: Позиция 2", order_list._view.property("screenReaderStateText"))
         self.assertIn("B", order_list._view.property("screenReaderStateText"))
+
+    def test_order_drag_wheel_scrolls_profile_list_directly(self) -> None:
+        from profile.ui.profile_order_list import ProfileOrderList
+
+        order_list = ProfileOrderList()
+        self.addCleanup(order_list.deleteLater)
+        order_list._model.set_profiles(
+            tuple(
+                _item(f"Profile {index}", key=f"profile:{index}", profile_index=index)
+                for index in range(30)
+            )
+        )
+        order_list.resize(360, 120)
+        order_list.show()
+        QApplication.processEvents()
+        scrollbar = order_list._view.verticalScrollBar()
+        scrollbar.setValue(40)
+
+        event = _WheelEvent(-120)
+
+        self.assertTrue(order_list._view._scroll_from_wheel_event(event))
+        self.assertGreater(scrollbar.value(), 40)
+        self.assertTrue(event.accepted)
 
     def test_order_page_explains_priority_and_uses_order_workers(self) -> None:
         from profile.ui.profile_order_page import ProfileOrderPageBase
