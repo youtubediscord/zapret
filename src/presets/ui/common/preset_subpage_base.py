@@ -1858,18 +1858,19 @@ class PresetRawEditorPage(BasePage):
             action_map: dict[object, str] = {}
             duplicate_action = _make_menu_action("Дублировать", icon=_fluent_icon("COPY"), parent=menu)
             export_action = _make_menu_action("Экспорт", icon=_fluent_icon("SHARE"), parent=menu)
-            reset_action = _make_menu_action("Вернуть встроенный", icon=_fluent_icon("SYNC"), parent=menu)
             action_map[duplicate_action] = "duplicate"
             action_map[export_action] = "export"
-            action_map[reset_action] = "reset"
+            reset_action = None
             rename_action = None
             delete_action = None
             if not self._is_current_builtin():
                 rename_action = _make_menu_action("Переименовать", icon=_fluent_icon("RENAME"), parent=menu)
+                reset_action = _make_menu_action("Вернуть встроенный", icon=_fluent_icon("SYNC"), parent=menu)
                 delete_action = _make_menu_action("Удалить", icon=_fluent_icon("DELETE"), parent=menu)
                 if self._is_current_selected_file() and hasattr(delete_action, "setEnabled"):
                     delete_action.setEnabled(False)
                 action_map[rename_action] = "rename"
+                action_map[reset_action] = "reset"
                 action_map[delete_action] = "delete"
             if rename_action is not None:
                 menu.addAction(rename_action)
@@ -1878,8 +1879,9 @@ class PresetRawEditorPage(BasePage):
             _set_raw_preset_menu_item_accessibility(menu, text="Дублировать")
             menu.addAction(export_action)
             _set_raw_preset_menu_item_accessibility(menu, text="Экспорт")
-            menu.addAction(reset_action)
-            _set_raw_preset_menu_item_accessibility(menu, text="Вернуть встроенный")
+            if reset_action is not None:
+                menu.addAction(reset_action)
+                _set_raw_preset_menu_item_accessibility(menu, text="Вернуть встроенный")
             if delete_action is not None:
                 menu.addAction(delete_action)
                 _set_raw_preset_menu_item_accessibility(

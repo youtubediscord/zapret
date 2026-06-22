@@ -175,6 +175,37 @@ class PresetSubpageAccessibilityTests(unittest.TestCase):
         self.assertIn("Действие preset: Вернуть встроенный", accessible_items)
         self.assertIn("Действие preset: Удалить, недоступно", accessible_items)
 
+    def test_raw_builtin_preset_menu_hides_reset_action(self) -> None:
+        import presets.ui.common.preset_subpage_base as preset_subpage_base
+
+        page = PresetRawEditorPage.__new__(PresetRawEditorPage)
+        page._preset_origin = "builtin"
+        page._preset_file_name = "Default.txt"
+        page._ui_language = "ru"
+        page.menuButton = SimpleNamespace(
+            rect=lambda: SimpleNamespace(bottomLeft=lambda: QPoint(0, 0)),
+            mapToGlobal=lambda point: point,
+        )
+        page._is_current_selected_file = lambda: True
+        menu_holder: dict[str, _FakeMenu] = {}
+
+        class CapturingMenu(_FakeMenu):
+            def __init__(self, *, parent=None) -> None:
+                super().__init__(parent=parent)
+                menu_holder["menu"] = self
+
+        with (
+            patch.object(preset_subpage_base, "RoundMenu", CapturingMenu),
+            patch.object(preset_subpage_base, "Action", _FakeAction),
+            patch.object(preset_subpage_base, "_make_menu_action", lambda text, **_kwargs: _FakeAction(text)),
+            patch.object(preset_subpage_base, "exec_popup_menu", return_value=None),
+        ):
+            PresetRawEditorPage._open_menu(page)
+
+        action_texts = [action.text for action in menu_holder["menu"].actions]
+
+        self.assertNotIn("Вернуть встроенный", action_texts)
+
     def test_rename_dialog_is_named_for_screen_reader(self) -> None:
         parent = QWidget()
         parent.resize(640, 480)

@@ -104,6 +104,43 @@ class PresetActionsMenuTests(unittest.TestCase):
         self.assertIn("Действие preset: Переименовать", accessible_items)
         self.assertIn("Действие preset: Удалить, недоступно", accessible_items)
 
+    def test_builtin_preset_does_not_show_reset_action(self) -> None:
+        from presets.ui.common import preset_actions_menu
+
+        menu_holder: dict[str, _FakeMenu] = {}
+
+        class CapturingMenu(_FakeMenu):
+            def __init__(self, *, parent=None) -> None:
+                super().__init__(parent=parent)
+                menu_holder["menu"] = self
+
+        labels = {
+            "open": "Открыть",
+            "rating": "Рейтинг",
+            "move_up": "Переместить выше",
+            "move_down": "Переместить ниже",
+            "rename": "Переименовать",
+            "duplicate": "Дублировать",
+            "export": "Экспорт",
+            "reset": "Вернуть встроенный",
+            "delete": "Удалить",
+        }
+
+        with patch.object(preset_actions_menu, "exec_popup_menu", return_value=None):
+            preset_actions_menu.show_preset_actions_menu(
+                object(),
+                global_pos=QPoint(0, 0),
+                is_builtin=True,
+                labels=labels,
+                make_menu_action=lambda text, **_kwargs: _FakeAction(text),
+                icon_resolver=lambda _name: None,
+                round_menu_cls=CapturingMenu,
+            )
+
+        action_texts = [action.text for action in menu_holder["menu"].actions]
+
+        self.assertNotIn("Вернуть встроенный", action_texts)
+
     def test_list_menu_disables_delete_for_selected_user_preset(self) -> None:
         from presets.ui.common.user_presets_item_actions_workflow import open_edit_preset_menu_action
 
