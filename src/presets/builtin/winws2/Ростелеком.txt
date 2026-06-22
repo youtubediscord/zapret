@@ -152,7 +152,6 @@
 --out-range=-d10
 --lua-desync=syndata
 --lua-desync=multidisorder_legacy:pos=1,midsld
-
 --filter-tcp=80,443-65535
 --out-range=-d10
 --lua-desync=syndata
@@ -161,51 +160,11 @@
 --new
 
 --name=Cloudflare TCP
---ipset=lists/ipset-cloudflare.txt
---out-range=-d10
---lua-desync=syndata
---lua-desync=multidisorder_legacy:pos=1,midsld
-
 --filter-tcp=80,443-65535
+--hostlist=lists/cloudflare.txt
 --out-range=-d10
 --lua-desync=syndata
 --lua-desync=multidisorder_legacy:pos=1,midsld
-
---new
-
---name=Cloudflare legacy TCP
---ipset=lists/cloudflare-ipset.txt
---out-range=-d10
---lua-desync=syndata
---lua-desync=multidisorder_legacy:pos=1,midsld
-
---filter-tcp=80,443-65535
---out-range=-d10
---lua-desync=syndata
---lua-desync=multidisorder_legacy:pos=1,midsld
-
---new
-
---name=Cloudflare IPv6 legacy TCP
---ipset=lists/cloudflare-ipset_v6.txt
---out-range=-d10
---lua-desync=syndata
---lua-desync=multidisorder_legacy:pos=1,midsld
-
---filter-tcp=80,443-65535
---out-range=-d10
---lua-desync=syndata
---lua-desync=multidisorder_legacy:pos=1,midsld
-
---new
-
---name=Cloudflare alt TCP
---ipset=lists/ipset-cloudflare1.txt
---out-range=-d10
---lua-desync=syndata
---lua-desync=multidisorder_legacy:pos=1,midsld
-
---filter-tcp=80,443-65535
 --out-range=-d10
 --lua-desync=syndata
 --lua-desync=multidisorder_legacy:pos=1,midsld
@@ -213,12 +172,23 @@
 --new
 
 --name=Amazon TCP
---ipset=lists/ipset-amazon.txt
+--filter-tcp=80,443-65535
+--hostlist=lists/amazon.txt
+--out-range=-d10
+--lua-desync=syndata
+--lua-desync=multidisorder_legacy:pos=1,midsld
 --out-range=-d10
 --lua-desync=syndata
 --lua-desync=multidisorder_legacy:pos=1,midsld
 
+--new
+
+--name=EpicGames & Fortnite
 --filter-tcp=80,443-65535
+--hostlist=lists/epicgames-fortnite.txt
+--out-range=-d10
+--lua-desync=syndata
+--lua-desync=multidisorder_legacy:pos=1,midsld
 --out-range=-d10
 --lua-desync=syndata
 --lua-desync=multidisorder_legacy:pos=1,midsld
@@ -230,7 +200,6 @@
 --out-range=-d10
 --lua-desync=syndata
 --lua-desync=multidisorder_legacy:pos=1,midsld
-
 --filter-tcp=80,443-65535
 --out-range=-d10
 --lua-desync=syndata
@@ -243,7 +212,6 @@
 --out-range=-d10
 --lua-desync=syndata
 --lua-desync=multidisorder_legacy:pos=1,midsld
-
 --filter-tcp=80,443-65535
 --out-range=-d10
 --lua-desync=syndata
@@ -256,7 +224,6 @@
 --out-range=-d10
 --lua-desync=syndata
 --lua-desync=multidisorder_legacy:pos=1,midsld
-
 --filter-tcp=80,443-65535
 --out-range=-d10
 --lua-desync=syndata
@@ -269,7 +236,6 @@
 --out-range=-d10
 --lua-desync=syndata
 --lua-desync=multidisorder_legacy:pos=1,midsld
-
 --filter-tcp=80,443-65535
 --out-range=-d10
 --lua-desync=syndata
@@ -282,7 +248,6 @@
 --out-range=-d10
 --lua-desync=syndata
 --lua-desync=multidisorder_legacy:pos=1,midsld
-
 --filter-tcp=80,443-65535
 --out-range=-d10
 --lua-desync=syndata
@@ -295,7 +260,6 @@
 --out-range=-d10
 --lua-desync=syndata
 --lua-desync=multidisorder_legacy:pos=1,midsld
-
 --filter-tcp=80,443-65535
 --out-range=-d10
 --lua-desync=syndata
@@ -308,7 +272,6 @@
 --out-range=-d10
 --lua-desync=syndata
 --lua-desync=multidisorder_legacy:pos=1,midsld
-
 --filter-tcp=80,443-65535
 --out-range=-d10
 --lua-desync=syndata
@@ -321,7 +284,6 @@
 --out-range=-d10
 --lua-desync=syndata
 --lua-desync=multidisorder_legacy:pos=1,midsld
-
 --filter-tcp=80,443-65535
 --out-range=-d10
 --lua-desync=syndata

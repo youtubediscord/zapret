@@ -63,7 +63,6 @@
 ################################################################################
 # YOUTUBE (UDP / QUIC)
 ################################################################################
-
 --name=youtube.com (QUIC)
 --filter-udp=443
 --ipset=lists/ipset-youtube.txt
@@ -76,7 +75,6 @@
 ################################################################################
 # DISCORD
 ################################################################################
-
 --name=updates.discord.com
 --filter-tcp=443
 --hostlist=lists/discord-updates.txt
@@ -112,7 +110,6 @@
 ################################################################################
 # RIOT / VALORANT
 ################################################################################
-
 --name=Riot / Valorant TCP
 --filter-tcp=443
 --hostlist-domains=riotgames.com,valorant.com,riotcdn.net
@@ -143,7 +140,6 @@
 ################################################################################
 # GLOBAL TCP (SOFT FALLBACK)
 ################################################################################
-
 --name=Russia blacklist TCP 443
 --filter-tcp=443
 --hostlist=lists/russia-blacklist.txt
@@ -164,34 +160,7 @@
 
 --name=Cloudflare TCP
 --filter-tcp=80,443-65535
---ipset=lists/ipset-cloudflare.txt
---out-range=-d5
---lua-desync=send
---lua-desync=multidisorder:pos=1
-
---new
-
---name=Cloudflare legacy TCP
---filter-tcp=80,443-65535
---ipset=lists/cloudflare-ipset.txt
---out-range=-d5
---lua-desync=send
---lua-desync=multidisorder:pos=1
-
---new
-
---name=Cloudflare IPv6 legacy TCP
---filter-tcp=80,443-65535
---ipset=lists/cloudflare-ipset_v6.txt
---out-range=-d5
---lua-desync=send
---lua-desync=multidisorder:pos=1
-
---new
-
---name=Cloudflare alt TCP
---filter-tcp=80,443-65535
---ipset=lists/ipset-cloudflare1.txt
+--hostlist=lists/cloudflare.txt
 --out-range=-d5
 --lua-desync=send
 --lua-desync=multidisorder:pos=1
@@ -200,7 +169,16 @@
 
 --name=Amazon TCP
 --filter-tcp=80,443-65535
---ipset=lists/ipset-amazon.txt
+--hostlist=lists/amazon.txt
+--out-range=-d5
+--lua-desync=send
+--lua-desync=multidisorder:pos=1
+
+--new
+
+--name=EpicGames & Fortnite
+--filter-tcp=80,443-65535
+--hostlist=lists/epicgames-fortnite.txt
 --out-range=-d5
 --lua-desync=send
 --lua-desync=multidisorder:pos=1

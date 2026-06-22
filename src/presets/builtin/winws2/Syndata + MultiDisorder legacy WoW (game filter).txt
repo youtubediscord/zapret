@@ -196,6 +196,17 @@
 
 --new
 
+--name=EpicGames & Fortnite
+--filter-tcp=80,443-65535
+--hostlist=lists/epicgames-fortnite.txt
+--out-range=-n8
+--lua-desync=send:repeats=2
+--lua-desync=syndata:blob=fake_tls_8
+--lua-desync=fake:blob=tls18:repeats=4:tcp_ack=-66000:tcp_ts_up
+--lua-desync=multidisorder_legacy:pos=1,midsld:ip_autottl=-1,3-20:ip6_autottl=-1,3-20
+
+--new
+
 --name=Amazon UDP
 --filter-udp=443-65535
 --ipset=lists/ipset-amazon.txt
@@ -246,42 +257,9 @@
 
 --new
 
---name=Cloudflare legacy TCP
---filter-tcp=80,443-65535
---ipset=lists/cloudflare-ipset.txt
---out-range=-d8
---lua-desync=send:repeats=2
---lua-desync=syndata:blob=fake_tls_7
---lua-desync=fake:blob=tls_google:repeats=11:tcp_md5
---lua-desync=hostfakesplit_multi:hosts=google.com,vimeo.com:tcp_ts=-1000:tcp_md5:repeats=2
-
---new
-
---name=Cloudflare IPv6 legacy TCP
---filter-tcp=80,443-65535
---ipset=lists/cloudflare-ipset_v6.txt
---out-range=-d8
---lua-desync=send:repeats=2
---lua-desync=syndata:blob=fake_tls_7
---lua-desync=fake:blob=tls_google:repeats=11:tcp_md5
---lua-desync=hostfakesplit_multi:hosts=google.com,vimeo.com:tcp_ts=-1000:tcp_md5:repeats=2
-
---new
-
---name=Cloudflare alt TCP
---filter-tcp=80,443-65535
---ipset=lists/ipset-cloudflare1.txt
---out-range=-d8
---lua-desync=send:repeats=2
---lua-desync=syndata:blob=fake_tls_7
---lua-desync=fake:blob=tls_google:repeats=11:tcp_md5
---lua-desync=hostfakesplit_multi:hosts=google.com,vimeo.com:tcp_ts=-1000:tcp_md5:repeats=2
-
---new
-
 --name=Cloudflare TCP
 --filter-tcp=80,443-65535
---ipset=lists/ipset-cloudflare.txt
+--hostlist=lists/cloudflare.txt
 --out-range=-d8
 --lua-desync=send:repeats=2
 --lua-desync=syndata:blob=fake_tls_7

@@ -341,40 +341,7 @@
 
 --name=Cloudflare TCP
 --filter-tcp=80,443-65535
---ipset=lists/ipset-cloudflare.txt
---payload=all
---lua-desync=fake:blob=tls_zero4:tcp_seq=-10000:repeats=11
---lua-desync=fake:blob=fake_default_tls:tcp_seq=-10000:repeats=11:tls_mod=rnd,dupsid,sni=www.google.com
---lua-desync=fake:blob=fake_http_max:tcp_seq=-10000:repeats=11
---lua-desync=multidisorder_legacy:pos=1,midsld
-
---new
-
---name=Cloudflare legacy TCP
---filter-tcp=80,443-65535
---ipset=lists/cloudflare-ipset.txt
---payload=all
---lua-desync=fake:blob=tls_zero4:tcp_seq=-10000:repeats=11
---lua-desync=fake:blob=fake_default_tls:tcp_seq=-10000:repeats=11:tls_mod=rnd,dupsid,sni=www.google.com
---lua-desync=fake:blob=fake_http_max:tcp_seq=-10000:repeats=11
---lua-desync=multidisorder_legacy:pos=1,midsld
-
---new
-
---name=Cloudflare IPv6 legacy TCP
---filter-tcp=80,443-65535
---ipset=lists/cloudflare-ipset_v6.txt
---payload=all
---lua-desync=fake:blob=tls_zero4:tcp_seq=-10000:repeats=11
---lua-desync=fake:blob=fake_default_tls:tcp_seq=-10000:repeats=11:tls_mod=rnd,dupsid,sni=www.google.com
---lua-desync=fake:blob=fake_http_max:tcp_seq=-10000:repeats=11
---lua-desync=multidisorder_legacy:pos=1,midsld
-
---new
-
---name=Cloudflare alt TCP
---filter-tcp=80,443-65535
---ipset=lists/ipset-cloudflare1.txt
+--hostlist=lists/cloudflare.txt
 --payload=all
 --lua-desync=fake:blob=tls_zero4:tcp_seq=-10000:repeats=11
 --lua-desync=fake:blob=fake_default_tls:tcp_seq=-10000:repeats=11:tls_mod=rnd,dupsid,sni=www.google.com
@@ -385,7 +352,18 @@
 
 --name=Amazon TCP
 --filter-tcp=80,443-65535
---ipset=lists/ipset-amazon.txt
+--hostlist=lists/amazon.txt
+--payload=all
+--lua-desync=fake:blob=tls_zero4:tcp_seq=-10000:repeats=11
+--lua-desync=fake:blob=fake_default_tls:tcp_seq=-10000:repeats=11:tls_mod=rnd,dupsid,sni=www.google.com
+--lua-desync=fake:blob=fake_http_max:tcp_seq=-10000:repeats=11
+--lua-desync=multidisorder_legacy:pos=1,midsld
+
+--new
+
+--name=EpicGames & Fortnite
+--filter-tcp=80,443-65535
+--hostlist=lists/epicgames-fortnite.txt
 --payload=all
 --lua-desync=fake:blob=tls_zero4:tcp_seq=-10000:repeats=11
 --lua-desync=fake:blob=fake_default_tls:tcp_seq=-10000:repeats=11:tls_mod=rnd,dupsid,sni=www.google.com

@@ -417,31 +417,11 @@
 
 --name=Cloudflare TCP
 --filter-tcp=80,443-65535
---ipset=lists/ipset-cloudflare.txt
+--hostlist=lists/cloudflare.txt
 --out-range=-d10
 --payload=all
 --lua-desync=send:repeats=2
 --lua-desync=syndata:blob=stun_pat
-
---new
-
---name=Cloudflare legacy TCP
---filter-tcp=80,443-65535
---ipset=lists/cloudflare-ipset.txt
---out-range=-d10
---payload=tls_client_hello
---lua-desync=send:repeats=2
---lua-desync=syndata:blob=stun_pat
-
---new
-
---name=Cloudflare IPv6 legacy TCP
---filter-tcp=80,443-65535
---ipset=lists/cloudflare-ipset_v6.txt
---out-range=-d10
---payload=tls_client_hello
---lua-desync=fake:blob=tls_google:repeats=6:tcp_ts=-600000
---lua-desync=fakedsplit:pattern=0x00:repeats=6:tcp_ts=-600000
 
 --new
 
@@ -473,9 +453,9 @@
 
 --new
 
---name=Cloudflare alt TCP
+--name=Amazon TCP
 --filter-tcp=80,443-65535
---ipset=lists/ipset-cloudflare1.txt
+--hostlist=lists/amazon.txt
 --out-range=-d10
 --payload=tls_client_hello
 --lua-desync=fake:blob=tls_google:repeats=6:tcp_ts=-600000
@@ -483,9 +463,9 @@
 
 --new
 
---name=Amazon TCP
+--name=EpicGames & Fortnite
 --filter-tcp=80,443-65535
---ipset=lists/ipset-amazon.txt
+--hostlist=lists/epicgames-fortnite.txt
 --out-range=-d10
 --payload=tls_client_hello
 --lua-desync=fake:blob=tls_google:repeats=6:tcp_ts=-600000
