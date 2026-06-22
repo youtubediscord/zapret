@@ -317,6 +317,74 @@ class TelegramProxyWorkerArchitectureTests(unittest.TestCase):
             parent=page,
         )
 
+    def test_page_connects_runtime_upstream_selection_signal(self) -> None:
+        from telegram_proxy.ui.page import TelegramProxyPage
+
+        source = inspect.getsource(TelegramProxyPage._connect_signals)
+
+        self.assertIn("upstream_selected.connect", source)
+        self.assertIn("_on_upstream_selected", source)
+
+    def test_page_updates_upstream_combo_when_runtime_selects_working_preset(self) -> None:
+        from telegram_proxy.config.upstream_catalog import UpstreamCatalog
+        from telegram_proxy.ui.page import TelegramProxyPage
+
+        class _Combo:
+            def __init__(self):
+                self.index = 0
+
+            def currentIndex(self):
+                return self.index
+
+        class _PresetRow:
+            def __init__(self):
+                self.combo = _Combo()
+                self.indexes = []
+
+            def setCurrentIndex(self, index: int, *, block_signals: bool = False):
+                self.combo.index = int(index)
+                self.indexes.append((int(index), bool(block_signals)))
+
+        catalog = UpstreamCatalog(
+            build_presets=[
+                {
+                    "id": "uk",
+                    "name": "Великобритания",
+                    "type": "socks5",
+                    "host": "203.0.113.10",
+                    "port": 443,
+                    "tls": True,
+                },
+                {
+                    "id": "no",
+                    "name": "Норвегия",
+                    "type": "socks5",
+                    "host": "203.0.113.20",
+                    "port": 443,
+                    "tls": True,
+                },
+            ],
+        )
+        page = TelegramProxyPage.__new__(TelegramProxyPage)
+        page._cleanup_in_progress = False
+        page._advanced_settings_built = True
+        page._upstream_catalog = catalog
+        page._upstream_preset_row = _PresetRow()
+        page._apply_upstream_preset_ui = Mock()
+        page._request_settings_save = Mock()
+        page._append_log_line = Mock()
+
+        TelegramProxyPage._on_upstream_selected(page, "no", "Норвегия")
+
+        self.assertEqual(page._upstream_preset_row.indexes, [(1, True)])
+        page._apply_upstream_preset_ui.assert_called_once_with(1)
+        page._request_settings_save.assert_called_once_with(
+            "upstream_preset",
+            preset_id="no",
+            restart="now",
+        )
+        page._append_log_line.assert_called_once_with("Telegram Proxy: выбран рабочий внешний прокси: Норвегия")
+
     def test_tray_toggle_stops_proxy_through_worker_runtime(self) -> None:
         feature_source = inspect.getsource(TelegramProxyFeature)
         toggle_source = inspect.getsource(TelegramProxyFeature.toggle_async)

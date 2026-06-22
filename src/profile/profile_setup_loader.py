@@ -109,19 +109,34 @@ class ProfileListFileSaveWorker(QThread):
     saved = pyqtSignal(int, object, object)
     failed = pyqtSignal(int, str)
 
-    def __init__(self, request_id: int, save_text, load_profile, profile_key: str, text: str, parent=None):
+    def __init__(
+        self,
+        request_id: int,
+        save_text,
+        load_profile,
+        profile_key: str,
+        text: str,
+        *,
+        filter_kind: str = "",
+        filter_value: str = "",
+        parent=None,
+    ):
         super().__init__(parent)
         self._request_id = int(request_id)
         self._save_text = save_text
         self._load_profile = load_profile
         self._profile_key = str(profile_key or "").strip()
         self._text = str(text or "")
+        self._filter_kind = str(filter_kind or "").strip()
+        self._filter_value = str(filter_value or "").strip()
 
     def run(self) -> None:
         try:
             state = self._save_text(
                 profile_key=self._profile_key,
                 text=self._text,
+                filter_kind=self._filter_kind,
+                filter_value=self._filter_value,
             )
             payload = self._load_profile(self._profile_key)
         except Exception as exc:

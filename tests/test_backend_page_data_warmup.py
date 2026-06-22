@@ -117,11 +117,11 @@ class BackendPageDataWarmupTests(unittest.TestCase):
             )
             signal.emit("interactive")
 
-        self.assertEqual(delays, [1000])
+        self.assertEqual(delays, [0])
         self.assertEqual(queued_tasks, [("hosts", "HostsPageDataWarmup")])
         hosts_feature.warm_page_data_cache.assert_called_once_with()
         self.assertFalse(hasattr(startup_host, "ensure_page"))
-        metric.assert_any_call("StartupHostsPageWarmupQueued", "1000ms after interactive")
+        metric.assert_any_call("StartupHostsPageWarmupQueued", "0ms after interactive")
         metric.assert_any_call("StartupHostsPageWarmupStarted", "backend_cache")
         metric.assert_any_call("StartupHostsPageWarmupFinished", "backend_cache")
 
@@ -163,11 +163,11 @@ class BackendPageDataWarmupTests(unittest.TestCase):
         self.assertIs(warmed.plan, catalog_plan)
         self.assertEqual(warmed.catalog_signature, catalog_sig)
         public.build_services_catalog_plan.assert_called_once()
+        self.assertEqual(public.get_catalog_signature.call_count, 2)
         self.assertEqual(
             metric_stages,
             [
                 "hosts_warmup.selection.load",
-                "hosts_warmup.catalog_signature.before",
                 "hosts_warmup.runtime.create",
                 "hosts_warmup.services_catalog_plan.build",
                 "hosts_warmup.catalog_signature.after",

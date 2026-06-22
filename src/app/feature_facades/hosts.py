@@ -49,9 +49,6 @@ def build_hosts_feature() -> HostsFeature:
         selection = dict(public.load_user_selection() or {})
         log_ui_timing_since("warmup", "hosts", "hosts_warmup.selection.load", started_at, important=True)
         started_at = time.perf_counter()
-        before_signature = public.get_catalog_signature()
-        log_ui_timing_since("warmup", "hosts", "hosts_warmup.catalog_signature.before", started_at, important=True)
-        started_at = time.perf_counter()
         runtime = public.create_hosts_runtime()
         log_ui_timing_since("warmup", "hosts", "hosts_warmup.runtime.create", started_at, important=True)
         titles = ("Напрямую из hosts", "ИИ", "Остальные")
@@ -80,7 +77,7 @@ def build_hosts_feature() -> HostsFeature:
                 catalog_signature=after_signature,
                 selection=selection,
                 titles=titles,
-            ) if before_signature == after_signature else None
+            ) if after_signature is not None else None
         log_ui_timing_since("warmup", "hosts", "hosts_warmup.cache_store", started_at, important=True)
         return True
 

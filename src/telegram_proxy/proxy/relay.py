@@ -22,7 +22,7 @@ async def relay_wss(
     log_fn: Callable[[str], None],
     label: str,
     dc: int = 0,
-) -> None:
+) -> tuple[int, int]:
     """Bidirectional relay between TCP client and WebSocket."""
     t0 = time.monotonic()
     sent_total = 0
@@ -92,6 +92,7 @@ async def relay_wss(
             if dc > 0:
                 stats.recv_zero_per_dc[dc] = stats.recv_zero_per_dc.get(dc, 0) + 1
         log_fn(f"[{label}] relay done: sent={sent_total} recv={recv_total} ({elapsed:.1f}s)")
+    return recv_total, sent_total
 
 
 async def relay_tcp(
@@ -105,6 +106,7 @@ async def relay_tcp(
     label: str = "",
     dc: int = 0,
     recv_zero_timeout: float = 0,
+    on_first_response: Optional[Callable[[], None]] = None,
 ) -> tuple[int, bool]:
     """Bidirectional TCP relay (fallback or passthrough)."""
     t0 = time.monotonic()
@@ -125,8 +127,14 @@ async def relay_tcp(
                     sent_total += len(data)
                     stats.bytes_sent += len(data)
                 else:
+                    first_response = recv_total == 0
                     recv_total += len(data)
                     stats.bytes_received += len(data)
+                    if first_response and on_first_response is not None:
+                        try:
+                            on_first_response()
+                        except Exception:
+                            pass
         except (asyncio.CancelledError, ConnectionError, OSError):
             pass
 

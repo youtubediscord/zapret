@@ -63,9 +63,18 @@ class RawWebSocket:
     OP_PING = 0x9
     OP_PONG = 0xA
 
-    def __init__(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
+    def __init__(
+        self,
+        reader: asyncio.StreamReader,
+        writer: asyncio.StreamWriter,
+        *,
+        domain: str = "",
+        path: str = "/apiws",
+    ):
         self.reader = reader
         self.writer = writer
+        self.domain = str(domain or "")
+        self.path = str(path or "")
         self._closed = False
 
     @staticmethod
@@ -124,7 +133,7 @@ class RawWebSocket:
             status_code = 0
 
         if status_code == 101:
-            return RawWebSocket(reader, writer)
+            return RawWebSocket(reader, writer, domain=domain, path=path)
 
         headers: dict[str, str] = {}
         for hl in response_lines[1:]:

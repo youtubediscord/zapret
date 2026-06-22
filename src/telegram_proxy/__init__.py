@@ -106,6 +106,7 @@ class TelegramProxyRuntime:
         port: int = DEFAULT_PORT,
         mode: str = "socks5",
         on_log: Optional[Callable[[str], None]] = None,
+        on_upstream_selected: Optional[Callable[[str, str], None]] = None,
         host: str = "127.0.0.1",
         upstream_config: Optional[UpstreamProxyConfig] = None,
         cloudflare_config: Optional[CloudflareFallbackConfig] = None,
@@ -119,6 +120,7 @@ class TelegramProxyRuntime:
         self._port = port
         self._mode = mode
         self._on_log = on_log
+        self._on_upstream_selected = on_upstream_selected
         self._host = host
         self._upstream_config = upstream_config
         self._cloudflare_config = cloudflare_config
@@ -166,6 +168,7 @@ class TelegramProxyRuntime:
             port=self._port,
             mode=self._mode,
             on_log=self._on_log,
+            on_upstream_selected=self._on_upstream_selected,
             host=self._host,
             upstream_config=self._upstream_config,
             cloudflare_config=self._cloudflare_config,

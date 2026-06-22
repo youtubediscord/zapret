@@ -272,6 +272,7 @@ class UpstreamPresetResolver:
             return None
         return {
             "id": str(preset.get("id") or "").strip(),
+            "name": _normalize_name(preset.get("name"), "Прокси"),
             "host": host,
             "port": port,
             "username": str(preset.get("username") or "").strip(),

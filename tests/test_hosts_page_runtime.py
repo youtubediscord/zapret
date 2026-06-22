@@ -536,7 +536,7 @@ class HostsPageRuntimeTests(unittest.TestCase):
         page._rebuild_services_selectors.assert_not_called()
         self.assertFalse(page._services_restore_scheduled)
 
-    def test_hosts_page_resumes_pending_service_rows_after_return(self) -> None:
+    def test_hosts_page_ignores_obsolete_pending_service_rows_after_return(self) -> None:
         import hosts.ui.page as hosts_page
         from hosts.ui.page import HostsPage
 
@@ -549,17 +549,13 @@ class HostsPageRuntimeTests(unittest.TestCase):
         page._services_catalog_runtime = SimpleNamespace(is_running=Mock(return_value=False))
         page._build_services_selectors = Mock()
         page._rebuild_services_selectors = Mock()
-        page._schedule_next_service_rows_batch = Mock()
         page.isVisible = Mock(return_value=True)
         single_shot = Mock(side_effect=lambda _delay, _callback: None)
 
         with patch.object(hosts_page, "QTimer", SimpleNamespace(singleShot=single_shot), create=True):
             HostsPage._schedule_services_restore_after_show(page)
 
-        single_shot.assert_called_once()
-        single_shot.call_args.args[1]()
-
-        page._schedule_next_service_rows_batch.assert_called_once_with(7)
+        single_shot.assert_not_called()
         page._build_services_selectors.assert_not_called()
         page._rebuild_services_selectors.assert_not_called()
 
@@ -598,7 +594,7 @@ class HostsPageRuntimeTests(unittest.TestCase):
         page._start_services_catalog_worker.assert_not_called()
         self.assertEqual(page._catalog_sig, ("hosts_catalog", 1, 2))
 
-    def test_hosts_page_builds_large_service_list_in_deferred_batches(self) -> None:
+    def test_hosts_page_builds_large_dns_service_list_as_one_matrix(self) -> None:
         import hosts.ui.page as hosts_page
         from PyQt6.QtWidgets import QApplication
         from hosts.page_plans import HostsServiceGroupPlan, HostsServiceRowPlan, HostsServicesCatalogPlan
@@ -646,12 +642,13 @@ class HostsPageRuntimeTests(unittest.TestCase):
         page._service_group_title_labels = []
         page._service_group_chips_scrolls = []
         page._service_group_chip_buttons = []
+        page._services_matrix_model = None
+        page._services_matrix_view = None
         page._clear_layout = Mock()
         page._reset_services_runtime_bindings = Mock()
         page._services_add_section_title = Mock()
         page._services_add_widget = Mock()
         page._tr = Mock(side_effect=lambda _key, default, **_kwargs: default)
-        page._make_fluent_chip = Mock()
         page._bulk_apply_dns_profile = Mock()
         page._request_user_selection_save = Mock()
         page._service_row_plan_with_current_selection = Mock(side_effect=lambda row: row)
@@ -673,10 +670,12 @@ class HostsPageRuntimeTests(unittest.TestCase):
             control=object(),
             icon_label=object(),
         )
+        matrix_widgets = SimpleNamespace(card=object(), model=object(), view=object())
 
         with (
-            patch.object(hosts_page, "build_hosts_services_group", return_value=group_widgets),
+            patch.object(hosts_page, "build_hosts_services_group", return_value=group_widgets) as build_group,
             patch.object(hosts_page, "build_hosts_service_row", return_value=row_widgets) as build_row,
+            patch.object(hosts_page, "build_hosts_services_matrix", return_value=matrix_widgets) as build_matrix,
             patch.object(
                 hosts_page,
                 "QTimer",
@@ -686,14 +685,15 @@ class HostsPageRuntimeTests(unittest.TestCase):
         ):
             HostsPage._build_services_selectors(page, catalog_plan)
 
-            self.assertEqual(build_row.call_count, 16)
-            self.assertEqual(len(page.service_combos), 16)
-            self.assertEqual(len(scheduled_callbacks), 1)
-
-            scheduled_callbacks[0]()
-
-            self.assertEqual(build_row.call_count, 25)
-            self.assertEqual(len(page.service_combos), 25)
+            build_group.assert_not_called()
+            build_row.assert_not_called()
+            build_matrix.assert_called_once()
+            built_groups = build_matrix.call_args.args[0]
+            self.assertEqual(len(built_groups), 1)
+            self.assertEqual(len(built_groups[0].rows), 25)
+            self.assertEqual(page.service_combos, {})
+            self.assertEqual(page._services_pending_row_batches, [])
+            self.assertEqual(scheduled_callbacks, [])
 
     def test_open_hosts_file_pending_restarts_after_event_loop_turn(self) -> None:
         import hosts.ui.page as hosts_page

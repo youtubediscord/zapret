@@ -15,15 +15,21 @@ class UpstreamProxyEndpoint:
     tls: bool = False
     tls_server_name: str = ""
     tls_verify: bool = False
+    preset_id: str = ""
+    preset_name: str = ""
 
 
 @dataclass(frozen=True)
 class UpstreamProxyConfig(UpstreamProxyEndpoint):
-    """Configuration for an external SOCKS5 proxy used as last-resort fallback.
+    """Configuration for an external SOCKS5 proxy.
 
     Modes:
       - "fallback": route through upstream only when WSS+TCP both fail
       - "always":   route all TCP traffic through upstream proxy
+
+    A bundled country preset is user-selected infrastructure, not an
+    auto-discovered fallback. Treat it as the main TCP route even if an older
+    settings file still stores "fallback".
     """
 
     enabled: bool = False
@@ -67,7 +73,14 @@ def check_relay_reachable(
 
 def should_route_upstream(upstream: UpstreamProxyConfig, *, mode: str) -> bool:
     """Return True when traffic should go through the external proxy now."""
-    return bool(upstream.enabled and upstream.mode == mode)
+    if not upstream.enabled:
+        return False
+    selected_preset = bool(str(upstream.preset_id or "").strip())
+    configured_mode = str(upstream.mode or "").strip().lower()
+    requested_mode = str(mode or "").strip().lower()
+    if selected_preset:
+        return requested_mode == "always"
+    return configured_mode == requested_mode
 
 
 __all__ = [

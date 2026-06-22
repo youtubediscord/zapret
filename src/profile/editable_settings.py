@@ -20,6 +20,7 @@ _SERVICE_EXCLUDE_LIST_NAMES = frozenset(
         "netrogat.txt",
     }
 )
+_LIST_FILE_EXTENSIONS = (".txt", ".lst", ".list")
 
 
 @dataclass(frozen=True)
@@ -66,6 +67,8 @@ def with_editable_profile_settings(
         filter_value = normalize_filter_value(settings.filter_value, filter_kind, filter_role=filter_role)
         if not filter_value:
             raise ValueError("filter_value must not be empty")
+        if not filter_value_is_file_reference(filter_value):
+            raise ValueError("filter_value must point to a list file")
         filter_lines = [f"--{_filter_option_name(filter_kind, filter_role)}={value}" for value in _split_filter_values(filter_value)]
         if filter_role == "exclude":
             profile.segments = _replace_exclude_match_filters(profile.segments, filter_lines)
@@ -303,6 +306,21 @@ def normalize_filter_value(value: str, filter_kind: str, *, filter_role: str = "
             if part
         )
     return _normalize_single_filter_value_for_kind(raw, filter_kind)
+
+
+def filter_value_is_file_reference(value: str) -> bool:
+    parts = _split_filter_values(str(value or ""))
+    return bool(parts) and all(_single_filter_value_is_file_reference(part) for part in parts)
+
+
+def _single_filter_value_is_file_reference(value: str) -> bool:
+    raw = str(value or "").strip().strip('"').strip("'").lstrip("@")
+    if not raw or "://" in raw:
+        return False
+    file_name = PureWindowsPath(raw.replace("\\", "/")).name.strip()
+    if not file_name or file_name in {".", ".."}:
+        return False
+    return file_name.lower().endswith(_LIST_FILE_EXTENSIONS)
 
 
 def _filter_option_name(filter_kind: str, filter_role: str) -> str:

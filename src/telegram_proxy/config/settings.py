@@ -541,6 +541,7 @@ def build_upstream_config():
         resolver = UpstreamPresetResolver.load_from_runtime()
         preset = resolver.socks5_by_id(preset_id) if preset_id else None
         selected_preset_id = preset_id
+        selected_preset_name = ""
         fallback_presets: list[dict] = []
         if preset is not None:
             host = str(preset["host"])
@@ -550,6 +551,7 @@ def build_upstream_config():
             tls = bool(preset.get("tls", False))
             tls_server_name = str(preset.get("tls_server_name") or "")
             tls_verify = bool(preset.get("tls_verify", False))
+            selected_preset_name = str(preset.get("name") or "")
             fallback_presets = resolver.socks5_fallbacks(selected_preset_id)
         else:
             host = str(get_tg_proxy_upstream_host() or "").strip()
@@ -571,6 +573,7 @@ def build_upstream_config():
                 tls = bool(preset.get("tls", False))
                 tls_server_name = str(preset.get("tls_server_name") or "")
                 tls_verify = bool(preset.get("tls_verify", False))
+                selected_preset_name = str(preset.get("name") or "")
                 fallback_presets = resolver.socks5_fallbacks(selected_preset_id)
 
         if not host or port <= 0:
@@ -585,6 +588,8 @@ def build_upstream_config():
                 tls=bool(item.get("tls", False)),
                 tls_server_name=str(item.get("tls_server_name") or ""),
                 tls_verify=bool(item.get("tls_verify", False)),
+                preset_id=str(item.get("id") or "").strip(),
+                preset_name=str(item.get("name") or "").strip(),
             )
             for item in fallback_presets
             if str(item.get("host") or "").strip()
@@ -602,6 +607,8 @@ def build_upstream_config():
             tls=tls,
             tls_server_name=tls_server_name,
             tls_verify=tls_verify,
+            preset_id=selected_preset_id,
+            preset_name=selected_preset_name,
             fallback_proxies=fallback_proxies,
         )
     except Exception:

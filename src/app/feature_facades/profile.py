@@ -215,14 +215,28 @@ class ProfileFeature:
         *,
         profile_key: str,
         text: str,
+        filter_kind: str = "",
+        filter_value: str = "",
         parent=None,
     ):
         from profile.profile_setup_loader import ProfileListFileSaveWorker
 
         clean_launch_method = str(launch_method or "")
 
-        def _save_list_file_text(*, profile_key: str, text: str):
-            return self.save_profile_list_file_text(clean_launch_method, profile_key, text)
+        def _save_list_file_text(
+            *,
+            profile_key: str,
+            text: str,
+            filter_kind: str = "",
+            filter_value: str = "",
+        ):
+            return self.save_profile_list_file_text(
+                clean_launch_method,
+                profile_key,
+                text,
+                filter_kind=filter_kind,
+                filter_value=filter_value,
+            )
 
         def _load_profile_setup(profile_key: str):
             return self.get_profile_setup(clean_launch_method, profile_key)
@@ -233,7 +247,9 @@ class ProfileFeature:
             _load_profile_setup,
             profile_key,
             text,
-            parent,
+            filter_kind=filter_kind,
+            filter_value=filter_value,
+            parent=parent,
         )
 
     def create_profile_list_file_validation_worker(
@@ -611,12 +627,17 @@ class ProfileFeature:
         launch_method: str,
         profile_key: str,
         text: str,
+        *,
+        filter_kind: str = "",
+        filter_value: str = "",
     ):
         return self._commands().save_profile_list_file_text(
             self,
             launch_method,
             profile_key,
             text,
+            filter_kind=filter_kind,
+            filter_value=filter_value,
         )
 
     def set_profile_filter_kind(self, launch_method: str, profile_key: str, filter_kind: str) -> str | None:

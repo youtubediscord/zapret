@@ -80,13 +80,20 @@ class WsPool:
         target_ip: str, domains: list[str],
     ) -> Optional[RawWebSocket]:
         """Return a pooled WebSocket or None if pool is empty."""
+        if not domains:
+            return None
         key = (dc, is_media)
         now = time.monotonic()
+        allowed_domains = {str(domain) for domain in domains}
 
         bucket = self._idle.get(key, [])
         while bucket:
             ws, created = bucket.pop(0)
             age = now - created
+            domain = str(getattr(ws, "domain", "") or "")
+            if domain and domain not in allowed_domains:
+                asyncio.create_task(self._quiet_close(ws))
+                continue
             if age > WS_POOL_MAX_AGE or _websocket_is_unusable(ws):
                 asyncio.create_task(self._quiet_close(ws))
                 continue

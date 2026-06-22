@@ -9,6 +9,8 @@ from __future__ import annotations
 import json
 import sys
 import threading
+import time
+import zlib
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -50,6 +52,11 @@ _CACHE: HostsCatalog | None = None
 _CACHE_TEXT: str | None = None
 _CACHE_SIG: tuple[int, int] | None = None
 _CACHE_PATH: Path | None = None
+_CACHE_PROFILE_INDEX: dict[str, object] | None = None
+_RECENT_SIG_PATH: Path | None = None
+_RECENT_SIG: tuple[int, int] | None = None
+_RECENT_SIG_CHECKED_AT = 0.0
+_RECENT_SIG_TTL_SECONDS = 1.0
 _MISSING_CATALOG_LOGGED = False
 
 
@@ -295,6 +302,26 @@ def _read_json_file(path: Path) -> object:
     return json.loads(path.read_text(encoding="utf-8", errors="replace") or "{}")
 
 
+def _decode_json_bytes(raw: bytes) -> object:
+    return json.loads(raw.decode("utf-8", errors="replace") or "{}")
+
+
+def _update_split_content_sig(
+    *,
+    root: Path,
+    path: Path,
+    raw: bytes,
+    checksum: int,
+    total_size: int,
+) -> tuple[int, int]:
+    rel = path.relative_to(root).as_posix().encode("utf-8", errors="replace")
+    checksum = zlib.crc32(rel, checksum)
+    checksum = zlib.crc32(b"\0", checksum)
+    checksum = zlib.crc32(raw, checksum)
+    total_size += len(raw)
+    return checksum, total_size
+
+
 def _iter_json_files(path: Path) -> list[Path]:
     if not path.exists() or not path.is_dir():
         return []
@@ -346,19 +373,39 @@ def _normalize_split_services(raw: object, *, mode: str) -> list[dict]:
 
 
 def _load_split_catalog_data(path: Path) -> dict:
+    data, _sig = _load_split_catalog_data_with_sig(path)
+    return data
+
+
+def _load_split_catalog_data_with_sig(path: Path) -> tuple[dict, tuple[int, int]]:
+    checksum = 0
+    total_size = 0
+
+    def read_json(service_path: Path) -> object:
+        nonlocal checksum, total_size
+        raw = service_path.read_bytes()
+        checksum, total_size = _update_split_content_sig(
+            root=path,
+            path=service_path,
+            raw=raw,
+            checksum=checksum,
+            total_size=total_size,
+        )
+        return _decode_json_bytes(raw)
+
     profiles_path = path / "dns_sources.json"
-    profiles = _normalize_split_profiles(_read_json_file(profiles_path) if profiles_path.exists() else [])
+    profiles = _normalize_split_profiles(read_json(profiles_path) if profiles_path.exists() else [])
 
     services: list[dict] = []
     for service_path in _iter_json_files(path / "dns"):
         try:
-            services.extend(_normalize_split_services(_read_json_file(service_path), mode=_SERVICE_MODE_DNS))
+            services.extend(_normalize_split_services(read_json(service_path), mode=_SERVICE_MODE_DNS))
         except Exception as exc:
             _log(f"Не удалось прочитать DNS-сервис hosts-каталога {service_path.name}: {exc}", "WARNING")
 
     for service_path in _iter_json_files(path / "hosts"):
         try:
-            services.extend(_normalize_split_services(_read_json_file(service_path), mode=_SERVICE_MODE_HOSTS))
+            services.extend(_normalize_split_services(read_json(service_path), mode=_SERVICE_MODE_HOSTS))
         except Exception as exc:
             _log(f"Не удалось прочитать hosts-сервис hosts-каталога {service_path.name}: {exc}", "WARNING")
 
@@ -366,29 +413,56 @@ def _load_split_catalog_data(path: Path) -> dict:
         "version": 1,
         "profiles": profiles,
         "services": services,
-    }
+    }, (int(checksum), int(total_size))
+
+
+def _remember_recent_path_sig(path: Path, sig: tuple[int, int] | None) -> None:
+    global _RECENT_SIG_PATH, _RECENT_SIG, _RECENT_SIG_CHECKED_AT
+    if sig is None:
+        return
+    _RECENT_SIG_PATH = path
+    _RECENT_SIG = sig
+    _RECENT_SIG_CHECKED_AT = time.monotonic()
+
+
+def _get_recent_path_sig(path: Path) -> tuple[int, int] | None:
+    if _RECENT_SIG_PATH != path or _RECENT_SIG is None:
+        return None
+    if time.monotonic() - _RECENT_SIG_CHECKED_AT > _RECENT_SIG_TTL_SECONDS:
+        return None
+    return _RECENT_SIG
+
+
+def _get_split_catalog_content_sig(path: Path) -> tuple[int, int]:
+    checksum = 0
+    total_size = 0
+    for child in sorted(path.rglob("*.json")):
+        if not child.is_file():
+            continue
+        raw = child.read_bytes()
+        checksum, total_size = _update_split_content_sig(
+            root=path,
+            path=child,
+            raw=raw,
+            checksum=checksum,
+            total_size=total_size,
+        )
+    return (int(checksum), int(total_size))
 
 
 def _get_path_sig(path: Path) -> tuple[int, int] | None:
     try:
         if path.is_dir():
-            newest_mtime_ns = 0
-            total_size = 0
-            for child in sorted(path.rglob("*.json")):
-                if not child.is_file():
-                    continue
-                st = child.stat()
-                mtime_ns = getattr(st, "st_mtime_ns", None)
-                if mtime_ns is None:
-                    mtime_ns = int(st.st_mtime * 1_000_000_000)
-                newest_mtime_ns = max(newest_mtime_ns, int(mtime_ns))
-                total_size += int(st.st_size)
-            return (newest_mtime_ns, total_size)
+            sig = _get_split_catalog_content_sig(path)
+            _remember_recent_path_sig(path, sig)
+            return sig
         st = path.stat()
         mtime_ns = getattr(st, "st_mtime_ns", None)
         if mtime_ns is None:
             mtime_ns = int(st.st_mtime * 1_000_000_000)
-        return (int(mtime_ns), int(st.st_size))
+        sig = (int(mtime_ns), int(st.st_size))
+        _remember_recent_path_sig(path, sig)
+        return sig
     except Exception:
         return None
 
@@ -402,7 +476,7 @@ def _select_catalog_path() -> tuple[Path, list[Path], bool]:
 
 
 def _load_catalog() -> HostsCatalog:
-    global _CACHE, _CACHE_TEXT, _CACHE_SIG, _CACHE_PATH, _MISSING_CATALOG_LOGGED
+    global _CACHE, _CACHE_TEXT, _CACHE_SIG, _CACHE_PATH, _CACHE_PROFILE_INDEX, _MISSING_CATALOG_LOGGED
 
     with _CACHE_LOCK:
         path, candidates, exists = _select_catalog_path()
@@ -418,53 +492,74 @@ def _load_catalog() -> HostsCatalog:
         else:
             _MISSING_CATALOG_LOGGED = False
 
-        sig = _get_path_sig(path) if path.exists() else None
-        if (
+        has_cache = (
             _CACHE is not None
             and _CACHE_PATH is not None
             and _CACHE_SIG is not None
-            and sig is not None
+            and path.exists()
             and _CACHE_PATH == path
+        )
+        sig = None
+        if has_cache:
+            sig = _get_recent_path_sig(path)
+            if sig is None:
+                sig = _get_path_sig(path)
+
+        if (
+            has_cache
+            and sig is not None
             and _CACHE_SIG == sig
         ):
             return _CACHE
 
         try:
             if path.exists() and path.is_dir():
-                data = _load_split_catalog_data(path)
+                data, sig = _load_split_catalog_data_with_sig(path)
                 text = json.dumps(data, ensure_ascii=False, sort_keys=True)
             else:
                 text = path.read_text(encoding="utf-8", errors="replace") if path.exists() else ""
+                sig = _get_path_sig(path) if path.exists() else None
         except Exception as exc:
             _log(f"Не удалось прочитать hosts-каталог: {exc}", "WARNING")
             text = ""
+            sig = None
 
         _CACHE_TEXT = text
         _CACHE = _parse_hosts_catalog_json(text)
         _CACHE_SIG = sig
         _CACHE_PATH = path
+        _CACHE_PROFILE_INDEX = None
+        _remember_recent_path_sig(path, sig)
         return _CACHE
 
 
 def invalidate_hosts_catalog_cache() -> None:
-    global _CACHE, _CACHE_TEXT, _CACHE_SIG, _CACHE_PATH
+    global _CACHE, _CACHE_TEXT, _CACHE_SIG, _CACHE_PATH, _CACHE_PROFILE_INDEX
+    global _RECENT_SIG_PATH, _RECENT_SIG, _RECENT_SIG_CHECKED_AT
     with _CACHE_LOCK:
         _CACHE = None
         _CACHE_TEXT = None
         _CACHE_SIG = None
         _CACHE_PATH = None
+        _CACHE_PROFILE_INDEX = None
+        _RECENT_SIG_PATH = None
+        _RECENT_SIG = None
+        _RECENT_SIG_CHECKED_AT = 0.0
 
 
 def get_hosts_catalog_signature() -> tuple[str, int, int] | None:
-    """Возвращает сигнатуру текущего hosts-каталога: (path, mtime_ns, size)."""
+    """Возвращает сигнатуру текущего hosts-каталога: (path, revision, size)."""
     path, _candidates, _exists = _select_catalog_path()
     if not path.exists():
         return None
-    sig = _get_path_sig(path)
+    with _CACHE_LOCK:
+        sig = _get_recent_path_sig(path)
+    if sig is None:
+        sig = _get_path_sig(path)
     if sig is None:
         return None
-    mtime_ns, size = sig
-    return (str(path), mtime_ns, size)
+    revision, size = sig
+    return (str(path), revision, size)
 
 
 def get_hosts_catalog_text() -> str:
@@ -598,6 +693,10 @@ def _get_declared_service_mode(cat: HostsCatalog, service_name: str) -> str | No
 
 
 def _service_has_proxy_ips(cat: HostsCatalog, service_name: str) -> bool:
+    return _service_has_proxy_ips_with_direct_index(cat, service_name, _infer_direct_profile_index(cat))
+
+
+def _service_has_proxy_ips_with_direct_index(cat: HostsCatalog, service_name: str, direct_idx: int | None) -> bool:
     declared_mode = _get_declared_service_mode(cat, service_name)
     if declared_mode == _SERVICE_MODE_HOSTS:
         return False
@@ -608,7 +707,6 @@ def _service_has_proxy_ips(cat: HostsCatalog, service_name: str) -> bool:
     if not entries:
         return False
 
-    direct_idx = _infer_direct_profile_index(cat)
     proxy_indices = [i for i in range(len(cat.dns_profiles)) if direct_idx is None or i != direct_idx]
     if not proxy_indices:
         return False
@@ -633,22 +731,93 @@ def service_has_proxy_profiles(service_name: str) -> bool:
     return _service_has_proxy_ips(_load_catalog(), service_name)
 
 
-def get_services_profile_index() -> dict[str, object]:
-    cat = _load_catalog()
+def _build_services_profile_index(cat: HostsCatalog) -> dict[str, object]:
     services = list(cat.service_order)
+    available_by_service: dict[str, list[str]] = {}
+    profile_domain_maps_by_service: dict[str, dict[str, dict[str, str]]] = {}
+    profile_domain_ip_candidates_by_service: dict[str, dict[str, dict[str, list[str]]]] = {}
+    domain_names_by_service: dict[str, list[str]] = {}
+    direct_idx = _infer_direct_profile_index(cat)
+    direct_profile = cat.dns_profiles[direct_idx] if direct_idx is not None else None
+    profiles = list(cat.dns_profiles)
+
+    for service_name in services:
+        entries = cat.service_entries.get(service_name, []) or []
+        domain_names: list[str] = []
+        seen_domains: set[str] = set()
+        for domain, _ips in entries:
+            domain_key = _clean_str(domain).casefold()
+            if not domain_key or domain_key in seen_domains:
+                continue
+            seen_domains.add(domain_key)
+            domain_names.append(domain)
+        domain_names_by_service[service_name] = domain_names
+
+        required_domains = set(seen_domains)
+        rows_by_profile: dict[str, list[tuple[str, str]]] = {profile_id: [] for profile_id in profiles}
+        covered_by_profile: dict[str, set[str]] = {profile_id: set() for profile_id in profiles}
+        for domain, ips in entries:
+            domain_key = _clean_str(domain).casefold()
+            if not domain_key:
+                continue
+            for profile_index, profile_id in enumerate(profiles):
+                if not ips or profile_index >= len(ips):
+                    continue
+                ip_value = _clean_str(ips[profile_index])
+                if not ip_value:
+                    continue
+                rows_by_profile[profile_id].append((domain_key, ip_value))
+                covered_by_profile[profile_id].add(domain_key)
+
+        service_maps: dict[str, dict[str, str]] = {}
+        service_candidates: dict[str, dict[str, list[str]]] = {}
+        available: list[str] = []
+        for profile_id in profiles:
+            rows = rows_by_profile.get(profile_id, [])
+            if not required_domains or covered_by_profile.get(profile_id, set()) != required_domains:
+                continue
+            available.append(profile_id)
+            domain_map: dict[str, str] = {}
+            candidates: dict[str, list[str]] = {}
+            for domain_key, ip_value in rows:
+                domain_map.setdefault(domain_key, ip_value)
+                values = candidates.setdefault(domain_key, [])
+                if ip_value not in values:
+                    values.append(ip_value)
+            service_maps[profile_id] = domain_map
+            service_candidates[profile_id] = candidates
+        available_by_service[service_name] = available
+        profile_domain_maps_by_service[service_name] = service_maps
+        profile_domain_ip_candidates_by_service[service_name] = service_candidates
+
     return {
         "dns_profiles": list(cat.dns_profiles),
         "dns_profile_names": dict(cat.dns_profile_names),
         "services": services,
-        "available_by_service": {
-            service_name: _get_service_available_dns_profiles_from_catalog(cat, service_name)
-            for service_name in services
-        },
+        "available_by_service": available_by_service,
         "has_proxy_by_service": {
-            service_name: _service_has_proxy_ips(cat, service_name)
+            service_name: _service_has_proxy_ips_with_direct_index(cat, service_name, direct_idx)
             for service_name in services
         },
+        "direct_profile": direct_profile,
+        "domain_names_by_service": domain_names_by_service,
+        "profile_domain_maps_by_service": profile_domain_maps_by_service,
+        "profile_domain_ip_candidates_by_service": profile_domain_ip_candidates_by_service,
     }
+
+
+def get_services_profile_index() -> dict[str, object]:
+    global _CACHE_PROFILE_INDEX
+
+    with _CACHE_LOCK:
+        if _CACHE_PROFILE_INDEX is not None:
+            return _CACHE_PROFILE_INDEX
+
+    cat = _load_catalog()
+    with _CACHE_LOCK:
+        if _CACHE_PROFILE_INDEX is None:
+            _CACHE_PROFILE_INDEX = _build_services_profile_index(cat)
+        return _CACHE_PROFILE_INDEX
 
 
 def get_service_domain_ip_map(service_name: str, profile_name: str) -> dict[str, str]:

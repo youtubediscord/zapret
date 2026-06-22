@@ -156,6 +156,42 @@ class ProfileFilterKindSwitchTests(unittest.TestCase):
             self.assertIn("--hostlist=lists/other.txt", store.text)
             self.assertNotIn("--ipset=lists/ipset-all.txt", store.text)
 
+    def test_save_list_file_text_with_filter_override_writes_selected_pair_file(self) -> None:
+        from tempfile import TemporaryDirectory
+
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            lists_dir = root / "lists"
+            (lists_dir / "base").mkdir(parents=True)
+            (lists_dir / "user").mkdir(parents=True)
+            (lists_dir / "base" / "other.txt").write_text("example.com\n", encoding="utf-8")
+            (lists_dir / "base" / "ipset-all.txt").write_text("1.1.1.1\n", encoding="utf-8")
+            (lists_dir / "user" / "other.txt").write_text("from-lordserials.ru\n", encoding="utf-8")
+            service, _store = self._service(
+                "\n".join(
+                    (
+                        "--name=Мои сайты",
+                        "--filter-tcp=80,443-65535",
+                        "--hostlist=lists/other.txt",
+                        "",
+                    )
+                ),
+                root=root,
+            )
+
+            state = service.save_profile_list_file_text(
+                "profile:0",
+                "2.2.2.0/24\n",
+                filter_kind="ipset",
+                filter_value="lists/other.txt",
+            )
+
+            self.assertIsNotNone(state)
+            self.assertEqual(state.kind, "ipset")
+            self.assertEqual(state.user_display_path, "lists/user/ipset-all.txt")
+            self.assertEqual((lists_dir / "user" / "other.txt").read_text(encoding="utf-8"), "from-lordserials.ru\n")
+            self.assertEqual((lists_dir / "user" / "ipset-all.txt").read_text(encoding="utf-8"), "2.2.2.0/24\n")
+
     def test_winws1_switch_hostlist_profile_to_ipset_rewrites_same_profile_line(self) -> None:
         from tempfile import TemporaryDirectory
 
@@ -526,6 +562,38 @@ class ProfileFilterKindSwitchTests(unittest.TestCase):
         self.assertEqual(payload.items[0].list_type, "hostlist")
         self.assertEqual(new_key, "profile:0")
         self.assertIn("--ipset=lists/ipset-discord.txt", store.text)
+
+    def test_update_settings_rejects_domain_as_ipset_file_value(self) -> None:
+        from tempfile import TemporaryDirectory
+
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            lists_dir = root / "lists"
+            (lists_dir / "base").mkdir(parents=True)
+            (lists_dir / "base" / "ipset-discord.txt").write_text("1.1.1.1\n", encoding="utf-8")
+            service, store = self._service(
+                "\n".join(
+                    (
+                        "--filter-tcp=443",
+                        "--ipset=lists/ipset-discord.txt",
+                        "--lua-desync=pass",
+                        "",
+                    )
+                ),
+                root=root,
+            )
+
+            new_key = service.update_winws2_editable_settings(
+                "profile:0",
+                filter_kind="ipset",
+                filter_value="discord.com",
+                in_range="x",
+                out_range="a",
+            )
+
+        self.assertEqual(new_key, "profile:0")
+        self.assertIn("--ipset=lists/ipset-discord.txt", store.text)
+        self.assertNotIn("--ipset=discord.com", store.text)
 
     def test_hostlist_and_ipset_variants_keep_same_gui_persistent_key(self) -> None:
         hostlist = parse_preset_text(

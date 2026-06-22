@@ -349,6 +349,76 @@ def infer_direct_toggle_from_hosts(service_name: str, active_domains_map: dict[s
     return True
 
 
+def _service_has_active_domains_from_index(
+    service_name: str,
+    normalized_active: dict[str, str],
+    domain_names_by_service: dict[str, list[str]],
+) -> bool:
+    if not normalized_active:
+        return False
+    for domain in domain_names_by_service.get(service_name, []) or []:
+        if str(domain or "").strip().casefold() in normalized_active:
+            return True
+    return False
+
+
+def _infer_profile_from_index(
+    service_name: str,
+    available_profiles: list[str],
+    normalized_active: dict[str, str],
+    profile_domain_maps_by_service: dict[str, dict[str, dict[str, str]]],
+) -> str | None:
+    if not normalized_active or not available_profiles:
+        return None
+
+    profile_maps = profile_domain_maps_by_service.get(service_name, {}) or {}
+    for profile_name in available_profiles:
+        domain_map = profile_maps.get(profile_name, {}) or {}
+        if not domain_map:
+            continue
+
+        matches = 0
+        total = len(domain_map)
+        for domain_key, ip in domain_map.items():
+            active_ip = normalized_active.get(str(domain_key or "").casefold())
+            if active_ip is None:
+                continue
+            if (active_ip or "").strip().casefold() == (ip or "").strip().casefold():
+                matches += 1
+
+        if total and matches == total:
+            return profile_name
+
+    return None
+
+
+def _infer_direct_toggle_from_index(
+    service_name: str,
+    direct_profile: str | None,
+    normalized_active: dict[str, str],
+    profile_domain_ip_candidates_by_service: dict[str, dict[str, dict[str, list[str]]]],
+) -> bool:
+    if not normalized_active or not direct_profile:
+        return False
+    profile_candidates = profile_domain_ip_candidates_by_service.get(service_name, {}) or {}
+    domain_ip_candidates = profile_candidates.get(direct_profile, {}) or {}
+    if not domain_ip_candidates:
+        return False
+
+    for domain_key, allowed_ips in domain_ip_candidates.items():
+        active_ip = normalized_active.get(str(domain_key or "").casefold())
+        if active_ip is None:
+            return False
+        allowed = {
+            str(ip or "").strip().casefold()
+            for ip in (allowed_ips or [])
+            if str(ip or "").strip()
+        }
+        if (active_ip or "").strip().casefold() not in allowed:
+            return False
+    return True
+
+
 def service_has_active_domains(service_name: str, active_domains_map: dict[str, str]) -> bool:
     from hosts.proxy_domains import get_service_domain_names
 
@@ -371,6 +441,9 @@ def build_selection_sync_plan(
     available_profiles_by_service: dict[str, list[str]] | None = None,
     service_has_proxy_by_service: dict[str, bool] | None = None,
     direct_profile: object = _MISSING,
+    domain_names_by_service: dict[str, list[str]] | None = None,
+    profile_domain_maps_by_service: dict[str, dict[str, dict[str, str]]] | None = None,
+    profile_domain_ip_candidates_by_service: dict[str, dict[str, dict[str, list[str]]]] | None = None,
 ) -> HostsSelectionSyncPlan:
     from hosts.proxy_domains import get_service_available_dns_profiles, service_has_proxy_profiles
 
@@ -379,6 +452,16 @@ def build_selection_sync_plan(
     direct_profile = direct_profile if isinstance(direct_profile, str) else None
     available_profiles_by_service = dict(available_profiles_by_service or {})
     service_has_proxy_by_service = dict(service_has_proxy_by_service or {})
+    domain_names_by_service = dict(domain_names_by_service or {}) if domain_names_by_service is not None else None
+    profile_domain_maps_by_service = (
+        dict(profile_domain_maps_by_service or {}) if profile_domain_maps_by_service is not None else None
+    )
+    profile_domain_ip_candidates_by_service = (
+        dict(profile_domain_ip_candidates_by_service or {})
+        if profile_domain_ip_candidates_by_service is not None
+        else None
+    )
+    normalized_active = _normalize_active_domains_map(active_domains_map)
     entries: dict[str, HostsSelectionSyncEntry] = {}
     new_selection: dict[str, str] = {}
 
@@ -392,19 +475,42 @@ def build_selection_sync_plan(
         else:
             available = list(get_service_available_dns_profiles(service_name) or [])
         selected_profile: str | None = None
-        has_active_domains = service_has_active_domains(service_name, active_domains_map)
+        if domain_names_by_service is not None:
+            has_active_domains = _service_has_active_domains_from_index(
+                service_name,
+                normalized_active,
+                domain_names_by_service,
+            )
+        else:
+            has_active_domains = service_has_active_domains(service_name, active_domains_map)
         toggle_enabled = False
         toggle_checked = False
 
         if direct_only:
-            enabled = infer_direct_toggle_from_hosts(service_name, active_domains_map)
+            if profile_domain_ip_candidates_by_service is not None:
+                enabled = _infer_direct_toggle_from_index(
+                    service_name,
+                    direct_profile,
+                    normalized_active,
+                    profile_domain_ip_candidates_by_service,
+                )
+            else:
+                enabled = infer_direct_toggle_from_hosts(service_name, active_domains_map)
             toggle_enabled = bool(direct_profile and direct_profile in available)
             toggle_checked = bool(enabled and toggle_enabled)
             if toggle_checked and direct_profile:
                 selected_profile = direct_profile
                 new_selection[service_name] = direct_profile
         else:
-            inferred = infer_profile_from_hosts(service_name, available, active_domains_map)
+            if profile_domain_maps_by_service is not None:
+                inferred = _infer_profile_from_index(
+                    service_name,
+                    available,
+                    normalized_active,
+                    profile_domain_maps_by_service,
+                )
+            else:
+                inferred = infer_profile_from_hosts(service_name, available, active_domains_map)
             if inferred:
                 selected_profile = inferred
                 new_selection[service_name] = inferred
@@ -481,9 +587,18 @@ def build_services_catalog_plan(
 
     raw_available = profile_index.get("available_by_service") or {}
     raw_has_proxy = profile_index.get("has_proxy_by_service") or {}
+    raw_domain_names = profile_index.get("domain_names_by_service") or {}
+    raw_profile_domain_maps = profile_index.get("profile_domain_maps_by_service") or {}
+    raw_profile_domain_ip_candidates = profile_index.get("profile_domain_ip_candidates_by_service") or {}
     available_profiles_by_service = dict(raw_available) if isinstance(raw_available, dict) else {}
     service_has_proxy_by_service = dict(raw_has_proxy) if isinstance(raw_has_proxy, dict) else {}
-    direct_profile = get_direct_profile_name()
+    domain_names_by_service = dict(raw_domain_names) if isinstance(raw_domain_names, dict) else {}
+    profile_domain_maps_by_service = dict(raw_profile_domain_maps) if isinstance(raw_profile_domain_maps, dict) else {}
+    profile_domain_ip_candidates_by_service = (
+        dict(raw_profile_domain_ip_candidates) if isinstance(raw_profile_domain_ip_candidates, dict) else {}
+    )
+    direct_profile = profile_index.get("direct_profile")
+    direct_profile = direct_profile if isinstance(direct_profile, str) and direct_profile.strip() else None
 
     no_geohide: list[str] = []
     ai: list[str] = []
@@ -502,6 +617,9 @@ def build_services_catalog_plan(
         available_profiles_by_service=available_profiles_by_service,
         service_has_proxy_by_service=service_has_proxy_by_service,
         direct_profile=direct_profile,
+        domain_names_by_service=domain_names_by_service,
+        profile_domain_maps_by_service=profile_domain_maps_by_service,
+        profile_domain_ip_candidates_by_service=profile_domain_ip_candidates_by_service,
     )
     current_selection = dict(current_selection or {})
     new_selection: dict[str, str] = {}

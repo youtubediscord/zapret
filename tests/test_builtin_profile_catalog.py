@@ -174,6 +174,58 @@ class BuiltinProfileCatalogTests(unittest.TestCase):
                 actual = (lists_root / file_name).read_text(encoding="utf-8").splitlines()
                 self.assertEqual(actual, domains)
 
+    def test_winws2_service_tcp_profiles_use_hostlists_in_builtin_presets(self) -> None:
+        expected_hostlists = {
+            "Amazon TCP": "--hostlist=lists/amazon.txt",
+            "Cloudflare TCP": "--hostlist=lists/cloudflare.txt",
+            "EpicGames & Fortnite": "--hostlist=lists/epicgames-fortnite.txt",
+            "Ubisoft": "--hostlist=lists/ubisoft.txt",
+        }
+        offenders: list[str] = []
+
+        for path in sorted((PUBLIC_ROOT / "src" / "presets" / "builtin" / "winws2").glob("*.txt")):
+            preset = parse_preset_text(
+                path.read_text(encoding="utf-8", errors="replace"),
+                engine="winws2",
+                source_name=path.name,
+            )
+            has_amazon_tcp = False
+            has_epicgames = False
+            cloudflare_tcp_profiles = 0
+
+            for profile in preset.profiles:
+                if not profile.enabled:
+                    continue
+                name = str(profile.name or "").strip()
+                is_tcp_service = name in expected_hostlists or name.startswith("Cloudflare") and "TCP" in name
+                if not is_tcp_service:
+                    continue
+                if name == "Amazon TCP":
+                    has_amazon_tcp = True
+                if name == "EpicGames & Fortnite":
+                    has_epicgames = True
+                if name.startswith("Cloudflare") and "TCP" in name:
+                    cloudflare_tcp_profiles += 1
+                    if name != "Cloudflare TCP":
+                        offenders.append(f"{path.name} profile {profile.index}: старый Cloudflare TCP variant {name!r}")
+                        continue
+                expected_hostlist = expected_hostlists.get(name)
+                if expected_hostlist is None:
+                    continue
+                if profile.match.filter_lines != ["--filter-tcp=80,443-65535"]:
+                    offenders.append(f"{path.name} profile {profile.index}: {name}: неправильный TCP filter")
+                if profile.match.hostlist_lines != [expected_hostlist]:
+                    offenders.append(f"{path.name} profile {profile.index}: {name}: нет {expected_hostlist}")
+                if profile.match.ipset_lines:
+                    offenders.append(f"{path.name} profile {profile.index}: {name}: TCP ещё использует ipset")
+
+            if has_amazon_tcp and not has_epicgames:
+                offenders.append(f"{path.name}: рядом с Amazon TCP нет EpicGames & Fortnite")
+            if cloudflare_tcp_profiles > 1:
+                offenders.append(f"{path.name}: несколько Cloudflare TCP profile-ов вместо одного")
+
+        self.assertEqual(offenders, [])
+
     def test_builtin_profile_files_keep_new_separator_on_own_spaced_line(self) -> None:
         offenders: list[str] = []
         paths = [

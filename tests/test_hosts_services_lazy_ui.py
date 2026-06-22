@@ -36,6 +36,8 @@ class HostsServicesLazyUiTests(unittest.TestCase):
         page._service_group_title_labels = []
         page._service_group_chips_scrolls = []
         page._service_group_chip_buttons = []
+        page._services_matrix_model = None
+        page._services_matrix_view = None
         page._building_services_ui = False
         page._request_user_selection_save = Mock()
         page._update_profile_row_visual = Mock()
@@ -72,22 +74,23 @@ class HostsServicesLazyUiTests(unittest.TestCase):
             selection_changed=False,
         )
 
-    def test_services_rows_are_built_immediately(self) -> None:
+    def test_dns_services_are_built_as_one_matrix_without_per_row_combos(self) -> None:
         page = self._make_page()
 
         HostsPage._build_services_selectors(page, self._make_catalog_plan())
 
-        self.assertEqual(len(page.service_combos), 12)
-        self.assertIn("Service 0", page.service_combos)
-        self.assertEqual(page._service_group_chip_buttons[-1].text(), "Zapret DNS")
+        self.assertEqual(page.service_combos, {})
+        self.assertIsNotNone(page._services_matrix_model)
+        self.assertEqual(page._services_matrix_model.rowCount(), 13)
+        self.assertEqual(page._services_matrix_model.columnCount(), 3)
 
-    def test_current_selection_is_applied_when_rows_are_built_immediately(self) -> None:
+    def test_current_selection_is_applied_to_matrix_model(self) -> None:
         page = self._make_page()
         page._service_dns_selection = {"Service 0": "zapret_dns"}
 
         HostsPage._build_services_selectors(page, self._make_catalog_plan())
 
-        self.assertEqual(page.service_combos["Service 0"].currentData(), "zapret_dns")
+        self.assertEqual(page._services_matrix_model.selected_profile_for_service("Service 0"), "zapret_dns")
 
 
 if __name__ == "__main__":

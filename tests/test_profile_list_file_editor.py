@@ -40,10 +40,10 @@ class ProfileListFileEditorTests(unittest.TestCase):
     def test_validates_ipset_entries(self) -> None:
         invalid = validate_profile_list_file_text(
             "ipset",
-            "1.1.1.1\n10.0.0.0/8\n1.1.1.1-2.2.2.2\n",
+            "1.1.1.1\n10.0.0.0/8\ndiscord.com\n1.1.1.1-2.2.2.2\n",
         )
 
-        self.assertEqual(invalid, ((3, "1.1.1.1-2.2.2.2"),))
+        self.assertEqual(invalid, ((3, "discord.com"), (4, "1.1.1.1-2.2.2.2")))
 
     def test_counts_list_entries_without_comments(self) -> None:
         count = count_profile_list_entries(

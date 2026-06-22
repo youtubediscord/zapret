@@ -8,7 +8,7 @@ from main.post_startup_threading import enqueue_subsystem_task, schedule_after
 from ui.performance_metrics import log_ui_timing_since
 
 
-HOSTS_PAGE_WARMUP_DELAY_MS = 1_000
+HOSTS_PAGE_WARMUP_DELAY_MS = 0
 
 
 def install_hosts_page_warmup(

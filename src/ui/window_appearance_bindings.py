@@ -40,10 +40,12 @@ def initialize_window_holiday_effects(window, *, effects_allowed: bool, appearan
             snowflakes_saved = premium_effects.snowflakes_enabled
         log(f"🎄 Инициализация: гирлянда={garland_saved}, снежинки={snowflakes_saved}", "DEBUG")
 
-        should_enable_garland = bool(effects_allowed) and garland_saved
+        animations_enabled = bool(peek_warmed_animations_enabled())
+
+        should_enable_garland = bool(effects_allowed) and animations_enabled and garland_saved
         appearance_actions.set_garland_enabled(should_enable_garland)
 
-        should_enable_snowflakes = bool(effects_allowed) and snowflakes_saved
+        should_enable_snowflakes = bool(effects_allowed) and animations_enabled and snowflakes_saved
         appearance_actions.set_snowflakes_enabled(should_enable_snowflakes)
 
         opacity_saved = peek_warmed_window_opacity()
@@ -52,7 +54,7 @@ def initialize_window_holiday_effects(window, *, effects_allowed: bool, appearan
         log(f"🔮 Инициализация: opacity={opacity_saved}%", "DEBUG")
         appearance_actions.set_window_opacity(opacity_saved)
 
-        if not bool(peek_warmed_animations_enabled()):
+        if not animations_enabled:
             on_animations_changed(window, False)
 
     except Exception as e:

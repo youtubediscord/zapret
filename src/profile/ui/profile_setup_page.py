@@ -1390,6 +1390,21 @@ def _strategy_branch_label(branch) -> str:
     return f"{' · '.join(parts)} — {strategy_name}"
 
 
+def _strategy_branch_summary_name(branches) -> str:
+    branch_items = tuple(branches or ())
+    names = [
+        str(getattr(branch, "strategy_name", "") or "").strip()
+        for branch in branch_items
+        if str(getattr(branch, "strategy_name", "") or "").strip()
+    ]
+    visible = names[:2]
+    suffix = f" +{len(names) - len(visible)}" if len(names) > len(visible) else ""
+    label = ", ".join(visible)
+    if label:
+        return f"{len(branch_items)} стратегии: {label}{suffix}"
+    return f"{len(branch_items)} стратегии"
+
+
 def _combo_item_accessible_text(
     *,
     name: str,
@@ -1572,6 +1587,40 @@ def _non_negative_int(value, default: int = 0) -> int:
         return max(0, int(value))
     except (TypeError, ValueError):
         return max(0, int(default))
+
+
+def _list_file_save_request(
+    profile_key: str,
+    text: str,
+    *,
+    filter_kind: str = "",
+    filter_value: str = "",
+) -> dict[str, str]:
+    return {
+        "profile_key": str(profile_key or "").strip(),
+        "text": str(text or ""),
+        "filter_kind": str(filter_kind or "").strip(),
+        "filter_value": str(filter_value or "").strip(),
+    }
+
+
+def _normalized_list_file_save_request(value) -> dict[str, str]:
+    if isinstance(value, dict):
+        return _list_file_save_request(
+            str(value.get("profile_key") or ""),
+            str(value.get("text") or ""),
+            filter_kind=str(value.get("filter_kind") or ""),
+            filter_value=str(value.get("filter_value") or ""),
+        )
+    if isinstance(value, tuple):
+        parts = tuple(value)
+        return _list_file_save_request(
+            str(parts[0] if len(parts) > 0 else ""),
+            str(parts[1] if len(parts) > 1 else ""),
+            filter_kind=str(parts[2] if len(parts) > 2 else ""),
+            filter_value=str(parts[3] if len(parts) > 3 else ""),
+        )
+    return _list_file_save_request("", "")
 
 
 class ProfileSetupPageBase(BasePage):
@@ -1885,9 +1934,12 @@ class ProfileSetupPageBase(BasePage):
         kind = str(operation.get("kind") or "")
         if kind == "list_file_save":
             self._pending_list_file_save = None
+            request = _normalized_list_file_save_request(operation)
             self._start_list_file_save_worker(
-                str(operation.get("profile_key") or ""),
-                str(operation.get("text") or ""),
+                request["profile_key"],
+                request["text"],
+                filter_kind=request["filter_kind"],
+                filter_value=request["filter_value"],
             )
             return True
         if kind == "settings_save":
@@ -3230,8 +3282,17 @@ class ProfileSetupPageBase(BasePage):
 
     def show_profile(self, profile_key: str) -> None:
         next_key = str(profile_key or "").strip()
-        if next_key and next_key == str(self._profile_key or "").strip() and self._payload is not None:
+        current_key = str(self._profile_key or "").strip()
+        if next_key and next_key == current_key and self._payload is not None:
             return
+        if next_key != current_key:
+            self._payload = None
+            self._pending_profile_setup_payload_apply = None
+            self._profile_setup_payload_apply_scheduled = False
+            self._last_profile_setup_payload_apply_signature = None
+            self._pending_list_file_state_apply = None
+            self._list_file_state_apply_scheduled = False
+            self._list_file_dirty = True
         self._profile_key = next_key
         self.reload_current_profile()
 
@@ -3270,12 +3331,23 @@ class ProfileSetupPageBase(BasePage):
             parent=parent,
         )
 
-    def create_profile_list_file_save_worker(self, request_id: int, profile_key: str, text: str, parent=None):
+    def create_profile_list_file_save_worker(
+        self,
+        request_id: int,
+        profile_key: str,
+        text: str,
+        *,
+        filter_kind: str = "",
+        filter_value: str = "",
+        parent=None,
+    ):
         return self._create_profile_list_file_save_worker_fn(
             request_id,
             self.launch_method,
             profile_key=profile_key,
             text=text,
+            filter_kind=filter_kind,
+            filter_value=filter_value,
             parent=parent,
         )
 
@@ -4021,24 +4093,49 @@ class ProfileSetupPageBase(BasePage):
         self._request_list_file_save(
             self._profile_key,
             str(self.__dict__.get("_list_file_text_snapshot", "") or ""),
+            filter_kind=self._current_filter_kind(),
+            filter_value=self._current_filter_value(),
         )
 
-    def _request_list_file_save(self, profile_key: str, text: str) -> None:
-        profile_key = str(profile_key or "").strip()
-        if not profile_key:
+    def _request_list_file_save(
+        self,
+        profile_key: str,
+        text: str,
+        *,
+        filter_kind: str = "",
+        filter_value: str = "",
+    ) -> None:
+        request = _list_file_save_request(
+            profile_key,
+            text,
+            filter_kind=filter_kind,
+            filter_value=filter_value,
+        )
+        if not request["profile_key"]:
             return
-        text = str(text or "")
         if self._profile_setup_write_is_running():
             state = self._list_file_save_state_obj()
             if not (state.start_scheduled and state.has_pending()):
-                state.pending = (profile_key, text)
+                state.pending = request
             self._queue_profile_setup_write_operation(
-                {"kind": "list_file_save", "profile_key": profile_key, "text": text}
+                {"kind": "list_file_save", **request}
             )
             return
-        self._start_list_file_save_worker(profile_key, text)
+        self._start_list_file_save_worker(
+            request["profile_key"],
+            request["text"],
+            filter_kind=request["filter_kind"],
+            filter_value=request["filter_value"],
+        )
 
-    def _start_list_file_save_worker(self, profile_key: str, text: str) -> None:
+    def _start_list_file_save_worker(
+        self,
+        profile_key: str,
+        text: str,
+        *,
+        filter_kind: str = "",
+        filter_value: str = "",
+    ) -> None:
         runtime = self._worker_runtime("_list_file_save_runtime")
         self._list_file_save_request_id += 1
         request_id = self._list_file_save_request_id
@@ -4051,6 +4148,8 @@ class ProfileSetupPageBase(BasePage):
                 request_id,
                 profile_key,
                 str(text or ""),
+                filter_kind=filter_kind,
+                filter_value=filter_value,
                 parent=self,
             ),
             on_loaded=self._on_list_file_save_finished,
@@ -4107,10 +4206,22 @@ class ProfileSetupPageBase(BasePage):
         if self._list_file_save_state_obj().has_pending():
             self._schedule_pending_list_file_save_start()
 
-    def _schedule_pending_list_file_save_start(self, profile_key: str | None = None, text: str | None = None) -> None:
+    def _schedule_pending_list_file_save_start(
+        self,
+        profile_key: str | None = None,
+        text: str | None = None,
+        *,
+        filter_kind: str | None = None,
+        filter_value: str | None = None,
+    ) -> None:
         state = self._list_file_save_state_obj()
-        if profile_key is not None or text is not None:
-            state.pending = (str(profile_key or ""), str(text or ""))
+        if profile_key is not None or text is not None or filter_kind is not None or filter_value is not None:
+            state.pending = _list_file_save_request(
+                str(profile_key or ""),
+                str(text or ""),
+                filter_kind=str(filter_kind or ""),
+                filter_value=str(filter_value or ""),
+            )
 
         def _single_shot(delay: int, callback) -> None:
             try:
@@ -4126,18 +4237,25 @@ class ProfileSetupPageBase(BasePage):
         )
         if not pending:
             return
-        profile_key, text = pending
+        request = _normalized_list_file_save_request(pending)
+        profile_key = request["profile_key"]
+        if not profile_key:
+            return
         if self._profile_setup_write_is_running():
-            self._list_file_save_state_obj().pending = (str(profile_key or ""), str(text or ""))
+            self._list_file_save_state_obj().pending = request
             self._queue_profile_setup_write_operation(
                 {
                     "kind": "list_file_save",
-                    "profile_key": str(profile_key or ""),
-                    "text": str(text or ""),
+                    **request,
                 }
             )
             return
-        self._start_list_file_save_worker(str(profile_key or ""), str(text or ""))
+        self._start_list_file_save_worker(
+            profile_key,
+            request["text"],
+            filter_kind=request["filter_kind"],
+            filter_value=request["filter_value"],
+        )
 
     def _list_file_save_state_obj(self) -> LatestValueWorkerState:
         state = self.__dict__.get("_list_file_save_state")
@@ -4384,7 +4502,7 @@ class ProfileSetupPageBase(BasePage):
 
     def _on_filter_kind_changed(self) -> None:
         self._sync_filter_value_for_kind()
-        if self._profile_is_only_template() and self._editor_tab_built and self._strategy_stack.currentIndex() == 1:
+        if self._editor_tab_built and self._strategy_stack.currentIndex() == 1:
             self._request_list_file_editor_state()
         self._schedule_settings_autosave()
 
@@ -5085,8 +5203,30 @@ class ProfileSetupPageBase(BasePage):
                 None,
             )
             next_raw_strategy_text = str(getattr(selected_branch, "raw_strategy_text", "") or entry_args)
+            next_strategy_name = str(getattr(entry, "name", "") or strategy_id)
+            if len(updated_branches) <= 1:
+                updated_item = replace(
+                    item,
+                    strategy_id=strategy_id,
+                    strategy_name=next_strategy_name,
+                    enabled=True,
+                    rating=str(getattr(state, "rating", "") or ""),
+                    favorite=bool(getattr(state, "favorite", False)),
+                    strategy_branches=updated_branches,
+                )
+            else:
+                updated_item = replace(
+                    item,
+                    strategy_id="custom",
+                    strategy_name=_strategy_branch_summary_name(updated_branches),
+                    enabled=True,
+                    rating="",
+                    favorite=False,
+                    strategy_branches=updated_branches,
+                )
             self._payload = replace(
                 payload,
+                item=updated_item,
                 strategy_branches=updated_branches,
                 raw_strategy_text=next_raw_strategy_text,
                 match_tab_text=str(getattr(selected_branch, "match_tab_text", "") or ""),

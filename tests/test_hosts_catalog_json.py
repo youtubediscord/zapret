@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 import tempfile
 import unittest
@@ -761,6 +762,120 @@ class HostsCatalogJsonTests(unittest.TestCase):
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0].selected_profile, "xbox_dns")
         self.assertTrue(plan.selection_changed)
+
+    def test_services_catalog_plan_uses_single_profile_index_without_catalog_roundtrips(self) -> None:
+        from hosts import page_plans
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._write_catalog(root)
+            fake_module = root / "public_zapretgui" / "src" / "hosts" / "proxy_domains.py"
+            fake_module.parent.mkdir(parents=True, exist_ok=True)
+            fake_module.write_text("", encoding="utf-8")
+
+            with patch.object(self.proxy_domains, "__file__", str(fake_module)):
+                self.proxy_domains.invalidate_hosts_catalog_cache()
+                profile_index = self.proxy_domains.get_services_profile_index()
+
+        def _old_catalog_path_used(*_args, **_kwargs):
+            raise AssertionError("build_services_catalog_plan должен использовать общий индекс каталога")
+
+        with (
+            patch("hosts.proxy_domains.get_services_profile_index", return_value=profile_index),
+            patch.object(page_plans, "get_direct_profile_name", side_effect=_old_catalog_path_used),
+            patch.object(page_plans, "service_has_active_domains", side_effect=_old_catalog_path_used),
+            patch.object(page_plans, "infer_profile_from_hosts", side_effect=_old_catalog_path_used),
+            patch.object(page_plans, "infer_direct_toggle_from_hosts", side_effect=_old_catalog_path_used),
+        ):
+            plan = page_plans.build_services_catalog_plan(
+                current_selection={},
+                active_domains_map={
+                    "chat.openai.com": "2.23.88.118",
+                    "instagram.com": "157.240.245.174",
+                },
+                direct_title="Direct",
+                ai_title="AI",
+                other_title="Other",
+            )
+
+        self.assertEqual(plan.new_selection.get("ChatGPT"), "xbox_dns")
+        self.assertEqual(plan.new_selection.get("Instagram"), "direct")
+
+    def test_services_profile_index_is_cached_until_catalog_is_invalidated(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._write_catalog(root)
+            fake_module = root / "public_zapretgui" / "src" / "hosts" / "proxy_domains.py"
+            fake_module.parent.mkdir(parents=True, exist_ok=True)
+            fake_module.write_text("", encoding="utf-8")
+
+            with patch.object(self.proxy_domains, "__file__", str(fake_module)):
+                self.proxy_domains.invalidate_hosts_catalog_cache()
+                with patch.object(
+                    self.proxy_domains,
+                    "_get_path_sig",
+                    wraps=self.proxy_domains._get_path_sig,
+                ) as get_path_sig:
+                    first = self.proxy_domains.get_services_profile_index()
+                    second = self.proxy_domains.get_services_profile_index()
+
+        self.assertIs(first, second)
+        self.assertEqual(get_path_sig.call_count, 1)
+
+    def test_split_catalog_signature_tracks_same_size_content_change(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "hosts_catalog"
+            root.mkdir()
+            item = root / "001.json"
+            item.write_text('{"a":1}\n', encoding="utf-8")
+            first_stat = item.stat()
+            first_sig = self.proxy_domains._get_path_sig(root)
+
+            item.write_text('{"a":2}\n', encoding="utf-8")
+            os.utime(item, ns=(int(first_stat.st_atime_ns), int(first_stat.st_mtime_ns)))
+
+            second_sig = self.proxy_domains._get_path_sig(root)
+
+        self.assertNotEqual(first_sig, second_sig)
+
+    def test_loaded_split_catalog_signature_is_reused_for_immediate_consumer(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._write_split_catalog(root)
+            fake_module = root / "public_zapretgui" / "src" / "hosts" / "proxy_domains.py"
+            fake_module.parent.mkdir(parents=True, exist_ok=True)
+            fake_module.write_text("", encoding="utf-8")
+
+            with patch.object(self.proxy_domains, "__file__", str(fake_module)):
+                self.proxy_domains.invalidate_hosts_catalog_cache()
+                self.proxy_domains.get_services_profile_index()
+                with patch.object(
+                    self.proxy_domains,
+                    "_get_path_sig",
+                    side_effect=AssertionError("recent loaded signature should be reused"),
+                ):
+                    signature = self.proxy_domains.get_hosts_catalog_signature()
+
+        self.assertIsNotNone(signature)
+
+    def test_cold_split_catalog_load_computes_signature_while_reading_files(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._write_split_catalog(root)
+            fake_module = root / "public_zapretgui" / "src" / "hosts" / "proxy_domains.py"
+            fake_module.parent.mkdir(parents=True, exist_ok=True)
+            fake_module.write_text("", encoding="utf-8")
+
+            with patch.object(self.proxy_domains, "__file__", str(fake_module)):
+                self.proxy_domains.invalidate_hosts_catalog_cache()
+                with patch.object(
+                    self.proxy_domains,
+                    "_get_path_sig",
+                    side_effect=AssertionError("cold split load should not rescan signature before reading"),
+                ):
+                    index = self.proxy_domains.get_services_profile_index()
+
+        self.assertEqual(index.get("services"), ["ChatGPT", "Instagram"])
 
     def test_apply_domain_rows_skips_ipv6_when_unavailable(self) -> None:
         from hosts import hosts as hosts_module

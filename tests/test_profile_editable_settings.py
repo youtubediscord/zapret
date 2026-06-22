@@ -54,6 +54,13 @@ class ProfileEditableSettingsTests(unittest.TestCase):
             "lists/ipset-ru.txt,lists/ipset-dns.txt,lists/ipset-exclude.txt",
         )
 
+    def test_file_filter_value_rejects_domain_without_list_extension(self) -> None:
+        from profile.editable_settings import filter_value_is_file_reference
+
+        self.assertTrue(filter_value_is_file_reference("lists/ipset-discord.txt"))
+        self.assertTrue(filter_value_is_file_reference("ipset-discord.txt"))
+        self.assertFalse(filter_value_is_file_reference("discord.com"))
+
 
 if __name__ == "__main__":
     unittest.main()

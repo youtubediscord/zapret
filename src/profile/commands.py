@@ -153,8 +153,16 @@ def save_profile_list_file_text(
     launch_method: str,
     profile_key: str,
     text: str,
+    *,
+    filter_kind: str = "",
+    filter_value: str = "",
 ):
-    return _profile_preset_service(profile_services, launch_method).save_profile_list_file_text(profile_key, text)
+    return _profile_preset_service(profile_services, launch_method).save_profile_list_file_text(
+        profile_key,
+        text,
+        filter_kind=filter_kind,
+        filter_value=filter_value,
+    )
 
 
 def set_profile_filter_kind(

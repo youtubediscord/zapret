@@ -18,10 +18,12 @@ class TelegramProxyManager(QThread):
     """Manages proxy lifecycle from GUI thread.
 
     Signals:
-        status_changed(bool)   — emitted when proxy starts/stops
+        status_changed(bool)      — emitted when proxy starts/stops
+        upstream_selected(str,str) — emitted when bundled SOCKS fallback proves working
     """
 
     status_changed = pyqtSignal(bool)
+    upstream_selected = pyqtSignal(str, str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -74,6 +76,7 @@ class TelegramProxyManager(QThread):
             port=port,
             mode=mode,
             on_log=self._on_log,
+            on_upstream_selected=self._on_upstream_selected,
             host=host,
             upstream_config=upstream_config,
             cloudflare_config=cloudflare_config,
@@ -147,6 +150,9 @@ class TelegramProxyManager(QThread):
 
     def _on_log(self, msg: str) -> None:
         self._proxy_logger.log(msg)
+
+    def _on_upstream_selected(self, preset_id: str, preset_name: str) -> None:
+        self.upstream_selected.emit(str(preset_id or ""), str(preset_name or ""))
 
 
 def get_proxy_manager() -> TelegramProxyManager:

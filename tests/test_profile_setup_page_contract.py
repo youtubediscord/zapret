@@ -5247,6 +5247,8 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         page._list_file_save_worker = None
         page._list_file_status_label = Mock()
         page._list_file_save_button = Mock()
+        page._current_filter_kind = Mock(return_value="ipset")
+        page._current_filter_value = Mock(return_value="lists/ipset-all.txt")
         worker = _Worker()
         page.create_profile_list_file_save_worker = Mock(return_value=worker)
 
@@ -5256,6 +5258,8 @@ class ProfileSetupPageContractTests(unittest.TestCase):
             1,
             "profile-1",
             "example.com",
+            filter_kind="ipset",
+            filter_value="lists/ipset-all.txt",
             parent=page,
         )
         page._list_file_save_button.setEnabled.assert_called_once_with(False)
@@ -5306,12 +5310,22 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         page._pending_list_file_save = None
         page._list_file_status_label = Mock()
         page._list_file_save_button = Mock()
+        page._current_filter_kind = Mock(return_value="hostlist")
+        page._current_filter_value = Mock(return_value="lists/youtube.txt")
         page.create_profile_list_file_save_worker = Mock(return_value=next_worker)
 
         ProfileSetupPageBase._on_list_file_save_clicked(page)
 
         page.create_profile_list_file_save_worker.assert_not_called()
-        self.assertEqual(page._pending_list_file_save, ("profile-1", "latest.example"))
+        self.assertEqual(
+            page._pending_list_file_save,
+            {
+                "profile_key": "profile-1",
+                "text": "latest.example",
+                "filter_kind": "hostlist",
+                "filter_value": "lists/youtube.txt",
+            },
+        )
 
         runtime.running = False
         callbacks = []
@@ -5331,6 +5345,8 @@ class ProfileSetupPageContractTests(unittest.TestCase):
             2,
             "profile-1",
             "latest.example",
+            filter_kind="hostlist",
+            filter_value="lists/youtube.txt",
             parent=page,
         )
         next_worker.start.assert_called_once()
@@ -5343,7 +5359,15 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         payload = SimpleNamespace(item=SimpleNamespace(key="profile-1"))
         save_text.return_value = state
         load_profile.return_value = payload
-        worker = ProfileListFileSaveWorker(3, save_text, load_profile, "profile-1", "example.com")
+        worker = ProfileListFileSaveWorker(
+            3,
+            save_text,
+            load_profile,
+            "profile-1",
+            "example.com",
+            filter_kind="ipset",
+            filter_value="lists/ipset-all.txt",
+        )
         saved = []
 
         worker.saved.connect(lambda request_id, emitted_state, emitted_payload: saved.append(
@@ -5355,6 +5379,8 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         save_text.assert_called_once_with(
             profile_key="profile-1",
             text="example.com",
+            filter_kind="ipset",
+            filter_value="lists/ipset-all.txt",
         )
         load_profile.assert_called_once_with("profile-1")
         self.assertEqual(len(saved), 1)
@@ -5738,6 +5764,30 @@ class ProfileSetupPageContractTests(unittest.TestCase):
 
         page._request_settings_save.assert_not_called()
 
+    def test_filter_kind_change_reloads_visible_list_file_for_preset_profile(self) -> None:
+        page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
+        page.launch_method = "zapret2_mode"
+        page._loading = False
+        page._profile_key = "profile-1"
+        page._payload = SimpleNamespace(
+            item=SimpleNamespace(in_preset=True),
+            editable_filter_role="primary",
+        )
+        page._filter_value = SimpleNamespace(
+            text=lambda: "lists/other.txt",
+            setText=Mock(),
+        )
+        page._current_filter_kind = Mock(return_value="ipset")
+        page._editor_tab_built = True
+        page._strategy_stack = SimpleNamespace(currentIndex=lambda: 1)
+        page._request_list_file_editor_state = Mock()
+        page._settings_save_timer = Mock()
+
+        ProfileSetupPageBase._on_filter_kind_changed(page)
+
+        page._request_list_file_editor_state.assert_called_once_with()
+        page._settings_save_timer.start.assert_called_once_with()
+
     def test_settings_save_worker_emits_new_profile_key_and_payload(self) -> None:
         save_settings = Mock()
         load_profile = Mock()
@@ -6116,6 +6166,39 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         page.create_profile_strategy_apply_worker.assert_not_called()
         page._on_profile_changed_callback.assert_not_called()
 
+    def test_clicking_strategy_while_apply_is_running_preserves_branch_pending(self) -> None:
+        class _Runtime:
+            def is_running(self) -> bool:
+                return True
+
+        page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
+        page._loading = False
+        page._profile_key = "profile-1"
+        page._payload = SimpleNamespace(
+            item=SimpleNamespace(strategy_id="first", in_preset=True, enabled=True),
+            current_strategy_branch_id="branch:2",
+            strategy_branches=(
+                SimpleNamespace(branch_id="branch:1", strategy_id="first"),
+                SimpleNamespace(branch_id="branch:2", strategy_id="first"),
+            ),
+        )
+        page._strategy_apply_runtime = _Runtime()
+        page._strategy_apply_request_id = 1
+        page._strategy_apply_runtime_strategy_id = "first"
+        page._strategy_apply_runtime_branch_id = "branch:1"
+        page._pending_strategy_apply = None
+        page.create_profile_strategy_apply_worker = Mock()
+        page.reload_current_profile = Mock()
+        page._on_profile_changed_callback = Mock()
+        page._apply_strategy_locally = Mock(return_value=True)
+
+        ProfileSetupPageBase._on_strategy_list_activated(page, "second")
+
+        page._apply_strategy_locally.assert_called_once_with("second")
+        self.assertEqual(page._pending_strategy_apply, ("second", "branch:2"))
+        page.create_profile_strategy_apply_worker.assert_not_called()
+        page._on_profile_changed_callback.assert_not_called()
+
     def test_stale_strategy_apply_finish_waits_for_pending_last_choice(self) -> None:
         page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
         page._profile_key = "profile-1"
@@ -6384,6 +6467,67 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         page._apply_feedback_buttons.assert_called_once()
         page._apply_match_tab_payload.assert_not_called()
         page._rebuild_breadcrumb.assert_not_called()
+
+    def test_apply_strategy_locally_updates_profile_item_when_payload_has_branch(self) -> None:
+        item = ProfileListItem(
+            key="profile-1",
+            persistent_key="profile-1",
+            profile_index=0,
+            display_name="YouTube",
+            enabled=True,
+            in_preset=True,
+            strategy_id="old",
+            strategy_name="Old",
+            match_lines=(),
+            list_type="hostlist",
+            rating="",
+            favorite=False,
+            group="video",
+            group_name="Video",
+            order=0,
+        )
+        page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
+        page._payload = ProfileSetupPayload(
+            item=item,
+            strategy_entries={
+                "tls_fake": StrategyEntry(
+                    strategy_id="tls_fake",
+                    catalog_name="tls",
+                    name="TLS fake",
+                    args="--payload=tls_client_hello\n--lua-desync=fake",
+                    visual=SimpleNamespace(label="", description=""),
+                ),
+            },
+            strategy_states={"tls_fake": ProfileStrategyState(rating="work", favorite=True)},
+            raw_profile_text="",
+            raw_strategy_text="",
+            match_summary="",
+            current_strategy_branch_id="branch:0",
+            strategy_branches=(
+                ProfileStrategyBranch(
+                    branch_id="branch:0",
+                    payload="tls_client_hello",
+                    in_range="x",
+                    out_range="a",
+                    strategy_id="old",
+                    strategy_name="Old",
+                    raw_strategy_text="--payload=tls_client_hello\n--lua-desync=old",
+                    match_tab_text="Old match",
+                ),
+            ),
+        )
+        page._strategy_list = SimpleNamespace(set_current_strategy_id=Mock())
+        page._apply_strategy_branch_selector = Mock()
+        page._apply_feedback_buttons = Mock()
+        page._match_tab_built = False
+        page._apply_match_tab_payload = Mock()
+
+        self.assertTrue(ProfileSetupPageBase._apply_strategy_locally(page, "tls_fake"))
+
+        self.assertEqual(page._payload.item.strategy_id, "tls_fake")
+        self.assertEqual(page._payload.item.strategy_name, "TLS fake")
+        self.assertEqual(page._payload.item.rating, "work")
+        self.assertTrue(page._payload.item.favorite)
 
     def test_strategy_branch_selector_updates_labels_without_rebuilding_combo(self) -> None:
         class _Bar:
@@ -6839,6 +6983,25 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         ProfileSetupPageBase.show_profile(page, "profile-1")
 
         page.reload_current_profile.assert_not_called()
+
+    def test_show_profile_clears_stale_payload_when_switching_profile(self) -> None:
+        old_payload = SimpleNamespace(item=SimpleNamespace(key="deleted-profile"))
+        page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
+        page._profile_key = "deleted-profile"
+        page._payload = old_payload
+        page._pending_profile_setup_payload_apply = (old_payload, ("deleted-profile",))
+        page._profile_setup_payload_apply_scheduled = True
+        page._last_profile_setup_payload_apply_signature = ("deleted-profile",)
+        page.reload_current_profile = Mock()
+
+        ProfileSetupPageBase.show_profile(page, "profile-2")
+
+        self.assertEqual(page._profile_key, "profile-2")
+        self.assertIsNone(page._payload)
+        self.assertIsNone(page._pending_profile_setup_payload_apply)
+        self.assertFalse(page._profile_setup_payload_apply_scheduled)
+        self.assertIsNone(page._last_profile_setup_payload_apply_signature)
+        page.reload_current_profile.assert_called_once_with()
 
     def test_loaded_same_profile_payload_skips_full_repaint(self) -> None:
         payload = SimpleNamespace(

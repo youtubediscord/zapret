@@ -69,6 +69,7 @@ from .template_library import load_profile_template_library
 from .user_profiles import create_user_profile, delete_user_profile, update_user_profile
 from .editable_settings import (
     EditableProfileSettings,
+    filter_value_is_file_reference,
     normalize_filter_value,
     read_editable_profile_settings,
     with_editable_profile,
@@ -801,6 +802,8 @@ class ProfilePresetService:
                 next_filter_value = resolved.filter_value
         else:
             next_filter_value = normalize_filter_value(filter_value or current.filter_value, next_filter_kind, filter_role=current.filter_role)
+            if not filter_value_is_file_reference(next_filter_value):
+                next_filter_value = current.filter_value
         next_settings = EditableProfileSettings(
             filter_kind=next_filter_kind,
             filter_value=next_filter_value,
@@ -839,10 +842,22 @@ class ProfilePresetService:
     def validate_list_file_text(self, kind: str, text: str) -> tuple[tuple[int, str], ...]:
         return validate_profile_list_file_text(kind, text)
 
-    def save_profile_list_file_text(self, profile_key: str, text: str) -> ProfileListFileEditorState | None:
+    def save_profile_list_file_text(
+        self,
+        profile_key: str,
+        text: str,
+        *,
+        filter_kind: str = "",
+        filter_value: str = "",
+    ) -> ProfileListFileEditorState | None:
         profile = self._resolve_profile(profile_key)
         if profile is None:
             return None
+        profile = self._profile_with_filter_override(
+            profile,
+            filter_kind=filter_kind,
+            filter_value=filter_value,
+        )
         reference = profile_list_file_reference(profile, self._lists_root())
         if not reference.editable or not reference.file_name:
             raise ValueError(reference.error_text or "Файл списка недоступен для редактирования.")
@@ -1282,7 +1297,7 @@ class ProfilePresetService:
             value = resolved.filter_value
         else:
             value = normalize_filter_value(filter_value or current.filter_value, kind, filter_role=current.filter_role)
-            if not value:
+            if not value or not filter_value_is_file_reference(value):
                 return profile
 
         return with_editable_profile(

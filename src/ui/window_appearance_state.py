@@ -45,6 +45,7 @@ def on_mica_changed(window, enabled: bool) -> None:
 def on_animations_changed(window, enabled: bool) -> None:
     """Включает или отключает оконные анимации."""
     apply_window_animation_policy(window, enabled)
+    _sync_holiday_effects_for_animation_policy(window, bool(enabled))
 
 
 def on_smooth_scroll_changed(window, enabled: bool) -> None:
@@ -73,16 +74,45 @@ def ensure_holiday_effects_manager(window):
         return None
 
 
+def _existing_holiday_effects_manager(window):
+    try:
+        visual_state = getattr(window, "visual_state", None)
+        return None if visual_state is None else getattr(visual_state, "holiday_effects", None)
+    except Exception:
+        return None
+
+
+def _sync_holiday_effects_for_animation_policy(window, animations_enabled: bool) -> None:
+    effects = _existing_holiday_effects_manager(window)
+    if effects is None:
+        return
+    if not bool(animations_enabled):
+        effects.set_garland_enabled(False)
+        effects.set_snowflakes_enabled(False)
+        effects.set_animation_active(False)
+        return
+    try:
+        from settings.appearance import peek_warmed_premium_effects
+
+        premium_effects = peek_warmed_premium_effects()
+        if premium_effects is None:
+            return
+        effects.set_garland_enabled(bool(premium_effects.garland_enabled))
+        effects.set_snowflakes_enabled(bool(premium_effects.snowflakes_enabled))
+    except Exception:
+        pass
+
+
 def apply_garland_enabled(window, enabled: bool) -> None:
     """Применяет готовое состояние гирлянды к окну."""
-    effects = ensure_holiday_effects_manager(window)
+    effects = ensure_holiday_effects_manager(window) if enabled else _existing_holiday_effects_manager(window)
     if effects is not None:
         effects.set_garland_enabled(bool(enabled))
 
 
 def apply_snowflakes_enabled(window, enabled: bool) -> None:
     """Применяет готовое состояние снежинок к окну."""
-    effects = ensure_holiday_effects_manager(window)
+    effects = ensure_holiday_effects_manager(window) if enabled else _existing_holiday_effects_manager(window)
     if effects is not None:
         effects.set_snowflakes_enabled(bool(enabled))
 

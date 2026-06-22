@@ -329,8 +329,12 @@ class TelegramProxyUpstreamCatalogTest(unittest.TestCase):
 
         self.assertIsNotNone(upstream)
         self.assertEqual(upstream.host, "203.0.113.10")
+        self.assertEqual(upstream.preset_id, "uk")
+        self.assertEqual(upstream.preset_name, "Великобритания")
         self.assertEqual(len(upstream.fallback_proxies), 1)
         self.assertEqual(upstream.fallback_proxies[0].host, "203.0.113.20")
+        self.assertEqual(upstream.fallback_proxies[0].preset_id, "no")
+        self.assertEqual(upstream.fallback_proxies[0].preset_name, "Норвегия")
         self.assertEqual(upstream.fallback_proxies[0].username, "no_user")
         self.assertEqual(upstream.fallback_proxies[0].password, "no_password")
 

@@ -4,6 +4,15 @@ from dataclasses import dataclass
 from typing import Any
 
 
+def _holiday_effects_allowed() -> bool:
+    try:
+        from settings.appearance import peek_warmed_animations_enabled
+
+        return bool(peek_warmed_animations_enabled())
+    except Exception:
+        return False
+
+
 @dataclass(frozen=True, slots=True)
 class WindowStateActions:
     window: Any
@@ -13,9 +22,11 @@ class WindowStateActions:
         try:
             from ui.window_appearance_state import apply_garland_enabled
 
+            effects_allowed = _holiday_effects_allowed()
+            effective_enabled = bool(enabled) and effects_allowed
             snapshot = self.ui_state_store.snapshot()
-            self.ui_state_store.set_holiday_overlays(bool(enabled), snapshot.snowflakes_enabled)
-            apply_garland_enabled(self.window, bool(enabled))
+            self.ui_state_store.set_holiday_overlays(effective_enabled, bool(snapshot.snowflakes_enabled) and effects_allowed)
+            apply_garland_enabled(self.window, effective_enabled)
         except Exception as exc:
             from log.log import log
 
@@ -25,9 +36,11 @@ class WindowStateActions:
         try:
             from ui.window_appearance_state import apply_snowflakes_enabled
 
+            effects_allowed = _holiday_effects_allowed()
+            effective_enabled = bool(enabled) and effects_allowed
             snapshot = self.ui_state_store.snapshot()
-            self.ui_state_store.set_holiday_overlays(snapshot.garland_enabled, bool(enabled))
-            apply_snowflakes_enabled(self.window, bool(enabled))
+            self.ui_state_store.set_holiday_overlays(bool(snapshot.garland_enabled) and effects_allowed, effective_enabled)
+            apply_snowflakes_enabled(self.window, effective_enabled)
         except Exception as exc:
             from log.log import log
 

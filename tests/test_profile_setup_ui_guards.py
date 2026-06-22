@@ -1573,6 +1573,8 @@ class ProfileSetupUiGuardTests(unittest.TestCase):
         page._list_file_save_request_id = 0
         page._list_file_status_label = _TextWidget("")
         page._list_file_save_button = _BoolWidget(enabled=False)
+        page._current_filter_kind = Mock(return_value="hostlist")
+        page._current_filter_value = Mock(return_value="lists/youtube.txt")
         page.create_profile_list_file_save_worker = Mock(return_value=worker)
 
         ProfileSetupPageBase._on_list_file_save_clicked(page)
@@ -1582,6 +1584,8 @@ class ProfileSetupUiGuardTests(unittest.TestCase):
             1,
             "profile-1",
             "user.example\nsecond.example",
+            filter_kind="hostlist",
+            filter_value="lists/youtube.txt",
             parent=page,
         )
         self.assertEqual(worker.start_calls, 1)
@@ -1611,7 +1615,12 @@ class ProfileSetupUiGuardTests(unittest.TestCase):
 
         callbacks[0]()
 
-        page._start_list_file_save_worker.assert_called_once_with("profile-1", "latest.example")
+        page._start_list_file_save_worker.assert_called_once_with(
+            "profile-1",
+            "latest.example",
+            filter_kind="",
+            filter_value="",
+        )
 
     def test_list_file_save_waits_while_scheduled_save_start_is_pending(self) -> None:
         from unittest.mock import Mock, patch
@@ -1637,16 +1646,37 @@ class ProfileSetupUiGuardTests(unittest.TestCase):
         self.assertEqual(page._list_file_save_state_obj().pending, ("profile-1", "first.example"))
         self.assertEqual(
             page._pending_profile_setup_write_operations,
-            [{"kind": "list_file_save", "profile_key": "profile-1", "text": "second.example"}],
+            [
+                {
+                    "kind": "list_file_save",
+                    "profile_key": "profile-1",
+                    "text": "second.example",
+                    "filter_kind": "",
+                    "filter_value": "",
+                }
+            ],
         )
         self.assertEqual(len(callbacks), 1)
 
         callbacks[0]()
 
-        page._start_list_file_save_worker.assert_called_once_with("profile-1", "first.example")
+        page._start_list_file_save_worker.assert_called_once_with(
+            "profile-1",
+            "first.example",
+            filter_kind="",
+            filter_value="",
+        )
         self.assertEqual(
             page._pending_profile_setup_write_operations,
-            [{"kind": "list_file_save", "profile_key": "profile-1", "text": "second.example"}],
+            [
+                {
+                    "kind": "list_file_save",
+                    "profile_key": "profile-1",
+                    "text": "second.example",
+                    "filter_kind": "",
+                    "filter_value": "",
+                }
+            ],
         )
 
     def test_list_file_save_error_ignored_when_new_save_is_pending(self) -> None:

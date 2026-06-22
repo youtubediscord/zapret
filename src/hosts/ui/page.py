@@ -30,8 +30,8 @@ from hosts.ui.services_build import (
     build_hosts_services_group,
     build_hosts_services_section_title,
 )
+from hosts.ui.services_matrix import build_hosts_services_matrix
 from hosts.ui.selection_workflow import (
-    apply_bulk_profile_selection_ui,
     apply_direct_toggle_ui,
     apply_profile_selection_ui,
 )
@@ -115,10 +115,6 @@ def _is_fluent_combo(obj) -> bool:
     return False
 
 
-_SERVICES_INITIAL_ROW_BATCH_SIZE = 16
-_SERVICES_DEFERRED_ROW_BATCH_SIZE = 16
-
-
 class HostsPage(BasePage):
     """Страница управления Hosts файлом"""
 
@@ -142,12 +138,13 @@ class HostsPage(BasePage):
         self._service_group_title_labels = []
         self._service_group_chips_scrolls = []
         self._service_group_chip_buttons = []
+        self._services_matrix_model = None
+        self._services_matrix_view = None
         self._services_catalog_plan = None
         self._services_ui_mounted = False
         self._services_restore_scheduled = False
         self._services_build_generation = 0
         self._services_pending_row_batches = []
-        self._services_rows_build_scheduled = False
         self.status_card = None
         self._open_hosts_button = None
         self._info_text_label = None
@@ -660,6 +657,8 @@ class HostsPage(BasePage):
         self._service_group_title_labels = []
         self._service_group_chips_scrolls = []
         self._service_group_chip_buttons = []
+        self._services_matrix_model = None
+        self._services_matrix_view = None
 
     def _pause_services_selectors_for_hidden_page(self) -> None:
         self._stop_services_catalog_worker(blocking=False)
@@ -667,10 +666,7 @@ class HostsPage(BasePage):
     def _schedule_services_restore_after_show(self) -> None:
         if self.__dict__.get("_cleanup_in_progress", False):
             return
-        if (
-            self.__dict__.get("_services_ui_mounted", False)
-            and not self.__dict__.get("_services_pending_row_batches")
-        ):
+        if self.__dict__.get("_services_ui_mounted", False):
             return
         if self.__dict__.get("_services_restore_scheduled", False):
             return
@@ -683,12 +679,7 @@ class HostsPage(BasePage):
             return
         if not self.isVisible():
             return
-        pending_batches = self.__dict__.get("_services_pending_row_batches")
         if self.__dict__.get("_services_ui_mounted", False):
-            if pending_batches:
-                self._schedule_next_service_rows_batch(
-                    int(self.__dict__.get("_services_build_generation", 0))
-                )
             return
         if self._services_catalog_runtime.is_running():
             return
@@ -721,7 +712,6 @@ class HostsPage(BasePage):
         generation = int(self.__dict__.get("_services_build_generation", 0)) + 1
         self._services_build_generation = generation
         self._services_pending_row_batches = []
-        self._services_rows_build_scheduled = False
         return generation
 
     def _rebuild_services_selectors(self) -> None:
@@ -964,13 +954,6 @@ class HostsPage(BasePage):
         self._open_hosts_button = widgets.open_hosts_button
         self.add_widget(widgets.card)
 
-    def _make_fluent_chip(self, label: str) -> PushButton:
-        btn = PushButton(label)
-        btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn.setFixedHeight(24)
-        btn.setStyleSheet(_get_fluent_chip_style())
-        return btn
-
     def _service_row_plan_with_current_selection(self, row_plan):
         selected_profile = self._service_dns_selection.get(row_plan.service_name, row_plan.selected_profile)
         if selected_profile in row_plan.available_profiles:
@@ -1001,23 +984,21 @@ class HostsPage(BasePage):
             profile_name=profile_name,
         )
 
-        new_selection = apply_bulk_profile_selection_ui(
-            plan=plan,
-            profile_name=profile_name,
-            service_names=service_names,
-            service_combos=self.service_combos,
-            is_fluent_combo=_is_fluent_combo,
-            toggle_cls=SwitchButton,
-            get_building_state=self._get_building_services_ui,
-            set_building_state=self._set_building_services_ui,
-            update_profile_visual=self._update_profile_row_visual,
-            log_debug=lambda message: log(message, "DEBUG"),
-        )
-        if new_selection is not None:
-            self._service_dns_selection = new_selection
-            self._request_user_selection_save(self._service_dns_selection)
-            if plan.apply_now:
-                self._apply_current_selection()
+        if not plan.changed:
+            if plan.skipped_services:
+                log(
+                    "Hosts: профиль недоступен для: "
+                    + ", ".join(plan.skipped_services[:8])
+                    + ("…" if len(plan.skipped_services) > 8 else ""),
+                    "DEBUG",
+                )
+            return
+
+        self._service_dns_selection = dict(plan.new_selection)
+        self._sync_services_matrix_selection()
+        self._request_user_selection_save(self._service_dns_selection)
+        if plan.apply_now:
+            self._apply_current_selection()
 
     def _build_services_selectors(self, catalog_plan, *, sync_selection: bool = False):
         if self._services_layout is None:
@@ -1030,7 +1011,7 @@ class HostsPage(BasePage):
             if catalog_plan.selection_changed:
                 self._request_user_selection_save(self._service_dns_selection)
 
-        generation = self._cancel_deferred_services_row_build()
+        self._cancel_deferred_services_row_build()
         self._clear_layout(self._services_layout)
         self._reset_services_runtime_bindings()
 
@@ -1041,52 +1022,53 @@ class HostsPage(BasePage):
         self._building_services_ui = True
         try:
             groups_started_at = time.perf_counter()
-            initial_rows_left = _SERVICES_INITIAL_ROW_BATCH_SIZE
-            pending_row_batches = []
+            dns_groups = []
             for group_plan in catalog_plan.groups:
+                if not group_plan.direct_only:
+                    dns_groups.append(
+                        replace(
+                            group_plan,
+                            rows=[
+                                self._service_row_plan_with_current_selection(row_plan)
+                                for row_plan in group_plan.rows
+                            ],
+                        )
+                    )
+                    continue
+
                 group_widgets = build_hosts_services_group(
                     group_plan,
                     off_label=OFF_LABEL,
                     strong_body_label_cls=StrongBodyLabel,
-                    make_chip=self._make_fluent_chip,
+                    make_chip=lambda label: None,
                     on_bulk_apply=self._bulk_apply_dns_profile,
                 )
                 card = group_widgets.card
                 self._service_group_title_labels.append(group_widgets.title_label)
-                if group_widgets.chips_scroll is not None:
-                    self._service_group_chips_scrolls.append(group_widgets.chips_scroll)
-                self._service_group_chip_buttons.extend(group_widgets.chip_buttons)
-
-                rows = list(group_plan.rows)
-                built_count = 0
-                if initial_rows_left > 0:
-                    built_count = self._append_service_rows_slice(
-                        card=card,
-                        rows=rows,
-                        start_index=0,
-                        limit=initial_rows_left,
-                        off_label=OFF_LABEL,
-                    )
-                    initial_rows_left -= built_count
-                if built_count < len(rows):
-                    pending_row_batches.append(
-                        {
-                            "card": card,
-                            "rows": rows,
-                            "index": built_count,
-                            "off_label": OFF_LABEL,
-                        }
-                    )
-
+                for row_plan in group_plan.rows:
+                    self._append_service_row_widgets(card=card, row_plan=row_plan, off_label=OFF_LABEL)
                 self._services_add_widget(card)
-            self._services_pending_row_batches = pending_row_batches
+
+            if dns_groups:
+                matrix_widgets = build_hosts_services_matrix(
+                    dns_groups,
+                    off_label=OFF_LABEL,
+                    on_profile_selected=self._on_matrix_profile_selected,
+                    on_bulk_profile_selected=self._bulk_apply_dns_profile,
+                    title=self._tr("page.hosts.services.matrix", "DNS-службы"),
+                )
+                self._services_matrix_model = matrix_widgets.model
+                self._services_matrix_view = matrix_widgets.view
+                self._services_add_widget(matrix_widgets.card)
+            self._services_pending_row_batches = []
             self._log_ui_timing("hosts_ui.services.groups.build", groups_started_at)
         finally:
             self._building_services_ui = False
             self._services_ui_mounted = True
             self._log_ui_timing("hosts_ui.services.build", started_at)
-        if self.__dict__.get("_services_pending_row_batches"):
-            self._schedule_next_service_rows_batch(generation)
+
+    def _on_matrix_profile_selected(self, service_name: str, selected_profile: object) -> None:
+        self._on_profile_changed(service_name, selected_profile)
 
     def _append_service_row_widgets(self, *, card, row_plan, off_label: str) -> None:
         row_plan = self._service_row_plan_with_current_selection(row_plan)
@@ -1106,60 +1088,6 @@ class HostsPage(BasePage):
         self.service_icon_names[row_plan.service_name] = row_plan.icon_name
         self.service_icon_base_colors[row_plan.service_name] = row_plan.icon_color
         self._update_profile_row_visual(row_plan.service_name)
-
-    def _append_service_rows_slice(self, *, card, rows, start_index: int, limit: int, off_label: str) -> int:
-        row_count = len(rows)
-        end_index = min(row_count, int(start_index) + max(0, int(limit)))
-        for row_plan in rows[int(start_index):end_index]:
-            self._append_service_row_widgets(card=card, row_plan=row_plan, off_label=off_label)
-        return end_index
-
-    def _schedule_next_service_rows_batch(self, generation: int) -> None:
-        if self.__dict__.get("_services_rows_build_scheduled", False):
-            return
-        self._services_rows_build_scheduled = True
-        QTimer.singleShot(0, lambda g=int(generation): self._run_next_service_rows_batch(g))
-
-    def _run_next_service_rows_batch(self, generation: int) -> None:
-        self._services_rows_build_scheduled = False
-        if int(generation) != int(self.__dict__.get("_services_build_generation", 0)):
-            return
-        if self.__dict__.get("_cleanup_in_progress", False):
-            return
-        if not self.isVisible():
-            return
-        pending = list(self.__dict__.get("_services_pending_row_batches", []) or [])
-        if not pending:
-            return
-
-        remaining_budget = _SERVICES_DEFERRED_ROW_BATCH_SIZE
-        next_pending = []
-        self._building_services_ui = True
-        try:
-            while pending and remaining_budget > 0:
-                item = pending.pop(0)
-                card = item["card"]
-                rows = item["rows"]
-                start_index = int(item["index"])
-                next_index = self._append_service_rows_slice(
-                    card=card,
-                    rows=rows,
-                    start_index=start_index,
-                    limit=remaining_budget,
-                    off_label=item["off_label"],
-                )
-                remaining_budget -= max(0, next_index - start_index)
-                if next_index < len(rows):
-                    item = dict(item)
-                    item["index"] = next_index
-                    next_pending.append(item)
-            next_pending.extend(pending)
-            self._services_pending_row_batches = next_pending
-        finally:
-            self._building_services_ui = False
-
-        if self._services_pending_row_batches:
-            self._schedule_next_service_rows_batch(generation)
 
     def _on_direct_toggle_changed(self, service_name: str, checked: bool) -> None:
         if getattr(self, "_building_services_ui", False):
@@ -1222,9 +1150,15 @@ class HostsPage(BasePage):
             service_name=service_name,
             update_profile_visual=self._update_profile_row_visual,
         )
+        self._sync_services_matrix_selection()
         self._request_user_selection_save(self._service_dns_selection)
         if should_apply:
             self._apply_current_selection()
+
+    def _sync_services_matrix_selection(self) -> None:
+        model = self.__dict__.get("_services_matrix_model")
+        if model is not None:
+            model.update_selection(dict(self._service_dns_selection))
 
     def _update_profile_row_visual(self, service_name: str):
         combo = self.service_combos.get(service_name)
@@ -1542,6 +1476,7 @@ class HostsPage(BasePage):
             update_profile_visual=self._update_profile_row_visual,
             save_user_selection_fn=self._request_user_selection_save,
         )
+        self._sync_services_matrix_selection()
 
     def _update_ui(self):
         """Обновляет весь UI"""

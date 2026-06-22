@@ -96,6 +96,7 @@ _RECV_ZERO_TIMEOUT = 8.0
 _UPSTREAM_ZERO_RECV_FAILS = 2
 _UPSTREAM_PENALTY_SECONDS = 60.0
 _UPSTREAM_CONNECT_FAILURE_PENALTIES = (60.0, 180.0, 300.0)
+_WSS_ZERO_RECV_FAILS = 1
 _WSS_DOMAIN_PENALTY_SECONDS = 60.0
 
 
@@ -185,6 +186,7 @@ class TelegramWSProxy:
         port: int = 1353,
         mode: str = "socks5",
         on_log: Optional[Callable[[str], None]] = None,
+        on_upstream_selected: Optional[Callable[[str, str], None]] = None,
         host: str = "127.0.0.1",
         upstream_config: Optional[UpstreamProxyConfig] = None,
         cloudflare_config: Optional[CloudflareFallbackConfig] = None,
@@ -199,6 +201,7 @@ class TelegramWSProxy:
         self._mode = mode
         self._host = host
         self._on_log = on_log
+        self._on_upstream_selected = on_upstream_selected
         self._upstream = upstream_config or UpstreamProxyConfig()
         self._cloudflare = cloudflare_config or CloudflareFallbackConfig()
         self._cloudflare_domain_balancer = CloudflareDomainBalancer()
@@ -215,6 +218,8 @@ class TelegramWSProxy:
         self._upstream_penalty_until: dict[tuple[str, int, str, str, bool, str, bool], float] = {}
         self._upstream_active_counts: dict[tuple[str, int, str, str, bool, str, bool], int] = {}
         self._wss_domain_penalty_until: dict[tuple[int, bool, str], float] = {}
+        self._wss_zero_recv_counts: dict[tuple[int, bool, str], int] = {}
+        self._active_upstream_selected_key: tuple[str, tuple[str, int, str, str, bool, str, bool]] | None = None
         self._servers: list[asyncio.Server] = []
         self._tasks: set[asyncio.Task] = set()
         self._running = False
@@ -272,10 +277,13 @@ class TelegramWSProxy:
             until = self._wss_domain_penalty_until.get(key, 0.0)
             if until <= now:
                 self._wss_domain_penalty_until.pop(key, None)
+                self._wss_zero_recv_counts.pop(key, None)
                 ready.append(domain)
             else:
                 penalized.append(domain)
-        return ready + penalized
+        if ready:
+            return ready
+        return []
 
     def _mark_wss_domain_timeout(self, dc: int, is_media: bool, domain: str, label: str, exc: Exception) -> None:
         if not isinstance(exc, TimeoutError):
@@ -286,6 +294,29 @@ class TelegramWSProxy:
             f"[{label}] WSS domain {domain} temporarily deprioritized after TimeoutError "
             f"for {_WSS_DOMAIN_PENALTY_SECONDS:.0f}s"
         )
+
+    def _mark_wss_domain_zero_recv(self, dc: int, is_media: bool, domain: str, label: str) -> None:
+        domain = str(domain or "").strip()
+        if not domain:
+            return
+        key = (int(dc), bool(is_media), domain)
+        count = self._wss_zero_recv_counts.get(key, 0) + 1
+        self._wss_zero_recv_counts[key] = count
+        if count < _WSS_ZERO_RECV_FAILS:
+            return
+        self._wss_domain_penalty_until[key] = time.monotonic() + _WSS_DOMAIN_PENALTY_SECONDS
+        self._log(
+            f"[{label}] WSS domain {domain} temporarily deprioritized after recv=0 "
+            f"({count}/{_WSS_ZERO_RECV_FAILS}) for {_WSS_DOMAIN_PENALTY_SECONDS:.0f}s"
+        )
+
+    def _mark_wss_domain_recv_ok(self, dc: int, is_media: bool, domain: str) -> None:
+        domain = str(domain or "").strip()
+        if not domain:
+            return
+        key = (int(dc), bool(is_media), domain)
+        self._wss_zero_recv_counts.pop(key, None)
+        self._wss_domain_penalty_until.pop(key, None)
 
     @staticmethod
     def _should_log_mtproxy_problem(count: int, marks: set[int]) -> bool:
@@ -467,6 +498,36 @@ class TelegramWSProxy:
         self._upstream_connect_failure_counts.pop(key, None)
         self._upstream_penalty_until.pop(key, None)
 
+    @staticmethod
+    def _upstream_display_name(endpoint: UpstreamProxyEndpoint) -> str:
+        name = str(endpoint.preset_name or "").strip()
+        if name:
+            return name
+        host = str(endpoint.host or "").strip()
+        port = int(endpoint.port or 0)
+        return f"{host}:{port}" if host and port > 0 else "внешний прокси"
+
+    def _notify_working_upstream(self, endpoint: UpstreamProxyEndpoint, label: str) -> None:
+        endpoint_key = self._upstream_endpoint_key(endpoint)
+        preset_id = str(endpoint.preset_id or "").strip()
+        preset_name = self._upstream_display_name(endpoint)
+        self.stats.active_upstream_preset_id = preset_id
+        self.stats.active_upstream_name = preset_name
+        self.stats.active_upstream_host = str(endpoint.host or "").strip()
+        if not preset_id:
+            return
+        selected_key = (preset_id, endpoint_key)
+        if selected_key == self._active_upstream_selected_key:
+            return
+        self._active_upstream_selected_key = selected_key
+        self._log(f"[{label}] working upstream proxy selected: {preset_name}")
+        if self._on_upstream_selected is None:
+            return
+        try:
+            self._on_upstream_selected(preset_id, preset_name)
+        except Exception:
+            pass
+
     def _upstream_proxy_candidates(self) -> tuple[UpstreamProxyEndpoint, ...]:
         primary = UpstreamProxyEndpoint(
             host=self._upstream.host,
@@ -476,6 +537,8 @@ class TelegramWSProxy:
             tls=self._upstream.tls,
             tls_server_name=self._upstream.tls_server_name,
             tls_verify=self._upstream.tls_verify,
+            preset_id=self._upstream.preset_id,
+            preset_name=self._upstream.preset_name,
         )
         candidates = (primary, *tuple(self._upstream.fallback_proxies or ()))
         result: list[UpstreamProxyEndpoint] = []
@@ -509,6 +572,8 @@ class TelegramWSProxy:
                     tls=bool(endpoint.tls),
                     tls_server_name=str(endpoint.tls_server_name or "").strip(),
                     tls_verify=bool(endpoint.tls_verify),
+                    preset_id=str(endpoint.preset_id or "").strip(),
+                    preset_name=str(endpoint.preset_name or "").strip(),
                 )
             )
         if any(endpoint.tls for endpoint in result):
@@ -731,6 +796,9 @@ class TelegramWSProxy:
         self._upstream_connect_failure_counts = {}
         self._upstream_penalty_until = {}
         self._upstream_active_counts = {}
+        self._wss_domain_penalty_until = {}
+        self._wss_zero_recv_counts = {}
+        self._active_upstream_selected_key = None
         self._cloudflare_domain_balancer.reset()
         # Reset semaphore for fresh event loop
         reset_wss_semaphore()
@@ -905,9 +973,8 @@ class TelegramWSProxy:
                         init, label, dc=0, is_media=False,
                     )
                     return
-                if should_route_upstream(self._upstream, mode="fallback"):
+                if should_route_upstream(self._upstream, mode="fallback") and self._http_upstream_required:
                     if self._has_healthy_upstream_proxy():
-                        self._http_upstream_required = True
                         self._log(f"[{label}] HTTP transport -> upstream (fallback mode)")
                         self._record_route(
                             dc=0,
@@ -916,12 +983,14 @@ class TelegramWSProxy:
                             status="пропуск",
                             reason="HTTP transport, fallback SOCKS5",
                         )
-                        await self._upstream_proxy_connect(
+                        if await self._upstream_proxy_connect(
                             reader, writer, target_host, target_port,
                             init, label, dc=0, is_media=False,
-                        )
-                        return
-                    self._log(f"[{label}] HTTP transport -> direct TCP (upstream temporarily unavailable)")
+                        ):
+                            return
+                        self._log(f"[{label}] HTTP upstream failed -> direct TCP probe")
+                    else:
+                        self._log(f"[{label}] HTTP transport -> direct TCP (upstream temporarily unavailable)")
                 self.stats.passthrough_connections += 1
                 self._log(f"[{label}] HTTP transport -> direct TCP")
                 t_connect = time.monotonic()
@@ -965,6 +1034,7 @@ class TelegramWSProxy:
                         )
                     return
                 elapsed = time.monotonic() - t_connect
+                self._http_upstream_required = False
                 self._log_route_detail(
                     label,
                     route="HTTP direct TCP",
@@ -1211,10 +1281,12 @@ class TelegramWSProxy:
         # Try WebSocket connection
         domains = self._wss_domains_for(dc, is_media)
         ws = None
+        current_domain = ""
 
         # Try the connection pool first
-        ws = await self._ws_pool.get(dc, is_media, WSS_RELAY_IP, domains)
+        ws = await self._ws_pool.get(dc, is_media, WSS_RELAY_IP, domains) if domains else None
         if ws is not None:
+            current_domain = str(getattr(ws, "domain", "") or "")
             self._log(f"[{label}] DC{dc}{media_tag} WSS from pool")
 
         # If pool miss, try fresh WebSocket connection
@@ -1244,7 +1316,7 @@ class TelegramWSProxy:
                     target=f"{domain}{WSS_PATH} via {relay_ip}",
                     result="connected",
                 )
-                self._wss_domain_penalty_until.pop((int(dc), bool(is_media), domain), None)
+                current_domain = domain
                 break
             except WsHandshakeError as exc:
                 if exc.is_redirect:
@@ -1321,6 +1393,14 @@ class TelegramWSProxy:
                 )
                 return
 
+            if should_route_upstream(self._upstream, mode="fallback") and self._has_healthy_upstream_proxy():
+                self._log(f"[{label}] DC{dc}{media_tag} WSS unavailable -> upstream proxy")
+                await self._upstream_proxy_connect(
+                    client_reader, client_writer, target_host, target_port,
+                    init, label, dc, is_media,
+                )
+                return
+
             if await self._cloudflare_fallback(
                 client_reader, client_writer, target_host, target_port,
                 init, init_patched, label, dc, is_media,
@@ -1336,7 +1416,6 @@ class TelegramWSProxy:
         # WS success
         self._dc_cooldown.pop(dc_key, None)
         self.stats.wss_connections += 1
-        self._record_route(dc=dc, is_media=is_media, route="WSS", status="OK")
         self._log(f"[{label}] DC{dc}{media_tag} WSS connected")
 
         # Create splitter ONLY for patched inits (mobile clients with random DC bytes).
@@ -1353,7 +1432,25 @@ class TelegramWSProxy:
         await ws.send(init)
 
         # Bidirectional bridge
-        await self._relay_wss(client_reader, client_writer, ws, splitter, label, dc=dc)
+        relay_result = await self._relay_wss(client_reader, client_writer, ws, splitter, label, dc=dc)
+        recv_total = 0
+        sent_total = 0
+        if isinstance(relay_result, tuple) and len(relay_result) >= 2:
+            recv_total = int(relay_result[0] or 0)
+            sent_total = int(relay_result[1] or 0)
+        if recv_total > 0:
+            self._mark_wss_domain_recv_ok(dc, is_media, current_domain)
+            self._record_route(dc=dc, is_media=is_media, route="WSS", status="OK")
+            return
+        if sent_total > 0:
+            self._mark_wss_domain_zero_recv(dc, is_media, current_domain, label)
+            self._record_route(
+                dc=dc,
+                is_media=is_media,
+                route="WSS",
+                status="ошибка",
+                reason="recv=0",
+            )
 
     async def _tunnel_mtproxy_via_wss(
         self,
@@ -2071,7 +2168,9 @@ class TelegramWSProxy:
         Returns True if upstream connected, False on failure."""
         if not self._upstream.enabled:
             return False
-        if should_route_upstream(self._upstream, mode="fallback") and not self._has_healthy_upstream_proxy():
+        fallback_mode = should_route_upstream(self._upstream, mode="fallback")
+        has_healthy_upstream = self._has_healthy_upstream_proxy()
+        if fallback_mode and not has_healthy_upstream:
             self._log(f"[{label}] upstream temporarily unavailable; skip fallback")
             return False
 
@@ -2089,19 +2188,39 @@ class TelegramWSProxy:
                 label=label,
                 dc=dc,
                 is_media=is_media,
-                allow_penalized=not should_route_upstream(self._upstream, mode="fallback"),
+                allow_penalized=not fallback_mode,
             )
             if opened is None:
                 return False
             rr, rw, endpoint = opened
+            upstream_notified = False
+
+            def notify_on_first_response() -> None:
+                nonlocal upstream_notified
+                if upstream_notified:
+                    return
+                upstream_notified = True
+                self._mark_upstream_recv_ok(endpoint)
+                self._notify_working_upstream(endpoint, label)
+
             try:
                 # Forward the buffered init packet
                 rw.write(init)
                 await rw.drain()
-                recv_total, watchdog_fired = await self._relay_tcp(client_reader, client_writer, rr, rw, label, dc=dc)
+                recv_total, watchdog_fired = await self._relay_tcp(
+                    client_reader,
+                    client_writer,
+                    rr,
+                    rw,
+                    label,
+                    dc=dc,
+                    on_first_response=notify_on_first_response,
+                )
                 if recv_total > 0:
-                    self._mark_upstream_recv_ok(endpoint)
-                else:
+                    if not upstream_notified:
+                        self._mark_upstream_recv_ok(endpoint)
+                        self._notify_working_upstream(endpoint, label)
+                elif not fallback_mode:
                     self._mark_upstream_zero_recv(endpoint, label)
             finally:
                 self._unmark_upstream_active(endpoint)
@@ -2128,8 +2247,8 @@ class TelegramWSProxy:
         splitter: Optional[_MsgSplitter],
         label: str,
         dc: int = 0,
-    ) -> None:
-        await relay_wss(
+    ) -> tuple[int, int]:
+        return await relay_wss(
             client_reader=client_reader,
             client_writer=client_writer,
             ws=ws,
@@ -2149,6 +2268,7 @@ class TelegramWSProxy:
         label: str = "",
         dc: int = 0,
         recv_zero_timeout: float = 0,
+        on_first_response: Optional[Callable[[], None]] = None,
     ) -> tuple[int, bool]:
         return await relay_tcp(
             client_reader=client_reader,
@@ -2160,6 +2280,7 @@ class TelegramWSProxy:
             label=label,
             dc=dc,
             recv_zero_timeout=recv_zero_timeout,
+            on_first_response=on_first_response,
         )
 
 
