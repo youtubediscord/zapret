@@ -90,6 +90,20 @@ class ProfileIconTests(unittest.TestCase):
 
         self.assertEqual(icon.icon_name, "fa5s.shield-alt")
 
+    def test_exclusion_profile_uses_exclusion_icon(self) -> None:
+        icon = resolve_profile_icon(
+            "Исключения (RU сайты)",
+            (
+                "--filter-tcp=80,443-65535",
+                "--ipset=lists/ipset-ru.txt",
+                "--ipset=lists/ipset-dns.txt",
+                "--ipset=lists/ipset-exclude.txt",
+            ),
+        )
+
+        self.assertEqual(icon.icon_name, "fa5s.minus-circle")
+        self.assertEqual(icon.color, "#FACC15")
+
     def test_voice_profile_uses_voice_icon_from_display_name(self) -> None:
         icon = resolve_profile_icon("Голосовые звонки/чаты", ("--filter-udp=50000-51000",))
 
@@ -142,10 +156,20 @@ class ProfileIconTests(unittest.TestCase):
 
         self.assertEqual(icon.icon_name, "simple:speedtest:ST")
 
+    def test_fandom_profile_uses_brand_icon_from_list_file(self) -> None:
+        icon = resolve_profile_icon(
+            "Fandom",
+            ("--filter-tcp=443", "--hostlist=lists/fandom.txt"),
+        )
+
+        self.assertEqual(icon.icon_name, "simple:fandom:FA")
+        self.assertEqual(icon.color, "#FA005A")
+
     def test_game_service_hostlists_use_brand_icons(self) -> None:
         cases = (
             ("EpicGames & Fortnite", "--hostlist=lists/epicgames-fortnite.txt", "simple:epicgames:EG"),
             ("Ubisoft", "--hostlist=lists/ubisoft.txt", "simple:ubisoft:UB"),
+            ("Amazon TCP", "--hostlist=lists/amazon.txt", "fa5b.amazon"),
         )
 
         for display_name, list_line, expected_icon in cases:

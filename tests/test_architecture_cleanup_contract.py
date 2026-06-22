@@ -151,6 +151,76 @@ class ArchitectureCleanupContractTests(unittest.TestCase):
                             "switch_preset_file_fast не должен откатываться в полный start pipeline",
                         )
 
+    def test_source_does_not_reference_obsolete_list_sidecars(self) -> None:
+        patterns = (".base.txt", ".user.txt")
+        offenders: list[str] = []
+        for path in SRC_ROOT.rglob("*.py"):
+            text = path.read_text(encoding="utf-8", errors="replace")
+            for line_number, line in enumerate(text.splitlines(), 1):
+                if any(pattern in line for pattern in patterns):
+                    offenders.append(f"{path.relative_to(REPO_ROOT)}:{line_number}: {line.strip()}")
+
+        self.assertEqual(
+            offenders,
+            [],
+            "src не должен знать старые list-sidecar файлы *.base.txt / *.user.txt",
+        )
+
+    def test_settings_normalize_does_not_migrate_old_winws1_folder_schema(self) -> None:
+        source = (SRC_ROOT / "settings" / "normalize.py").read_text(encoding="utf-8")
+        forbidden = (
+            "_prepare_winws1_preset_folders",
+            '"all-tcp-udp"',
+            '"game-filter"',
+            '"circular"',
+        )
+
+        for pattern in forbidden:
+            with self.subTest(pattern=pattern):
+                self.assertNotIn(
+                    pattern,
+                    source,
+                    "settings.normalize не должен знать старую схему папок winws1",
+                )
+
+    def test_sidebar_expanded_save_has_single_state_source(self) -> None:
+        patterns = (
+            "sidebar_expanded_save_pending",
+            "sidebar_expanded_save_start_scheduled",
+            "_sync_sidebar_expanded_save_compat_fields",
+            "_theme_persist_pending",
+            "_theme_persist_start_scheduled",
+            "_appearance_save_pending",
+            "_appearance_save_start_scheduled",
+        )
+        offenders: list[str] = []
+        for path in SRC_ROOT.rglob("*.py"):
+            text = path.read_text(encoding="utf-8", errors="replace")
+            for line_number, line in enumerate(text.splitlines(), 1):
+                if any(pattern in line for pattern in patterns):
+                    offenders.append(f"{path.relative_to(REPO_ROOT)}:{line_number}: {line.strip()}")
+
+        self.assertEqual(
+            offenders,
+            [],
+            "состояние отложенного сохранения должно жить только в LatestValueWorkerState",
+        )
+
+    def test_source_does_not_use_old_display_theme_names(self) -> None:
+        patterns = ("Светлая синяя", "Темная синяя", "Светлая", "Темная")
+        offenders: list[str] = []
+        for path in SRC_ROOT.rglob("*.py"):
+            text = path.read_text(encoding="utf-8", errors="replace")
+            for line_number, line in enumerate(text.splitlines(), 1):
+                if any(pattern in line for pattern in patterns):
+                    offenders.append(f"{path.relative_to(REPO_ROOT)}:{line_number}: {line.strip()}")
+
+        self.assertEqual(
+            offenders,
+            [],
+            "внутренняя логика темы должна использовать только dark/light/system",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

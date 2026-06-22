@@ -1530,6 +1530,59 @@ class TelegramProxyCloudflareRuntimeTests(unittest.TestCase):
             ["primary.tls", "backup.tls"],
         )
 
+    def test_selected_preset_keeps_primary_before_backups_while_active(self) -> None:
+        from telegram_proxy.proxy.routing import UpstreamProxyConfig, UpstreamProxyEndpoint
+        from telegram_proxy.wss_proxy import TelegramWSProxy
+
+        proxy = TelegramWSProxy(
+            upstream_config=UpstreamProxyConfig(
+                enabled=True,
+                host="ee.tls",
+                port=443,
+                tls=True,
+                mode="fallback",
+                preset_id="ee",
+                preset_name="Эстония",
+                fallback_proxies=(
+                    UpstreamProxyEndpoint(host="uk.tls", port=443, tls=True, preset_id="uk"),
+                    UpstreamProxyEndpoint(host="no.tls", port=443, tls=True, preset_id="no"),
+                ),
+            ),
+        )
+        primary = proxy._upstream_proxy_candidates()[0]
+
+        proxy._mark_upstream_active(primary)
+        proxy._mark_upstream_active(primary)
+        hosts = [endpoint.host for endpoint in proxy._upstream_proxy_candidates()]
+
+        self.assertEqual(hosts, ["ee.tls", "uk.tls", "no.tls"])
+
+    def test_selected_preset_uses_backup_only_after_primary_penalty(self) -> None:
+        from telegram_proxy.proxy.routing import UpstreamProxyConfig, UpstreamProxyEndpoint
+        from telegram_proxy.wss_proxy import TelegramWSProxy
+
+        proxy = TelegramWSProxy(
+            upstream_config=UpstreamProxyConfig(
+                enabled=True,
+                host="ee.tls",
+                port=443,
+                tls=True,
+                mode="fallback",
+                preset_id="ee",
+                preset_name="Эстония",
+                fallback_proxies=(
+                    UpstreamProxyEndpoint(host="uk.tls", port=443, tls=True, preset_id="uk"),
+                    UpstreamProxyEndpoint(host="no.tls", port=443, tls=True, preset_id="no"),
+                ),
+            ),
+        )
+        primary = proxy._upstream_proxy_candidates()[0]
+
+        proxy._mark_upstream_connect_failure(primary, "test", TimeoutError())
+        hosts = [endpoint.host for endpoint in proxy._upstream_proxy_candidates()]
+
+        self.assertEqual(hosts, ["uk.tls", "no.tls", "ee.tls"])
+
     def test_upstream_connect_failure_is_temporarily_deprioritized_next_time(self) -> None:
         from telegram_proxy.proxy.routing import UpstreamProxyConfig, UpstreamProxyEndpoint
         from telegram_proxy.wss_proxy import TelegramWSProxy

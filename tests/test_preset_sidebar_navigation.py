@@ -770,22 +770,21 @@ class PresetSidebarNavigationTests(unittest.TestCase):
         runtime.worker = worker
         session = SimpleNamespace(
             sidebar_expanded_save_runtime=runtime,
-            sidebar_expanded_save_pending=None,
             sidebar_expanded_save_worker_factory=Mock(),
         )
         window = SimpleNamespace(ui_session=session)
 
         sidebar_builder._start_sidebar_expanded_save_worker(window, False)
 
-        self.assertFalse(session.sidebar_expanded_save_pending)
+        self.assertFalse(session.sidebar_expanded_save_state.pending)
         session.sidebar_expanded_save_worker_factory.assert_not_called()
 
     def test_sidebar_pending_save_restarts_after_event_loop_turn(self) -> None:
         import ui.navigation.sidebar_builder as sidebar_builder
+        from ui.latest_value_worker_state import LatestValueWorkerState
 
         session = SimpleNamespace(
-            sidebar_expanded_save_pending=False,
-            sidebar_expanded_save_start_scheduled=False,
+            sidebar_expanded_save_state=LatestValueWorkerState(object(), empty_value=None, pending=False),
             sidebar_expanded_save_runtime_worker=None,
         )
         window = SimpleNamespace(ui_session=session)
@@ -807,11 +806,11 @@ class PresetSidebarNavigationTests(unittest.TestCase):
 
     def test_stale_sidebar_pending_save_finish_does_not_restart_save(self) -> None:
         import ui.navigation.sidebar_builder as sidebar_builder
+        from ui.latest_value_worker_state import LatestValueWorkerState
 
         current_worker = object()
         session = SimpleNamespace(
-            sidebar_expanded_save_pending=False,
-            sidebar_expanded_save_start_scheduled=False,
+            sidebar_expanded_save_state=LatestValueWorkerState(object(), empty_value=None, pending=False),
             sidebar_expanded_save_runtime_worker=current_worker,
         )
         window = SimpleNamespace(ui_session=session)
@@ -825,7 +824,7 @@ class PresetSidebarNavigationTests(unittest.TestCase):
 
         single_shot.assert_not_called()
         start_worker.assert_not_called()
-        self.assertFalse(session.sidebar_expanded_save_pending)
+        self.assertFalse(session.sidebar_expanded_save_state.pending)
         self.assertIs(session.sidebar_expanded_save_runtime_worker, current_worker)
 
     def test_mode_switch_reuses_hidden_other_mode_items(self) -> None:

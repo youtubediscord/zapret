@@ -172,10 +172,14 @@ class AppearanceWorkerQueueTests(unittest.TestCase):
     def test_appearance_save_pending_restarts_after_event_loop_turn(self) -> None:
         import ui.pages.appearance_page as appearance_page
         from ui.pages.appearance_page import AppearancePage
+        from ui.queued_worker_state import QueuedWorkerState
 
         page = AppearancePage.__new__(AppearancePage)
         page._cleanup_in_progress = False
-        page._appearance_save_pending = [{"action": "display_mode", "value": "dark"}]
+        page._appearance_save_state = QueuedWorkerState(
+            SimpleNamespace(),
+            pending=[{"action": "display_mode", "value": "dark"}],
+        )
         page._start_appearance_save_worker = Mock()
         single_shot = Mock(side_effect=lambda _delay, _callback: None)
 
@@ -193,11 +197,15 @@ class AppearanceWorkerQueueTests(unittest.TestCase):
     def test_stale_appearance_save_worker_finished_does_not_restart_pending_save(self) -> None:
         import ui.pages.appearance_page as appearance_page
         from ui.pages.appearance_page import AppearancePage
+        from ui.queued_worker_state import QueuedWorkerState
 
         page = AppearancePage.__new__(AppearancePage)
         page._cleanup_in_progress = False
         page._appearance_save_runtime = SimpleNamespace(request_id=8)
-        page._appearance_save_pending = [{"action": "display_mode", "value": "dark"}]
+        page._appearance_save_state = QueuedWorkerState(
+            page._appearance_save_runtime,
+            pending=[{"action": "display_mode", "value": "dark"}],
+        )
         page._start_appearance_save_worker = Mock()
         single_shot = Mock()
 
@@ -206,18 +214,22 @@ class AppearanceWorkerQueueTests(unittest.TestCase):
 
         single_shot.assert_not_called()
         page._start_appearance_save_worker.assert_not_called()
-        self.assertEqual(page._appearance_save_pending, [{"action": "display_mode", "value": "dark"}])
+        self.assertEqual(page._appearance_save_state.pending, [{"action": "display_mode", "value": "dark"}])
 
     def test_stale_appearance_save_worker_object_finished_does_not_restart_pending_save(self) -> None:
         import ui.pages.appearance_page as appearance_page
         from ui.pages.appearance_page import AppearancePage
+        from ui.queued_worker_state import QueuedWorkerState
 
         old_worker = object()
         current_worker = object()
         page = AppearancePage.__new__(AppearancePage)
         page._cleanup_in_progress = False
         page._appearance_save_runtime = SimpleNamespace(request_id=8, worker=current_worker)
-        page._appearance_save_pending = [{"action": "display_mode", "value": "dark"}]
+        page._appearance_save_state = QueuedWorkerState(
+            page._appearance_save_runtime,
+            pending=[{"action": "display_mode", "value": "dark"}],
+        )
         page._start_appearance_save_worker = Mock()
         single_shot = Mock()
 
@@ -226,17 +238,20 @@ class AppearanceWorkerQueueTests(unittest.TestCase):
 
         single_shot.assert_not_called()
         page._start_appearance_save_worker.assert_not_called()
-        self.assertEqual(page._appearance_save_pending, [{"action": "display_mode", "value": "dark"}])
+        self.assertEqual(page._appearance_save_state.pending, [{"action": "display_mode", "value": "dark"}])
 
     def test_appearance_save_scheduled_start_uses_latest_pending_payload(self) -> None:
         import ui.pages.appearance_page as appearance_page
         from ui.pages.appearance_page import AppearancePage
+        from ui.queued_worker_state import QueuedWorkerState
 
         page = AppearancePage.__new__(AppearancePage)
         page._cleanup_in_progress = False
-        page._appearance_save_pending = [{"action": "display_mode", "value": "dark"}]
-        page._appearance_save_start_scheduled = False
         page._appearance_save_runtime = SimpleNamespace(is_running=Mock(return_value=False), start_qthread_worker=Mock())
+        page._appearance_save_state = QueuedWorkerState(
+            page._appearance_save_runtime,
+            pending=[{"action": "display_mode", "value": "dark"}],
+        )
         page._start_appearance_save_worker = Mock()
         single_shot = Mock(side_effect=lambda _delay, _callback: None)
 
@@ -252,14 +267,16 @@ class AppearanceWorkerQueueTests(unittest.TestCase):
 
     def test_appearance_save_result_ignored_when_same_action_is_pending(self) -> None:
         from ui.pages.appearance_page import AppearancePage
+        from ui.queued_worker_state import QueuedWorkerState
 
         page = AppearancePage.__new__(AppearancePage)
         page._cleanup_in_progress = False
         page._appearance_save_runtime = Mock()
         page._appearance_save_runtime.is_current.return_value = True
-        page._appearance_save_pending = [
-            {"action": "accent_color", "value": "#222222", "context_extra": {}}
-        ]
+        page._appearance_save_state = QueuedWorkerState(
+            page._appearance_save_runtime,
+            pending=[{"action": "accent_color", "value": "#222222", "context_extra": {}}],
+        )
         page._emit_accent_update = Mock()
 
         AppearancePage._on_appearance_save_finished(
@@ -277,14 +294,16 @@ class AppearanceWorkerQueueTests(unittest.TestCase):
 
     def test_appearance_save_error_ignored_when_same_action_is_pending(self) -> None:
         from ui.pages.appearance_page import AppearancePage
+        from ui.queued_worker_state import QueuedWorkerState
 
         page = AppearancePage.__new__(AppearancePage)
         page._cleanup_in_progress = False
         page._appearance_save_runtime = Mock()
         page._appearance_save_runtime.is_current.return_value = True
-        page._appearance_save_pending = [
-            {"action": "accent_color", "value": "#222222", "context_extra": {}}
-        ]
+        page._appearance_save_state = QueuedWorkerState(
+            page._appearance_save_runtime,
+            pending=[{"action": "accent_color", "value": "#222222", "context_extra": {}}],
+        )
 
         with patch("ui.pages.appearance_page.log") as log_mock:
             AppearancePage._on_appearance_save_failed(page, 7, "accent_color", "old error", {})

@@ -1,5 +1,5 @@
 # Preset: general 1.9.9 (game filter)
-# BuiltinVersion: 2.21
+# BuiltinVersion: 2.23
 # IconColor: #60cdff
 
 --lua-init=@lua/zapret-lib.lua
@@ -260,7 +260,7 @@
 
 --name=Riot / Valorant TCP
 --filter-tcp=443
---hostlist-domains=riotgames.com,valorant.com,riotcdn.net
+--hostlist=lists/riot-valorant.txt
 --out-range=-n3
 --payload=all
 --lua-desync=multisplit:payload=all:pos=1:seqovl=568:seqovl_pattern=tls_4pda

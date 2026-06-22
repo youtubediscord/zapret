@@ -101,7 +101,7 @@ class WhitelistDomainRow(QFrame):
         self._apply_theme()
 
     def _apply_theme(self) -> None:
-        tokens = self._tokens or get_theme_tokens("Темная синяя")
+        tokens = self._tokens or get_theme_tokens("dark")
 
         if self.is_default:
             qss = f"""

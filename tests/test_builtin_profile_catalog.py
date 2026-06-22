@@ -143,6 +143,7 @@ class BuiltinProfileCatalogTests(unittest.TestCase):
             "EpicGames & Fortnite": ("--filter-tcp=80,443-65535", "--hostlist=lists/epicgames-fortnite.txt"),
             "Ubisoft": ("--filter-tcp=80,443-65535", "--hostlist=lists/ubisoft.txt"),
             "Amazon TCP": ("--filter-tcp=80,443-65535", "--hostlist=lists/amazon.txt"),
+            "Riot / Valorant TCP": ("--filter-tcp=443", "--hostlist=lists/riot-valorant.txt"),
         }
 
         for name, match_lines in expected_profiles.items():
@@ -166,6 +167,7 @@ class BuiltinProfileCatalogTests(unittest.TestCase):
             "epicgames-fortnite.txt": ["epicgames.com", "fortnite.com", "akamaized.net", "unrealengine.com"],
             "ubisoft.txt": ["ubi.com", "ubisoft.com", "ubisoftconnect.com", "ubisoftclub.com", "uplay.com"],
             "amazon.txt": ["amazonaws.com", "amazon.com", "awsapps.com"],
+            "riot-valorant.txt": ["riotgames.com", "valorant.com", "riotcdn.net"],
         }
         lists_root = PRIVATE_ROOT / "dist" / "lists"
 
@@ -224,6 +226,31 @@ class BuiltinProfileCatalogTests(unittest.TestCase):
             if cloudflare_tcp_profiles > 1:
                 offenders.append(f"{path.name}: несколько Cloudflare TCP profile-ов вместо одного")
 
+        self.assertEqual(offenders, [])
+
+    def test_winws2_riot_valorant_profiles_use_hostlist_file_in_builtin_presets(self) -> None:
+        offenders: list[str] = []
+        seen_tcp_profiles = 0
+
+        for path in sorted((PUBLIC_ROOT / "src" / "presets" / "builtin" / "winws2").glob("*.txt")):
+            preset = parse_preset_text(
+                path.read_text(encoding="utf-8", errors="replace"),
+                engine="winws2",
+                source_name=path.name,
+            )
+            for profile in preset.profiles:
+                name = str(profile.name or "").strip()
+                if name not in {"Riot / Valorant TCP", "Riot / Valorant UDP"}:
+                    continue
+                if profile.match.hostlist_domains_lines:
+                    offenders.append(f"{path.name} profile {profile.index}: {name} ещё использует inline domains")
+                if name != "Riot / Valorant TCP":
+                    continue
+                seen_tcp_profiles += 1
+                if profile.match.hostlist_lines != ["--hostlist=lists/riot-valorant.txt"]:
+                    offenders.append(f"{path.name} profile {profile.index}: Riot / Valorant TCP без hostlist файла")
+
+        self.assertGreater(seen_tcp_profiles, 0)
         self.assertEqual(offenders, [])
 
     def test_builtin_profile_files_keep_new_separator_on_own_spaced_line(self) -> None:

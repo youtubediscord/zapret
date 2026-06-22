@@ -439,6 +439,22 @@ class TelegramWSProxy:
         now: float,
     ) -> tuple[int, int, int, int]:
         penalty = self._upstream_penalty_active(endpoint, now)
+        selected_preset = bool(str(self._upstream.preset_id or "").strip())
+        if selected_preset:
+            if not penalty and index == 0:
+                group = 0
+            elif not penalty:
+                group = 1
+            elif index == 0:
+                group = 2
+            elif endpoint.tls:
+                group = 3
+            else:
+                group = 4
+            key = self._upstream_endpoint_key(endpoint)
+            failures = self._upstream_connect_failure_counts.get(key, 0)
+            active = 0 if index == 0 else self._upstream_active_counts.get(key, 0)
+            return group, failures, active, index
         if not penalty and (index == 0 or endpoint.tls):
             group = 0
         elif penalty and endpoint.tls:

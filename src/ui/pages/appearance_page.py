@@ -953,7 +953,7 @@ class AppearancePage(BasePage):
                 return
         pending.append(queued)
 
-    def _coalesce_appearance_save_pending(self) -> None:
+    def _coalesce_pending_appearance_saves(self) -> None:
         latest_by_action: dict[str, dict[str, object]] = {}
         order: list[str] = []
         state = self._appearance_save_state_obj()
@@ -979,22 +979,6 @@ class AppearancePage(BasePage):
             state = QueuedWorkerState[dict[str, object]](runtime)
             self.__dict__["_appearance_save_state"] = state
         return state
-
-    @property
-    def _appearance_save_pending(self):
-        return self._appearance_save_state_obj().pending
-
-    @_appearance_save_pending.setter
-    def _appearance_save_pending(self, value) -> None:
-        self._appearance_save_state_obj().pending = list(value or [])
-
-    @property
-    def _appearance_save_start_scheduled(self) -> bool:
-        return bool(self._appearance_save_state_obj().start_scheduled)
-
-    @_appearance_save_start_scheduled.setter
-    def _appearance_save_start_scheduled(self, value: bool) -> None:
-        self._appearance_save_state_obj().start_scheduled = bool(value)
 
     def _start_appearance_save_worker(self, payload: dict[str, object]) -> None:
         self._appearance_save_runtime.start_qthread_worker(
@@ -1092,7 +1076,7 @@ class AppearancePage(BasePage):
         state.start_scheduled = False
         if self.__dict__.get("_cleanup_in_progress", False):
             return
-        self._coalesce_appearance_save_pending()
+        self._coalesce_pending_appearance_saves()
         if not state.has_pending():
             return
         payload = state.pop_next()

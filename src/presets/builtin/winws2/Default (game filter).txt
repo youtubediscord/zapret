@@ -1,5 +1,5 @@
 # Preset: Default
-# BuiltinVersion: 2.21
+# BuiltinVersion: 2.23
 # IconColor: #a8c5ff
 
 --lua-init=@lua/zapret-lib.lua

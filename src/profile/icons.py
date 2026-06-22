@@ -34,7 +34,8 @@ _KNOWN_ICONS: dict[str, ProfileIconSpec] = {
     "tiktok": ProfileIconSpec("simple:tiktok:TT", "#000000"),
     "itch": ProfileIconSpec("simple:itchdotio:IT", "#FA5C5C"),
     "google": ProfileIconSpec("simple:google:GO", "#4285F4"),
-    "amazon": ProfileIconSpec("simple:amazon:AM", "#FF9900"),
+    "amazon": ProfileIconSpec("fa5b.amazon", "#FF9900"),
+    "fandom": ProfileIconSpec("simple:fandom:FA", "#FA005A"),
     "microsoft": ProfileIconSpec("fa5b.microsoft", "#00BCF2"),
     "microsoft-store": ProfileIconSpec("fa5b.microsoft", "#00BCF2"),
     "anydesk": ProfileIconSpec("simple:anydesk:AD", "#EF443B"),
@@ -175,6 +176,8 @@ def _semantic_icon_from_text(
             " ".join(identities),
         ]
     ).lower()
+    if any(token in haystack for token in ("исключения", "exclude", "exclusion")):
+        return ProfileIconSpec("fa5s.minus-circle", "#FACC15")
     if any(token in haystack for token in ("blacklist", "rublacklist", "russia-blacklist")):
         return ProfileIconSpec("fa5s.shield-alt", "#94A3B8")
     if any(token in haystack for token in ("голос", "звон", "voice")):

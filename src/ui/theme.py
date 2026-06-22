@@ -126,15 +126,10 @@ def _accent_foreground_color(accent_rgb: tuple[int, int, int]) -> str:
 
 
 def _normalize_theme_name(theme_name: str | None) -> str:
-    """Returns 'light' for light themes, 'dark' for dark themes."""
-    raw = str(theme_name or "").strip()
-    if not raw or raw == "dark":
-        return "dark"
-    if raw == "light":
-        return "light"
-    # Theme names starting with 'Светлая' are light.
-    if raw.startswith("Светлая"):
-        return "light"
+    """Returns current internal theme mode."""
+    raw = str(theme_name or "").strip().lower()
+    if raw in {"dark", "light", "system"}:
+        return raw
     return "dark"
 
 def invalidate_theme_tokens_cache() -> None:
@@ -436,14 +431,14 @@ def apply_window_background(window, theme_name: str | None = None, preset: str |
 def _sync_theme_mode_to_qfluent(theme_name: str, window=None) -> None:
     """Calls setTheme(DARK/LIGHT) to match dark/light mode hint.
 
-    theme_name: 'Светлая*' or 'light' → LIGHT, 'system' → AUTO, anything else → DARK.
+    theme_name: 'light' → LIGHT, 'system' → AUTO, anything else → DARK.
     window: if provided, also applies window background.
     """
     try:
         from qfluentwidgets import setTheme, Theme
         if str(theme_name) == "system":
             setTheme(Theme.AUTO)
-        elif str(theme_name).startswith("Светлая") or str(theme_name) == "light":
+        elif str(theme_name) == "light":
             setTheme(Theme.LIGHT)
         else:
             setTheme(Theme.DARK)
@@ -541,12 +536,11 @@ def get_theme_tokens(theme_name: str | None = None) -> ThemeTokens:
     except Exception:
         is_light = False
 
-    # Backward compat: explicit theme_name starting with "Светлая" forces light palette
     if theme_name is not None:
-        raw = str(theme_name).strip()
-        if raw.startswith("Светлая") or raw == "light":
+        raw = str(theme_name).strip().lower()
+        if raw == "light":
             is_light = True
-        elif raw.startswith("Темная") or raw == "dark":
+        elif raw == "dark":
             is_light = False
 
     accent_rgb = _get_qfluent_themecolor() or (0, 120, 212)
@@ -841,8 +835,7 @@ def _get_theme_success_gradient_stops(theme_name: str, *, hover: bool = False) -
 
 
 def _is_light_theme_name(theme_name: str) -> bool:
-    s = str(theme_name)
-    return s == "light" or s.startswith("Светлая")
+    return str(theme_name or "").strip().lower() == "light"
 
 
 def _get_theme_color_value(theme_name: str, key: str, fallback: str) -> str:
@@ -1143,9 +1136,9 @@ class ThemeManager:
         # Initialize from current qfluentwidgets state to avoid overriding startup setTheme()
         try:
             from qfluentwidgets import isDarkTheme
-            self.current_theme = "Светлая синяя" if not isDarkTheme() else "Темная синяя"
+            self.current_theme = "light" if not isDarkTheme() else "dark"
         except Exception:
-            self.current_theme = "Темная синяя"
+            self.current_theme = "dark"
         log("🎨 ThemeManager: режим из isDarkTheme(), тема не выбирается", "DEBUG")
 
         # Минимальный CSS теперь применяется в main.py ДО показа окна
@@ -1439,39 +1432,14 @@ class ThemeManager:
         state = self.__dict__.get("_theme_persist_state")
         runtime = self.__dict__.get("_theme_persist_runtime")
         if state is None:
-            pending = self.__dict__.pop("_theme_persist_pending", None)
-            start_scheduled = bool(
-                self.__dict__.pop("_theme_persist_start_scheduled", False)
-            )
             state = LatestValueWorkerState(
                 runtime,
                 empty_value=None,
-                pending=pending,
-                start_scheduled=start_scheduled,
             )
             self.__dict__["_theme_persist_state"] = state
         elif getattr(state, "runtime", None) is None and runtime is not None:
             state.runtime = runtime
         return state
-
-    @property
-    def _theme_persist_pending(self) -> str | None:
-        pending = self._theme_persist_state_obj().pending
-        return None if pending is None else str(pending)
-
-    @_theme_persist_pending.setter
-    def _theme_persist_pending(self, value: str | None) -> None:
-        self._theme_persist_state_obj().pending = (
-            None if value is None else _normalize_theme_name(value)
-        )
-
-    @property
-    def _theme_persist_start_scheduled(self) -> bool:
-        return bool(self._theme_persist_state_obj().start_scheduled)
-
-    @_theme_persist_start_scheduled.setter
-    def _theme_persist_start_scheduled(self, value: bool) -> None:
-        self._theme_persist_state_obj().start_scheduled = bool(value)
 
     def _set_status(self, text):
         """Устанавливает текст статуса (через главное окно)"""

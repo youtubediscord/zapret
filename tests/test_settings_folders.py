@@ -48,7 +48,7 @@ class SettingsFoldersTests(unittest.TestCase):
         self.assertEqual(classify_preset_folder("md5sigpadencap", "winws1"), "split-md5-ttl")
         self.assertEqual(classify_preset_folder("Default v1 (game filter)", "winws1"), "games")
 
-    def test_normalize_settings_migrates_zapret1_away_from_zapret2_folders(self) -> None:
+    def test_normalize_settings_keeps_current_zapret1_folder_state(self) -> None:
         normalized = normalize_settings(
             {
                 "folders": {
@@ -56,14 +56,12 @@ class SettingsFoldersTests(unittest.TestCase):
                     "presets": {
                         "winws1": {
                             "folders": {
-                                "all-tcp-udp": {"name": "ALL TCP & UDP", "order": 0},
                                 "common": {"name": "Общие", "order": 1, "system": True},
-                                "game-filter": {"name": "Game filter", "order": 2},
-                                "circular": {"name": "Circular", "order": 3},
+                                "games": {"name": "Игры", "order": 2},
                             },
                             "items": {
-                                "Default v1.txt": {"folder_key": "game-filter", "order": 0},
-                                "custom.txt": {"folder_key": "circular", "order": 1},
+                                "Default v1.txt": {"folder_key": "games", "order": 0},
+                                "custom.txt": {"folder_key": "missing", "order": 1},
                             },
                         }
                     },
@@ -72,9 +70,6 @@ class SettingsFoldersTests(unittest.TestCase):
         )
 
         winws1 = normalized["folders"]["presets"]["winws1"]
-        self.assertNotIn("all-tcp-udp", winws1["folders"])
-        self.assertNotIn("game-filter", winws1["folders"])
-        self.assertNotIn("circular", winws1["folders"])
         self.assertEqual(winws1["items"]["Default v1.txt"]["folder_key"], "games")
         self.assertEqual(winws1["items"]["custom.txt"]["folder_key"], "common")
 

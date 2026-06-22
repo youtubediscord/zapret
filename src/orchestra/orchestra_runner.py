@@ -131,6 +131,23 @@ DEFAULT_WHITELIST_DOMAINS = {
     *get_orchestra_ignored_exact_domains(),
 }
 
+
+def _current_ipset_final_files(lists_folder: str) -> list[str]:
+    root = str(lists_folder or "")
+    names: set[str] = set()
+    for layer_name in ("base", "user"):
+        layer_dir = os.path.join(root, layer_name)
+        for path in glob.glob(os.path.join(layer_dir, "ipset-*.txt")):
+            names.add(os.path.basename(path))
+
+    result: list[str] = []
+    for name in sorted(names, key=str.casefold):
+        final_path = os.path.join(root, name)
+        if os.path.isfile(final_path):
+            result.append(final_path)
+    return result
+
+
 def _is_default_whitelist_domain(hostname: str) -> bool:
     """
     Проверяет, является ли домен системным в whitelist (нельзя удалить).
@@ -1800,21 +1817,12 @@ class OrchestraRunner:
     def _load_ipset_networks(self):
         """
         Загружает ipset подсети для определения игр/сервисов по IP (UDP/QUIC).
-        Читает ipset-*.txt из папки lists (кроме *.base/*.user).
+        Читает итоговые ipset-*.txt из текущей схемы lists/base + lists/user -> lists.
         """
         if self.ipset_networks:
             return
         try:
-            ipset_files = glob.glob(os.path.join(LISTS_FOLDER, "ipset-*.txt"))
-
-            filtered_files: list[str] = []
-            for path in ipset_files:
-                base_name = os.path.basename(path).lower()
-                if base_name.endswith(".base.txt") or base_name.endswith(".user.txt"):
-                    continue
-                filtered_files.append(path)
-
-            ipset_files = filtered_files
+            ipset_files = _current_ipset_final_files(LISTS_FOLDER)
 
             networks: list[tuple[ipaddress._BaseNetwork, str]] = []
             for path in ipset_files:

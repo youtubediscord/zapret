@@ -675,38 +675,13 @@ def normalize_folders(data: object) -> dict[str, Any]:
 
     raw = as_dict(data)
     raw_presets = as_dict(raw.get("presets"))
-    raw_winws1 = _prepare_winws1_preset_folders(raw_presets.get("winws1"))
     return {
         "version": 1,
         "presets": {
             "winws2": normalize_folder_state(raw_presets.get("winws2"), build_default_preset_folders("winws2")),
-            "winws1": normalize_folder_state(raw_winws1, build_default_preset_folders("winws1")),
+            "winws1": normalize_folder_state(raw_presets.get("winws1"), build_default_preset_folders("winws1")),
         },
         "profiles": normalize_folder_state(raw.get("profiles"), build_default_profile_folders()),
-    }
-
-
-def _prepare_winws1_preset_folders(data: object) -> dict[str, Any]:
-    raw = as_dict(data)
-    folders = dict(as_dict(raw.get("folders")))
-    items = {
-        key: dict(meta) if isinstance(meta, dict) else meta
-        for key, meta in as_dict(raw.get("items")).items()
-    }
-    for old_key in ("all-tcp-udp", "game-filter", "circular"):
-        folders.pop(old_key, None)
-    for meta in items.values():
-        if not isinstance(meta, dict):
-            continue
-        folder_key = as_clean_str(meta.get("folder_key"))
-        if folder_key == "game-filter":
-            meta["folder_key"] = "games"
-        elif folder_key in {"all-tcp-udp", "circular"}:
-            meta["folder_key"] = "common"
-    return {
-        **raw,
-        "folders": folders,
-        "items": items,
     }
 
 

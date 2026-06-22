@@ -167,8 +167,8 @@ def get_user_ipset_entries() -> list[str]:
 
 
 def ensure_ipset_all_user_file() -> bool:
-    """Публичный helper: гарантирует наличие ipset-all.user.txt."""
-    return ensure_user_layer(IPSET_ALL_LIST_PATHS, error_message="Ошибка подготовки ipset-all.user.txt", log_func=log)
+    """Публичный helper: гарантирует наличие lists/user/ipset-all.txt."""
+    return ensure_user_layer(IPSET_ALL_LIST_PATHS, error_message="Ошибка подготовки lists/user/ipset-all.txt", log_func=log)
 
 
 def sync_ipset_all_after_user_change() -> bool:
@@ -183,7 +183,7 @@ def sync_ipset_all_after_user_change() -> bool:
             get_base_entries=get_ipset_all_base_entries,
             read_entries=_read_effective_ip_entries,
             log_func=log,
-            user_error_message="Ошибка подготовки ipset-all.user.txt",
+            user_error_message="Ошибка подготовки lists/user/ipset-all.txt",
             final_error_label="Ошибка генерации ipset-all.txt",
         )
     except Exception as exc:
@@ -199,7 +199,7 @@ def rebuild_ipset_all_files() -> bool:
             get_base_entries=get_ipset_all_base_entries,
             read_entries=_read_effective_ip_entries,
             log_func=log,
-            user_error_message="Ошибка подготовки ipset-all.user.txt",
+            user_error_message="Ошибка подготовки lists/user/ipset-all.txt",
             final_error_label="Ошибка генерации ipset-all.txt",
             require_non_empty=True,
         )
@@ -209,13 +209,13 @@ def rebuild_ipset_all_files() -> bool:
 
 
 def reset_ipset_all_user_file() -> bool:
-    """Очищает ipset-all.user.txt и пересобирает ipset-all.txt из системной базы."""
+    """Очищает lists/user/ipset-all.txt и пересобирает ipset-all.txt из системной базы."""
     return reset_user_layer(
         IPSET_ALL_LIST_PATHS,
         rebuild_fn=rebuild_ipset_all_files,
         log_func=log,
-        reset_error_label="Ошибка сброса ipset-all.user.txt",
-        success_message="ipset-all.user.txt очищен, ipset-all.txt пересобран из системной базы",
+        reset_error_label="Ошибка сброса lists/user/ipset-all.txt",
+        success_message="lists/user/ipset-all.txt очищен, ipset-all.txt пересобран из системной базы",
     )
 
 
@@ -236,19 +236,19 @@ def get_user_ipset_ru_entries() -> list[str]:
 
 
 def ensure_ipset_ru_user_file() -> bool:
-    """Публичный helper: гарантирует наличие ipset-ru.user.txt."""
-    return ensure_user_layer(IPSET_RU_LIST_PATHS, error_message="Ошибка подготовки ipset-ru.user.txt", log_func=log)
+    """Публичный helper: гарантирует наличие lists/user/ipset-ru.txt."""
+    return ensure_user_layer(IPSET_RU_LIST_PATHS, error_message="Ошибка подготовки lists/user/ipset-ru.txt", log_func=log)
 
 
 def sync_ipset_ru_after_user_change() -> bool:
-    """Быстрый sync после правки ipset-ru.user.txt."""
+    """Быстрый sync после правки lists/user/ipset-ru.txt."""
     try:
         return rebuild_layered_list(
             IPSET_RU_LIST_PATHS,
             get_base_entries=get_ipset_ru_base_entries,
             read_entries=_read_effective_ip_entries,
             log_func=log,
-            user_error_message="Ошибка подготовки ipset-ru.user.txt",
+            user_error_message="Ошибка подготовки lists/user/ipset-ru.txt",
             final_error_label="Ошибка генерации ipset-ru.txt",
         )
     except Exception as exc:
@@ -264,7 +264,7 @@ def rebuild_ipset_ru_files() -> bool:
             get_base_entries=get_ipset_ru_base_entries,
             read_entries=_read_effective_ip_entries,
             log_func=log,
-            user_error_message="Ошибка подготовки ipset-ru.user.txt",
+            user_error_message="Ошибка подготовки lists/user/ipset-ru.txt",
             final_error_label="Ошибка генерации ipset-ru.txt",
         )
     except Exception as exc:

@@ -62,7 +62,7 @@ def get_base_domains_set() -> set[str]:
 
 
 def get_user_domains() -> list[str]:
-    """Возвращает effective-строки (без комментариев) из other.user.txt."""
+    """Возвращает effective-строки (без комментариев) из lists/user/other.txt."""
     return _read_effective_entries(OTHER_USER_PATH)
 
 
@@ -74,7 +74,7 @@ def rebuild_other_files() -> bool:
             get_base_entries=get_base_domains,
             read_entries=_read_effective_entries,
             log_func=log,
-            user_error_message="Ошибка подготовки other.user.txt",
+            user_error_message="Ошибка подготовки lists/user/other.txt",
             final_error_label="Ошибка генерации other.txt",
             require_non_empty=True,
         )
@@ -84,13 +84,13 @@ def rebuild_other_files() -> bool:
 
 
 def reset_other_user_file() -> bool:
-    """Очищает other.user.txt и пересобирает other.txt из системной базы."""
+    """Очищает lists/user/other.txt и пересобирает other.txt из системной базы."""
     return reset_user_layer(
         OTHER_LIST_PATHS,
         rebuild_fn=rebuild_other_files,
         log_func=log,
         reset_error_label="Ошибка сброса my hostlist",
-        success_message="other.user.txt очищен, other.txt пересобран из системной базы",
+        success_message="lists/user/other.txt очищен, other.txt пересобран из системной базы",
     )
 
 

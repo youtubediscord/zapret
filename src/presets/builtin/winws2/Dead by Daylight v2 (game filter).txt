@@ -1,5 +1,5 @@
 # Preset: Dead by Daylight v2 (game filter)
-# BuiltinVersion: 2.21
+# BuiltinVersion: 2.23
 # IconColor: #a8c5ff
 
 --lua-init=@lua/zapret-lib.lua

@@ -65,10 +65,11 @@ class ThemeManagerPersistenceTests(unittest.TestCase):
 
     def test_pending_theme_persist_restarts_after_event_loop_turn(self) -> None:
         import ui.theme as theme
+        from ui.latest_value_worker_state import LatestValueWorkerState
 
         worker = object()
         manager = theme.ThemeManager.__new__(theme.ThemeManager)
-        manager._theme_persist_pending = "dark"
+        manager._theme_persist_state = LatestValueWorkerState(object(), empty_value=None, pending="dark")
         manager._theme_persist_runtime_worker = worker
         manager._cleanup_in_progress = False
         manager._start_theme_persist_worker = Mock()
@@ -87,9 +88,10 @@ class ThemeManagerPersistenceTests(unittest.TestCase):
 
     def test_stale_theme_persist_finish_does_not_restart_pending_persist(self) -> None:
         import ui.theme as theme
+        from ui.latest_value_worker_state import LatestValueWorkerState
 
         manager = theme.ThemeManager.__new__(theme.ThemeManager)
-        manager._theme_persist_pending = "dark"
+        manager._theme_persist_state = LatestValueWorkerState(object(), empty_value=None, pending="dark")
         manager._theme_persist_runtime_worker = object()
         manager._cleanup_in_progress = False
         manager._schedule_theme_persist_worker_start = Mock()
@@ -97,7 +99,7 @@ class ThemeManagerPersistenceTests(unittest.TestCase):
         theme.ThemeManager._on_theme_persist_finished(manager, object())
 
         manager._schedule_theme_persist_worker_start.assert_not_called()
-        self.assertEqual(manager._theme_persist_pending, "dark")
+        self.assertEqual(manager._theme_persist_state.pending, "dark")
 
     def test_theme_build_runs_through_runtime(self) -> None:
         import ui.one_shot_worker_runtime as one_shot_runtime
@@ -121,6 +123,7 @@ class ThemeManagerPersistenceTests(unittest.TestCase):
 
     def test_cleanup_does_not_wait_for_theme_build_workers(self) -> None:
         import ui.theme as theme
+        from ui.latest_value_worker_state import LatestValueWorkerState
 
         build_runtime = SimpleNamespace(stop=Mock(), cancel=Mock())
         persist_runtime = SimpleNamespace(stop=Mock(), cancel=Mock())
@@ -128,8 +131,12 @@ class ThemeManagerPersistenceTests(unittest.TestCase):
         manager._cleanup_in_progress = False
         manager._active_theme_build_jobs = {1: build_runtime}
         manager._cleanup_theme_build_thread = Mock()
-        manager._theme_persist_pending = "dark"
-        manager._theme_persist_start_scheduled = True
+        manager._theme_persist_state = LatestValueWorkerState(
+            persist_runtime,
+            empty_value=None,
+            pending="dark",
+            start_scheduled=True,
+        )
         manager._theme_persist_runtime_worker = object()
         manager._theme_persist_runtime = persist_runtime
 
@@ -150,8 +157,8 @@ class ThemeManagerPersistenceTests(unittest.TestCase):
             warning_prefix="theme persist worker",
         )
         persist_runtime.cancel.assert_called_once_with()
-        self.assertIsNone(manager._theme_persist_pending)
-        self.assertFalse(manager._theme_persist_start_scheduled)
+        self.assertIsNone(manager._theme_persist_state.pending)
+        self.assertFalse(manager._theme_persist_state.start_scheduled)
         self.assertIsNone(manager._theme_persist_runtime_worker)
 
 

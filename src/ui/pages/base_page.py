@@ -349,7 +349,7 @@ class BasePage(_FluentScrollArea):
             return normalize_language(None)
 
     # ------------------------------------------------------------------
-    # Public helpers (backward-compat with all 40+ pages)
+    # Shared helpers used by page classes
     # ------------------------------------------------------------------
 
     def add_widget(self, widget: QWidget, stretch: int = 0):

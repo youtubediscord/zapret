@@ -1,5 +1,5 @@
 # Preset: Default v1 (game filter)
-# BuiltinVersion: 2.19
+# BuiltinVersion: 2.23
 # IconColor: #a8c5ff
 
 --lua-init=@lua/zapret-lib.lua
@@ -98,7 +98,7 @@
 --hostlist=lists/googlevideo.txt
 --out-range=-n8
 --payload=tls_client_hello
---lua-desync=multidisorder:pos=100,midsld,sniext+1,endhost-2,-10
+--lua-desync=hostfakesplit_multi:hosts=google.com,vimeo.com:tcp_ts=-1000:tcp_md5:repeats=2
 
 --new
 
@@ -107,7 +107,7 @@
 --hostlist=lists/youtube.txt
 --out-range=-d8
 --payload=tls_client_hello
---lua-desync=hostfakesplit:host=ozon.ru:tcp_ts=-1000:tcp_md5:repeats=4
+--lua-desync=multisplit:pos=1,host+2,sld+2,sld+5,sniext+1,sniext+2,endhost-2:seqovl=1
 
 --new
 
@@ -178,7 +178,9 @@
 --hostlist=lists/ntcparty.txt
 --out-range=-d9
 --payload=tls_client_hello
---lua-desync=hostfakesplit:host=ozon.ru:tcp_ts=-1000:tcp_md5:repeats=4
+--lua-desync=fake:blob=tls_google:repeats=6:tcp_ack=-66000
+--lua-desync=fake:blob=tls_google:ip_autottl=-1,3-20:ip6_autottl=-1,3-20:repeats=6:tcp_ack=-66000
+--lua-desync=multisplit:pos=2:seqovl=652:seqovl_pattern=tls_google
 
 --new
 
@@ -212,12 +214,36 @@
 
 --new
 
+--name=EpicGames & Fortnite
+--filter-tcp=80,443-65535
+--hostlist=lists/epicgames-fortnite.txt
+--out-range=-d8
+--lua-desync=hostfakesplit:host=ozon.ru:tcp_ts=-1000:tcp_md5:repeats=4
+
+--new
+
+--name=Speedtest
+--filter-tcp=443,8080
+--hostlist=lists/speedtest.txt
+--out-range=-d8
+--lua-desync=hostfakesplit:host=ozon.ru:tcp_ts=-1000:tcp_md5:repeats=4
+
+--new
+
+--name=Ubisoft
+--filter-tcp=80,443-65535
+--hostlist=lists/ubisoft.txt
+--out-range=-d8
+--lua-desync=hostfakesplit:host=ozon.ru:tcp_ts=-1000:tcp_md5:repeats=4
+
+--new
+
 --name=Twitter/X
 --filter-tcp=80,443
 --hostlist=lists/twitter.txt
 --out-range=-d8
 --payload=tls_client_hello
---lua-desync=tls_multisplit_sni:seqovl=652:seqovl_pattern=tls_google
+--lua-desync=multidisorder:pos=1,host+2,sld+2,sld+5,sniext+1,sniext+2,endhost-2:seqovl=1
 
 --new
 
@@ -393,7 +419,6 @@
 --payload=tls_client_hello
 --lua-desync=send:repeats=2
 --lua-desync=syndata:blob=stun_pat
---lua-desync=hostfakesplit_multi:hosts=google.com,vimeo.com:tcp_ts=-1000:tcp_md5:repeats=2
 
 --new
 
@@ -420,8 +445,27 @@
 --hostlist=lists/cloudflare.txt
 --out-range=-d10
 --payload=all
+--lua-desync=hostfakesplit:host=ozon.ru:tcp_ts=-1000:tcp_md5:repeats=4
+
+--new
+
+--name=Cloudflare legacy TCP
+--filter-tcp=80,443-65535
+--ipset=lists/cloudflare-ipset.txt
+--out-range=-d10
+--payload=tls_client_hello
 --lua-desync=send:repeats=2
 --lua-desync=syndata:blob=stun_pat
+
+--new
+
+--name=Cloudflare IPv6 legacy TCP
+--filter-tcp=80,443-65535
+--ipset=lists/cloudflare-ipset_v6.txt
+--out-range=-d10
+--payload=tls_client_hello
+--lua-desync=fake:blob=tls_google:repeats=6:tcp_ts=-600000
+--lua-desync=fakedsplit:pattern=0x00:repeats=6:tcp_ts=-600000
 
 --new
 
@@ -453,9 +497,9 @@
 
 --new
 
---name=Amazon TCP
+--name=Cloudflare alt TCP
 --filter-tcp=80,443-65535
---hostlist=lists/amazon.txt
+--ipset=lists/ipset-cloudflare1.txt
 --out-range=-d10
 --payload=tls_client_hello
 --lua-desync=fake:blob=tls_google:repeats=6:tcp_ts=-600000
@@ -463,9 +507,9 @@
 
 --new
 
---name=EpicGames & Fortnite
+--name=Amazon TCP
 --filter-tcp=80,443-65535
---hostlist=lists/epicgames-fortnite.txt
+--hostlist=lists/amazon.txt
 --out-range=-d10
 --payload=tls_client_hello
 --lua-desync=fake:blob=tls_google:repeats=6:tcp_ts=-600000

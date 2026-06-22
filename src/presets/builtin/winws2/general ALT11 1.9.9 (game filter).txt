@@ -1,5 +1,5 @@
 # Preset: general ALT11 1.9.9 (game filter)
-# BuiltinVersion: 2.21
+# BuiltinVersion: 2.23
 # IconColor: #67d1e4ff
 
 --lua-init=@lua/zapret-lib.lua
@@ -303,7 +303,7 @@
 
 --name=Riot / Valorant TCP
 --filter-tcp=443
---hostlist-domains=riotgames.com,valorant.com,riotcdn.net
+--hostlist=lists/riot-valorant.txt
 --out-range=-n4
 --payload=all
 --lua-desync=fake:blob=fake_stun_as_tls:tcp_ts=-600000:repeats=8

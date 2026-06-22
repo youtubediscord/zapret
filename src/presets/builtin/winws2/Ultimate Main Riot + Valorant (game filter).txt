@@ -1,5 +1,5 @@
 # Preset: Ultimate Main Riot + Valorant (game filter)
-# BuiltinVersion: 2.21
+# BuiltinVersion: 2.23
 # Description: YouTube + Discord (as MAIN) + Valorant/Riot
 # IconColor: #60cdff
 
@@ -112,7 +112,7 @@
 ################################################################################
 --name=Riot / Valorant TCP
 --filter-tcp=443
---hostlist-domains=riotgames.com,valorant.com,riotcdn.net
+--hostlist=lists/riot-valorant.txt
 --out-range=-d5
 --lua-desync=send
 --lua-desync=multidisorder:pos=1
@@ -121,7 +121,7 @@
 
 --name=Riot / Valorant UDP
 --filter-udp=5000-5500,7000-8000
---hostlist-domains=riotgames.com,valorant.com
+--hostlist=lists/riot-valorant.txt
 --out-range=-d5
 --payload=all
 --lua-desync=pass
