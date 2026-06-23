@@ -1,5 +1,5 @@
 # Preset: Syndata + MultiDisorder legacy WoW (game filter)
-# BuiltinVersion: 2.23
+# BuiltinVersion: 2.24
 # IconColor: #a8c5ff
 
 --lua-init=@lua/zapret-lib.lua
@@ -268,6 +268,17 @@
 
 --new
 
+--name=cloudfront.net
+--filter-tcp=80,443-65535
+--hostlist=lists/cloudfront.txt
+--out-range=-d8
+--lua-desync=send:repeats=2
+--lua-desync=syndata:blob=fake_tls_7
+--lua-desync=fake:blob=tls_google:repeats=11:tcp_md5
+--lua-desync=hostfakesplit_multi:hosts=google.com,vimeo.com:tcp_ts=-1000:tcp_md5:repeats=2
+
+--new
+
 --name=youtube.com (RTMPS Россия)
 --filter-tcp=80,443-65535
 --ipset=lists/ipset-russia-youtube-rtmps.txt
@@ -290,7 +301,7 @@
 
 --new
 
---name=Все сайты (исключение)
+--name=Все сайты (айпи)
 --filter-tcp=80,443-65535
 --ipset-exclude=lists/ipset-ru.txt
 --ipset-exclude=lists/ipset-dns.txt

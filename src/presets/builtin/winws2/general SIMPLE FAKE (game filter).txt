@@ -1,5 +1,5 @@
 # Preset: general SIMPLE FAKE (game filter)
-# BuiltinVersion: 2.23
+# BuiltinVersion: 2.24
 
 --lua-init=@lua/zapret-lib.lua
 --lua-init=@lua/zapret-antidpi.lua
@@ -91,7 +91,7 @@
 
 --new
 
---name=Все сайты (исключение)
+--name=Все сайты (айпи)
 --filter-tcp=80,443-65535
 --ipset-exclude=lists/ipset-ru.txt
 --ipset-exclude=lists/ipset-dns.txt
@@ -248,6 +248,14 @@
 --name=Cloudflare TCP
 --filter-tcp=80,443-65535
 --hostlist=lists/cloudflare.txt
+--out-range=-d10
+--lua-desync=fake:blob=tls_google:repeats=6:tcp_ts=-600000
+
+--new
+
+--name=cloudfront.net
+--filter-tcp=80,443-65535
+--hostlist=lists/cloudfront.txt
 --out-range=-d10
 --lua-desync=fake:blob=tls_google:repeats=6:tcp_ts=-600000
 

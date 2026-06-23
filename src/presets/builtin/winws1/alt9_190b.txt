@@ -239,7 +239,7 @@
 
 --new
 
---comment=Все сайты (исключение)
+--comment=Все сайты (айпи)
 --filter-tcp=80,443-65535
 --ipset-exclude=lists/ipset-ru.txt
 --ipset-exclude=lists/ipset-dns.txt

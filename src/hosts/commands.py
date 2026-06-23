@@ -22,25 +22,35 @@ def restore_hosts_permissions() -> HostsCommandResult:
     return HostsCommandResult(success=bool(success), message=str(message or ""))
 
 
-def create_hosts_manager(status_callback=None):
+def create_hosts_manager(status_callback=None, *, apply_bootstrap: bool = False):
     from hosts.hosts import HostsManager
 
-    return HostsManager(status_callback=status_callback)
+    return HostsManager(status_callback=status_callback, apply_bootstrap=apply_bootstrap)
 
 
-def create_hosts_runtime(status_callback=None):
-    return create_hosts_manager(status_callback=status_callback)
+def create_hosts_runtime(status_callback=None, *, apply_bootstrap: bool = False):
+    return create_hosts_manager(status_callback=status_callback, apply_bootstrap=apply_bootstrap)
+
+
+def _ensure_hosts_bootstrap(hosts_manager) -> None:
+    apply_bootstrap = getattr(hosts_manager, "apply_hosts_bootstrap_if_needed", None)
+    if callable(apply_bootstrap):
+        apply_bootstrap()
 
 
 def get_hosts_state(hosts_manager=None) -> HostsState:
-    manager = hosts_manager or create_hosts_manager()
+    manager = hosts_manager or create_hosts_manager(apply_bootstrap=False)
     error = ""
     accessible = False
     active_domains: set[str] = set()
     adobe_active = False
 
     try:
-        accessible = bool(manager.is_hosts_file_accessible())
+        read_check = getattr(manager, "is_hosts_file_readable", None)
+        if callable(read_check):
+            accessible = bool(read_check())
+        else:
+            accessible = bool(manager.is_hosts_file_accessible())
     except Exception as exc:
         error = str(exc)
 
@@ -65,24 +75,28 @@ def get_hosts_state(hosts_manager=None) -> HostsState:
 
 
 def apply_service_profiles(hosts_manager, service_dns: dict[str, str]) -> HostsCommandResult:
+    _ensure_hosts_bootstrap(hosts_manager)
     success = bool(hosts_manager.apply_service_dns_selections(service_dns or {}))
     message = "Применено" if success else getattr(hosts_manager, "last_status", None) or "Ошибка"
     return HostsCommandResult(success=success, message=message)
 
 
 def clear_hosts(hosts_manager) -> HostsCommandResult:
+    _ensure_hosts_bootstrap(hosts_manager)
     success = bool(hosts_manager.clear_hosts_file())
     message = "Записи ZapretGUI очищены" if success else getattr(hosts_manager, "last_status", None) or "Ошибка"
     return HostsCommandResult(success=success, message=message)
 
 
 def add_adobe_domains(hosts_manager) -> HostsCommandResult:
+    _ensure_hosts_bootstrap(hosts_manager)
     success = bool(hosts_manager.add_adobe_domains())
     message = "Adobe заблокирован" if success else getattr(hosts_manager, "last_status", None) or "Ошибка"
     return HostsCommandResult(success=success, message=message)
 
 
 def remove_adobe_domains(hosts_manager) -> HostsCommandResult:
+    _ensure_hosts_bootstrap(hosts_manager)
     success = bool(hosts_manager.remove_adobe_domains())
     message = "Adobe разблокирован" if success else getattr(hosts_manager, "last_status", None) or "Ошибка"
     return HostsCommandResult(success=success, message=message)

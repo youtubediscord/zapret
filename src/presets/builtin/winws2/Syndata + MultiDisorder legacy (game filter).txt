@@ -1,5 +1,5 @@
 # Preset: Syndata + MultiDisorder legacy (game filter)
-# BuiltinVersion: 2.23
+# BuiltinVersion: 2.24
 # IconColor: #a8c5ff
 
 --lua-init=@lua/zapret-lib.lua
@@ -284,6 +284,15 @@
 --name=Cloudflare TCP
 --filter-tcp=80,443-65535
 --hostlist=lists/cloudflare.txt
+--out-range=-d10
+--lua-desync=syndata
+--lua-desync=multidisorder_legacy:pos=1,midsld
+
+--new
+
+--name=cloudfront.net
+--filter-tcp=80,443-65535
+--hostlist=lists/cloudfront.txt
 --out-range=-d10
 --lua-desync=syndata
 --lua-desync=multidisorder_legacy:pos=1,midsld

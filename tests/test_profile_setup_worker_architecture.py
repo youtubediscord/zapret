@@ -245,13 +245,27 @@ class ProfileSetupWorkerArchitectureTests(unittest.TestCase):
         page._list_file_load_start_scheduled = False
         page._list_file_status_label = Mock()
         page._schedule_list_file_editor_state_apply = Mock()
+        page._current_filter_kind = Mock(return_value="hostlist")
+        page._current_filter_value = Mock(return_value="lists/youtube.txt")
+
+        from profile.profile_setup_loader import ProfileListFileLoadResult
 
         ProfileSetupPageBase._request_list_file_editor_state(page)
-        ProfileSetupPageBase._on_list_file_editor_state_loaded(page, 4, object())
+        ProfileSetupPageBase._on_list_file_editor_state_loaded(
+            page,
+            4,
+            ProfileListFileLoadResult(
+                profile_key="profile-1",
+                filter_kind="hostlist",
+                filter_value="lists/youtube.txt",
+                file_name="youtube.txt",
+                state=object(),
+            ),
+        )
 
         runtime.start_qthread_worker.assert_not_called()
         self.assertTrue(page._pending_list_file_load)
-        self.assertEqual(page._list_file_load_request_id, 5)
+        self.assertEqual(page._list_file_load_request_id, 4)
         page._schedule_list_file_editor_state_apply.assert_not_called()
 
     def test_list_file_load_queue_uses_shared_latest_worker_state(self) -> None:

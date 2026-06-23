@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from PyQt6.QtCore import QThread, pyqtSignal
 
+from lists.core.layered_files import safe_list_file_name
 from log.log import log
 from profile.list_file_editor import count_profile_list_entries
 from profile.setup_apply_signature import profile_setup_payload_apply_signature
@@ -20,6 +23,15 @@ class ProfileSetupLoadResult:
             if apply_signature is not None
             else profile_setup_payload_apply_signature(payload)
         )
+
+
+@dataclass(frozen=True)
+class ProfileListFileLoadResult:
+    profile_key: str
+    filter_kind: str
+    filter_value: str
+    file_name: str
+    state: object
 
 
 class ProfileSetupLoadWorker(QThread):
@@ -74,7 +86,21 @@ class ProfileListFileLoadWorker(QThread):
             log(f"ProfileListFileLoadWorker: не удалось загрузить файл списка profile: {exc}", "ERROR")
             self.failed.emit(self._request_id, str(exc))
             return
-        self.loaded.emit(self._request_id, state)
+        self.loaded.emit(
+            self._request_id,
+            ProfileListFileLoadResult(
+                profile_key=self._profile_key,
+                filter_kind=self._filter_kind,
+                filter_value=self._filter_value,
+                file_name=_list_file_name_for_load_result(state, self._filter_value),
+                state=state,
+            ),
+        )
+
+
+def _list_file_name_for_load_result(state, filter_value: str) -> str:
+    display_path = str(getattr(state, "display_path", "") or "").strip()
+    return safe_list_file_name(display_path) or safe_list_file_name(filter_value)
 
 
 class ProfileListFileValidationWorker(QThread):

@@ -95,6 +95,7 @@ _RECV_ZERO_TIMEOUT = 8.0
 # How many empty upstream relays are enough to try the next bundled proxy first
 _UPSTREAM_ZERO_RECV_FAILS = 2
 _UPSTREAM_PENALTY_SECONDS = 60.0
+_UPSTREAM_PARALLEL_CONNECT_FAILS = 2
 _UPSTREAM_CONNECT_FAILURE_PENALTIES = (60.0, 180.0, 300.0)
 _WSS_ZERO_RECV_FAILS = 1
 _WSS_DOMAIN_PENALTY_SECONDS = 60.0
@@ -480,24 +481,40 @@ class TelegramWSProxy:
         else:
             self._upstream_active_counts[key] = count - 1
 
+    def _selected_primary_parallel_active(self, endpoint: UpstreamProxyEndpoint) -> bool:
+        selected_preset_id = str(self._upstream.preset_id or "").strip()
+        if not selected_preset_id:
+            return False
+        if str(endpoint.preset_id or "").strip() != selected_preset_id:
+            return False
+        return self._upstream_active_counts.get(self._upstream_endpoint_key(endpoint), 0) > 1
+
     def _mark_upstream_connect_failure(
         self,
         endpoint: UpstreamProxyEndpoint,
         label: str,
         exc: Exception,
-    ) -> None:
+    ) -> bool:
         key = self._upstream_endpoint_key(endpoint)
         count = self._upstream_connect_failure_counts.get(key, 0) + 1
         self._upstream_connect_failure_counts[key] = count
+        if (
+            self._selected_primary_parallel_active(endpoint)
+            and count < _UPSTREAM_PARALLEL_CONNECT_FAILS
+        ):
+            return False
         penalty = _UPSTREAM_CONNECT_FAILURE_PENALTIES[min(count - 1, len(_UPSTREAM_CONNECT_FAILURE_PENALTIES) - 1)]
         self._upstream_penalty_until[key] = time.monotonic() + penalty
         self._log(
             f"[{label}] upstream {endpoint.host}:{endpoint.port} temporarily deprioritized "
             f"after connect {type(exc).__name__}"
         )
+        return True
 
     def _mark_upstream_zero_recv(self, endpoint: UpstreamProxyEndpoint, label: str) -> None:
         key = self._upstream_endpoint_key(endpoint)
+        if self._selected_primary_parallel_active(endpoint):
+            return
         count = self._upstream_zero_recv_counts.get(key, 0) + 1
         self._upstream_zero_recv_counts[key] = count
         if count < _UPSTREAM_ZERO_RECV_FAILS:
@@ -699,8 +716,15 @@ class TelegramWSProxy:
                     status="ошибка",
                     reason=self._route_error(exc),
                 )
-                self._mark_upstream_connect_failure(endpoint, label, exc)
+                keep_selected_primary = self._selected_primary_parallel_active(endpoint)
+                penalized = self._mark_upstream_connect_failure(endpoint, label, exc)
                 self._unmark_upstream_active(endpoint)
+                if keep_selected_primary and not penalized:
+                    self._log(
+                        f"[{label}] selected upstream {endpoint.host}:{endpoint.port} "
+                        "kept primary after parallel connect timeout"
+                    )
+                    return None
                 attempted.add(endpoint_key)
                 continue
 
@@ -1970,6 +1994,7 @@ class TelegramWSProxy:
             stats=self.stats,
             log_fn=self._log,
             label=label,
+            dc=dc,
         )
 
     async def _mtproxy_upstream_proxy_connect(
@@ -1995,6 +2020,7 @@ class TelegramWSProxy:
                 f"[{label}] MTProxy DC{dc}{media_tag} upstream target "
                 f"{target_host}:{target_port} -> {upstream_host}:{upstream_port}"
             )
+        fallback_mode = should_route_upstream(self._upstream, mode="fallback")
         async with self._get_upstream_connect_semaphore():
             opened = await self._open_upstream_proxy(
                 upstream_host=upstream_host,
@@ -2003,15 +2029,25 @@ class TelegramWSProxy:
                 dc=dc,
                 is_media=is_media,
                 mtproxy=True,
-                allow_penalized=not should_route_upstream(self._upstream, mode="fallback"),
+                allow_penalized=not fallback_mode,
             )
             if opened is None:
                 return False
             rr, rw, endpoint = opened
+            upstream_notified = False
+
+            def notify_on_first_response() -> None:
+                nonlocal upstream_notified
+                if upstream_notified:
+                    return
+                upstream_notified = True
+                self._mark_upstream_recv_ok(endpoint)
+                self._notify_working_upstream(endpoint, label)
+
             try:
                 rw.write(relay_init)
                 await rw.drain()
-                await relay_mtproxy_tcp(
+                relay_result = await relay_mtproxy_tcp(
                     client_reader=client_reader,
                     client_writer=client_writer,
                     remote_reader=rr,
@@ -2020,7 +2056,20 @@ class TelegramWSProxy:
                     stats=self.stats,
                     log_fn=self._log,
                     label=label,
+                    dc=dc,
+                    on_first_response=notify_on_first_response,
                 )
+                recv_total = 0
+                sent_total = 0
+                if isinstance(relay_result, tuple):
+                    recv_total = int(relay_result[0] or 0)
+                    sent_total = int(relay_result[1] or 0) if len(relay_result) > 1 else 0
+                if recv_total > 0:
+                    if not upstream_notified:
+                        self._mark_upstream_recv_ok(endpoint)
+                        self._notify_working_upstream(endpoint, label)
+                elif sent_total > 0 and not fallback_mode:
+                    self._mark_upstream_zero_recv(endpoint, label)
             finally:
                 self._unmark_upstream_active(endpoint)
         return True

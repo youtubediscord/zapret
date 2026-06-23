@@ -155,15 +155,18 @@ class TelegramProxyMTProxyCoreTests(unittest.TestCase):
         self.assertIn("dc_ip", defaults)
         self.assertEqual(defaults["pool_size"], 4)
         self.assertEqual(defaults["buffer_kb"], 256)
-        self.assertEqual(defaults["mode"], "socks5")
+        self.assertEqual(defaults["mode"], "mtproxy")
+        self.assertTrue(defaults["upstream_enabled"])
         self.assertFalse(defaults["upstream_udp_enabled"])
-        self.assertEqual(normalize_telegram_proxy({})["mode"], "socks5")
+        self.assertEqual(normalize_telegram_proxy({})["mode"], "mtproxy")
+        self.assertTrue(normalize_telegram_proxy({})["upstream_enabled"])
         self.assertFalse(normalize_telegram_proxy({})["upstream_udp_enabled"])
-        self.assertEqual(default_state().mode, "socks5")
+        self.assertEqual(default_state().mode, "mtproxy")
+        self.assertTrue(default_state().upstream_enabled)
         self.assertFalse(default_state().upstream_udp_enabled)
         self.assertEqual(normalize_proxy_mode("bad"), "socks5")
-        self.assertEqual(normalize_telegram_proxy({"mode": "transparent"})["mode"], "socks5")
-        self.assertEqual(normalize_telegram_proxy({"mode": "both"})["mode"], "socks5")
+        self.assertEqual(normalize_telegram_proxy({"mode": "transparent"})["mode"], "mtproxy")
+        self.assertEqual(normalize_telegram_proxy({"mode": "both"})["mode"], "mtproxy")
         self.assertEqual(default_state().mtproxy_secret, "")
 
         normalized = normalize_telegram_proxy(
@@ -771,6 +774,74 @@ class TelegramProxyMTProxyCoreTests(unittest.TestCase):
         self.assertEqual(upstream.call_count, 1)
         cloudflare.assert_not_called()
         connect.assert_not_called()
+
+    def test_mtproxy_upstream_zero_recv_deprioritizes_current_bundled_proxy(self) -> None:
+        import asyncio
+        from unittest.mock import patch
+
+        from telegram_proxy.proxy.mtproxy import PROTO_TAG_INTERMEDIATE, generate_relay_init
+        from telegram_proxy.proxy.routing import UpstreamProxyConfig, UpstreamProxyEndpoint
+        from telegram_proxy.wss_proxy import TelegramWSProxy
+
+        class _RemoteWriter:
+            transport = None
+
+            def write(self, _data):
+                return None
+
+            async def drain(self):
+                return None
+
+        async def fake_connect(proxy_host, *_args, **_kwargs):
+            seen_hosts.append(proxy_host)
+            return object(), _RemoteWriter()
+
+        async def fake_relay(*_args, **_kwargs):
+            return (0, 1)
+
+        async def run_three(proxy: TelegramWSProxy):
+            for index in range(3):
+                await proxy._mtproxy_upstream_proxy_connect(
+                    object(),
+                    object(),
+                    "91.108.56.102",
+                    443,
+                    relay_init,
+                    object(),
+                    f"test-{index}",
+                    5,
+                    True,
+                )
+
+        seen_hosts: list[str] = []
+        logs: list[str] = []
+        relay_init = generate_relay_init(PROTO_TAG_INTERMEDIATE, dc=5, is_media=True)
+        proxy = TelegramWSProxy(
+            mode="mtproxy",
+            mtproxy_secret="aabbccddeeff00112233445566778899",
+            on_log=logs.append,
+            upstream_config=UpstreamProxyConfig(
+                enabled=True,
+                host="slow.proxy",
+                port=443,
+                tls=True,
+                preset_id="ee",
+                preset_name="Эстония",
+                mode="always",
+                fallback_proxies=(
+                    UpstreamProxyEndpoint(host="fast.proxy", port=443, tls=True),
+                ),
+            ),
+        )
+
+        with (
+            patch("telegram_proxy.wss_proxy.socks5.connect_via_socks5", side_effect=fake_connect),
+            patch("telegram_proxy.wss_proxy.relay_mtproxy_tcp", side_effect=fake_relay),
+        ):
+            asyncio.run(run_three(proxy))
+
+        self.assertEqual(seen_hosts, ["slow.proxy", "slow.proxy", "fast.proxy"])
+        self.assertIn("temporarily deprioritized after recv=0", "\n".join(logs))
 
     def test_mtproxy_tcp_fallback_tries_upstream_after_direct_connect_failure(self) -> None:
         import asyncio

@@ -51,11 +51,15 @@ RUNTIME_ONLY_PROFILE_KEYS = {
     "winws1|(none)|udp=50000-50100",
     "winws1|(none)|udp=50000-59000",
     "winws1|(none)|udp=50000-65535",
-    "winws1|hostlist-domains=amazon.com,amazonaws.com,awsglobalaccelerator.com,awsstatic.com,cloudfront.net,epicgames.com;hostlist-domains=xmfirmwareupdater.com|tcp=443,444-65535",
-    "winws1|hostlist-domains=amazon.com,amazonaws.com,awsglobalaccelerator.com,awsstatic.com,cloudfront.net,epicgames.com|tcp=443,444-65535",
-    "winws1|hostlist-domains=amazon.com,amazonaws.com,awsglobalaccelerator.com,awsstatic.com,cloudfront.net,epicgames.com|udp=443,444-65535",
-    "winws1|hostlist-domains=amazon.com,amazonaws.com,awsglobalaccelerator.com,awsstatic.com,cloudfront.net|tcp=443",
-    "winws1|hostlist-domains=amazon.com,amazonaws.com,awsstatic.com,cloudfront.net,epicgames.com|tcp=80",
+    "winws1|hostlist-domains=amazon.com,amazonaws.com,awsglobalaccelerator.com,awsstatic.com,epicgames.com;hostlist-domains=xmfirmwareupdater.com|tcp=443,444-65535",
+    "winws1|hostlist-domains=amazon.com,amazonaws.com,awsglobalaccelerator.com,awsstatic.com,epicgames.com|tcp=443,444-65535",
+    "winws1|hostlist-domains=amazon.com,amazonaws.com,awsglobalaccelerator.com,awsstatic.com,epicgames.com|udp=443,444-65535",
+    "winws1|hostlist-domains=amazon.com,amazonaws.com,awsglobalaccelerator.com,awsstatic.com|tcp=443",
+    "winws1|hostlist-domains=amazon.com,amazonaws.com,awsstatic.com,epicgames.com|tcp=80",
+    "winws1|hostlist-domains=cloudfront.net|tcp=80",
+    "winws1|hostlist-domains=cloudfront.net|tcp=443",
+    "winws1|hostlist-domains=cloudfront.net|tcp=443,444-65535",
+    "winws1|hostlist-domains=cloudfront.net|udp=443,444-65535",
     "winws1|hostlist-domains=android.com,dw.com,hmvmania.com,moscowtimes.ru,onlinesim.io,proton.me,roskomsvoboda.org,rublacklist.net,rutracker.cc,z-library.sk;hostlist=faceinsta.txt|tcp=443",
     "winws1|hostlist-domains=android.com,dw.com,hmvmania.com,moscowtimes.ru,onlinesim.io,proton.me,roskomsvoboda.org,rublacklist.net,rutracker.cc,z-library.sk;hostlist=youtube.txt|tcp=443",
     "winws1|hostlist-domains=android.com,dw.com,hmvmania.com,moscowtimes.ru,onlinesim.io,proton.me,roskomsvoboda.org,rublacklist.net,z-library.sk;hostlist=faceinsta.txt|tcp=443",
@@ -140,6 +144,7 @@ class BuiltinProfileCatalogTests(unittest.TestCase):
         )
         expected_profiles = {
             "Cloudflare TCP": ("--filter-tcp=80,443-65535", "--hostlist=lists/cloudflare.txt"),
+            "cloudfront.net": ("--filter-tcp=80,443-65535", "--hostlist=lists/cloudfront.txt"),
             "EpicGames & Fortnite": ("--filter-tcp=80,443-65535", "--hostlist=lists/epicgames-fortnite.txt"),
             "Ubisoft": ("--filter-tcp=80,443-65535", "--hostlist=lists/ubisoft.txt"),
             "Amazon TCP": ("--filter-tcp=80,443-65535", "--hostlist=lists/amazon.txt"),
@@ -161,13 +166,25 @@ class BuiltinProfileCatalogTests(unittest.TestCase):
                 "cloudflareok.com",
                 "cloudflareclient.com",
                 "cloudflarecp.com",
-                "cloudfront.net",
                 "cloudflareinsights.com",
             ],
+            "cloudfront.txt": ["cloudfront.net"],
             "epicgames-fortnite.txt": ["epicgames.com", "fortnite.com", "akamaized.net", "unrealengine.com"],
             "ubisoft.txt": ["ubi.com", "ubisoft.com", "ubisoftconnect.com", "ubisoftclub.com", "uplay.com"],
-            "amazon.txt": ["amazonaws.com", "amazon.com", "awsapps.com"],
-            "riot-valorant.txt": ["riotgames.com", "valorant.com", "riotcdn.net"],
+            "amazon.txt": ["amazonaws.com", "amazon.com", "awsapps.com", "awsstatic.com"],
+            "riot-valorant.txt": [
+                "riotgames.com",
+                "riotgames.es",
+                "rgpub.io",
+                "rdatasrv.net",
+                "valorant.com",
+                "riotcdn.net",
+                "riotcdn.com",
+                "playvalorant.com",
+                "pvp.net",
+                "RiotClientServices.com",
+                "LeagueofLegends.com",
+            ],
         }
         lists_root = PRIVATE_ROOT / "dist" / "lists"
 
@@ -225,6 +242,106 @@ class BuiltinProfileCatalogTests(unittest.TestCase):
                 offenders.append(f"{path.name}: рядом с Amazon TCP нет EpicGames & Fortnite")
             if cloudflare_tcp_profiles > 1:
                 offenders.append(f"{path.name}: несколько Cloudflare TCP profile-ов вместо одного")
+
+        self.assertEqual(offenders, [])
+
+    def test_winws2_cloudfront_has_separate_profile_where_cloudflare_hostlist_is_used(self) -> None:
+        offenders: list[str] = []
+
+        for path in sorted((PUBLIC_ROOT / "src" / "presets" / "builtin" / "winws2").glob("*.txt")):
+            preset = parse_preset_text(
+                path.read_text(encoding="utf-8", errors="replace"),
+                engine="winws2",
+                source_name=path.name,
+            )
+            uses_cloudflare_hostlist = any(
+                profile.enabled
+                and str(profile.name or "").strip() == "Cloudflare TCP"
+                and profile.match.hostlist_lines == ["--hostlist=lists/cloudflare.txt"]
+                for profile in preset.profiles
+            )
+            if not uses_cloudflare_hostlist:
+                continue
+            has_cloudfront = any(
+                profile.enabled
+                and str(profile.name or "").strip() == "cloudfront.net"
+                and profile.match.filter_lines == ["--filter-tcp=80,443-65535"]
+                and profile.match.hostlist_lines == ["--hostlist=lists/cloudfront.txt"]
+                for profile in preset.profiles
+            )
+            if not has_cloudfront:
+                offenders.append(f"{path.name}: рядом с Cloudflare TCP нет отдельного cloudfront.net")
+
+        self.assertEqual(offenders, [])
+
+    def test_githubusercontent_has_own_hostlist_file(self) -> None:
+        github_hosts = [
+            line.strip()
+            for line in (PRIVATE_ROOT / "dist" / "lists" / "github.txt").read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        githubusercontent_hosts = [
+            line.strip()
+            for line in (PRIVATE_ROOT / "dist" / "lists" / "githubusercontent.txt")
+            .read_text(encoding="utf-8")
+            .splitlines()
+            if line.strip()
+        ]
+
+        self.assertNotIn("githubusercontent.com", github_hosts)
+        self.assertEqual(githubusercontent_hosts, ["githubusercontent.com"])
+
+    def test_winws2_githubusercontent_has_separate_profile_where_github_hostlist_is_used(self) -> None:
+        offenders: list[str] = []
+        seen_github_presets = 0
+
+        for path in sorted((PUBLIC_ROOT / "src" / "presets" / "builtin" / "winws2").glob("*.txt")):
+            preset = parse_preset_text(
+                path.read_text(encoding="utf-8", errors="replace"),
+                engine="winws2",
+                source_name=path.name,
+            )
+            uses_github_hostlist = any(
+                profile.enabled
+                and str(profile.name or "").strip() == "GitHub"
+                and profile.match.hostlist_lines == ["--hostlist=lists/github.txt"]
+                for profile in preset.profiles
+            )
+            if not uses_github_hostlist:
+                continue
+            seen_github_presets += 1
+            has_githubusercontent = any(
+                profile.enabled
+                and str(profile.name or "").strip() == "githubusercontent.com"
+                and profile.match.filter_lines == ["--filter-tcp=443"]
+                and profile.match.hostlist_lines == ["--hostlist=lists/githubusercontent.txt"]
+                for profile in preset.profiles
+            )
+            if not has_githubusercontent:
+                offenders.append(f"{path.name}: рядом с GitHub нет отдельного githubusercontent.com")
+
+        self.assertGreater(seen_github_presets, 0)
+        self.assertEqual(offenders, [])
+
+    def test_cloudfront_builtin_preset_changes_bump_metadata_versions(self) -> None:
+        offenders: list[str] = []
+        expected_versions = {
+            "winws1": "1.2",
+            "winws2": "2.24",
+        }
+
+        for engine, marker in {
+            "winws1": "--comment=cloudfront.net",
+            "winws2": "--name=cloudfront.net",
+        }.items():
+            expected_header = f"# BuiltinVersion: {expected_versions[engine]}"
+            for path in sorted((PUBLIC_ROOT / "src" / "presets" / "builtin" / engine).glob("*.txt")):
+                text = path.read_text(encoding="utf-8", errors="replace")
+                if marker not in text:
+                    continue
+                header_lines = text.splitlines()[:5]
+                if expected_header not in header_lines:
+                    offenders.append(f"{engine}/{path.name}: нет {expected_header}")
 
         self.assertEqual(offenders, [])
 
@@ -442,7 +559,7 @@ class BuiltinProfileCatalogTests(unittest.TestCase):
                 if not service_excludes.issubset(lines):
                     continue
                 clean_name = str(profile.name or "").strip()
-                if clean_name == "Все сайты (исключение)" and any(line.startswith("--filter-tcp=") for line in lines):
+                if clean_name == "Все сайты (айпи)" and any(line.startswith("--filter-tcp=") for line in lines):
                     has_tcp_exclusion = True
                 if clean_name != "Все сайты UDP (исключение)":
                     continue

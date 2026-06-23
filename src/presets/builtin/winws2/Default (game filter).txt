@@ -1,5 +1,5 @@
 # Preset: Default
-# BuiltinVersion: 2.23
+# BuiltinVersion: 2.24
 # IconColor: #a8c5ff
 
 --lua-init=@lua/zapret-lib.lua
@@ -299,6 +299,16 @@
 --name=Cloudflare TCP
 --filter-tcp=80,443-65535
 --hostlist=lists/cloudflare.txt
+--out-range=-d8
+--lua-desync=send:repeats=2
+--lua-desync=syndata:blob=stun_pat
+--lua-desync=pktmod:tcp_flags_unset=ack
+
+--new
+
+--name=cloudfront.net
+--filter-tcp=80,443-65535
+--hostlist=lists/cloudfront.txt
 --out-range=-d8
 --lua-desync=send:repeats=2
 --lua-desync=syndata:blob=stun_pat

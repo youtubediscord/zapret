@@ -1,5 +1,5 @@
 # Preset: general ALT5 (game filter)
-# BuiltinVersion: 2.23
+# BuiltinVersion: 2.24
 # IconColor: #b475f0ff
 
 --lua-init=@lua/zapret-lib.lua
@@ -92,7 +92,7 @@
 
 --new
 
---name=Все сайты (исключение)
+--name=Все сайты (айпи)
 --filter-tcp=80,443-65535
 --ipset-exclude=lists/ipset-ru.txt
 --ipset-exclude=lists/ipset-dns.txt
@@ -142,6 +142,15 @@
 --name=Cloudflare TCP
 --filter-tcp=80,443-65535
 --hostlist=lists/cloudflare.txt
+--out-range=-d10
+--lua-desync=syndata
+--lua-desync=multidisorder:pos=2
+
+--new
+
+--name=cloudfront.net
+--filter-tcp=80,443-65535
+--hostlist=lists/cloudfront.txt
 --out-range=-d10
 --lua-desync=syndata
 --lua-desync=multidisorder:pos=2

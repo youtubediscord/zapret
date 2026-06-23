@@ -33,10 +33,12 @@ _WINWS1_PRESET_FOLDERS: tuple[tuple[str, str, bool], ...] = (
 _PROFILE_FOLDERS: tuple[tuple[str, str, bool], ...] = (
     ("youtube", "YouTube", False),
     ("discord", "Discord", False),
+    ("github", "GitHub", False),
     ("messengers", "Мессенджеры", False),
     ("social", "Соцсети", False),
     ("games", "Игры", False),
     ("roblox", "Roblox", False),
+    ("amazon", "Amazon", False),
     ("hosters", "Хостеры", False),
     ("sites", "Сайты", False),
     ("zapretkvn", "ZapretKVN", False),
@@ -76,12 +78,16 @@ def classify_profile_folder(text: object) -> str:
         return "youtube"
     if "discord" in value:
         return "discord"
+    if any(token in value for token in ("github", "ghcr.io")):
+        return "github"
     if any(token in value for token in ("telegram", "whatsapp", "viber", "signal", "mtproto")):
         return "messengers"
     if any(token in value for token in ("facebook", "instagram", "tiktok", "twitter", "x.com", "vk.com", "vk ")):
         return "social"
     if any(token in value for token in ("roblox", "rbxcdn")):
         return "roblox"
+    if any(token in value for token in ("amazon", "amazonaws", "awsapps", "awsglobalaccelerator", "cloudfront")):
+        return "amazon"
     if any(
         token in value
         for token in (
@@ -108,7 +114,7 @@ def classify_profile_folder(text: object) -> str:
         )
     ):
         return "games"
-    if any(token in value for token in ("amazon", "cloudflare", "digitalocean", "hetzner", "ovh", "warp")):
+    if any(token in value for token in ("cloudflare", "digitalocean", "hetzner", "ovh", "warp")):
         return "hosters"
     if any(token in value for token in ("timeweb", "zapretkvn")):
         return "zapretkvn"

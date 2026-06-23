@@ -26,6 +26,7 @@ def build_advanced_settings_auto_sections(
     sections: set[str] = set()
     if state.mode == "mtproxy":
         sections.add("mtproxy")
+        sections.add("upstream")
     if (
         state.upstream_enabled
         or state.upstream_host

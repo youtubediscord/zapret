@@ -2073,24 +2073,8 @@ class TelegramProxyPage(BasePage):
         if catalog.is_manual(target_index) or catalog.is_mtproxy(target_index):
             return
 
-        state = self.__dict__.get("_current_settings_state")
-        if state is not None:
-            state.upstream_preset_id = preset_id
-            state.upstream_preset_index = target_index
-            state.upstream_host = ""
-            state.upstream_port = telegram_proxy_settings.DEFAULT_UPSTREAM_PORT
-            state.upstream_user = ""
-            state.upstream_password = ""
-
-        if self.__dict__.get("_advanced_settings_built", False):
-            row = self.__dict__.get("_upstream_preset_row")
-            if row is not None:
-                row.setCurrentIndex(target_index, block_signals=True)
-                self._apply_upstream_preset_ui(target_index)
-
-        self._request_settings_save("upstream_preset", preset_id=preset_id, restart="now")
         display_name = str(preset_name or preset.get("name") or preset_id).strip()
-        self._append_log_line(f"Telegram Proxy: выбран рабочий внешний прокси: {display_name}")
+        self._append_log_line(f"Telegram Proxy: сейчас используется внешний прокси: {display_name}")
 
     def _on_upstream_changed(self, checked: bool):
         handle_upstream_toggle(

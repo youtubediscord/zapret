@@ -1,5 +1,5 @@
 # Preset: Default v3 (game filter)
-# BuiltinVersion: 2.23
+# BuiltinVersion: 2.24
 # Description: 
 
 --lua-init=@lua/zapret-lib.lua
@@ -296,6 +296,16 @@
 --name=Cloudflare TCP
 --filter-tcp=80,443-65535
 --hostlist=lists/cloudflare.txt
+--out-range=-n8
+--lua-desync=send:repeats=2
+--lua-desync=syndata:blob=tls_google
+--lua-desync=hostfakesplit_multi:hosts=google.com,vimeo.com:tcp_ts=-1000:tcp_md5:repeats=2
+
+--new
+
+--name=cloudfront.net
+--filter-tcp=80,443-65535
+--hostlist=lists/cloudfront.txt
 --out-range=-n8
 --lua-desync=send:repeats=2
 --lua-desync=syndata:blob=tls_google

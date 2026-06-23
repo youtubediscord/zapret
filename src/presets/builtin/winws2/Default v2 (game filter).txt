@@ -1,5 +1,5 @@
 # Preset: Default v2 (game filter)
-# BuiltinVersion: 2.23
+# BuiltinVersion: 2.24
 # IconColor: #a8c5ff
 
 --lua-init=@lua/zapret-lib.lua
@@ -269,6 +269,15 @@
 --name=Cloudflare TCP
 --filter-tcp=80,443-65535
 --hostlist=lists/cloudflare.txt
+--out-range=-n8
+--lua-desync=fake:blob=fake_default_http:repeats=4:ip_autottl=2,3-20:ip6_autottl=2,3-20:tcp_md5
+--lua-desync=multidisorder:pos=host+1
+
+--new
+
+--name=cloudfront.net
+--filter-tcp=80,443-65535
+--hostlist=lists/cloudfront.txt
 --out-range=-n8
 --lua-desync=fake:blob=fake_default_http:repeats=4:ip_autottl=2,3-20:ip6_autottl=2,3-20:tcp_md5
 --lua-desync=multidisorder:pos=host+1

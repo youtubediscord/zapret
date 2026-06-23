@@ -2748,10 +2748,10 @@ description = Добавлено, чтобы встроенный профиль
 --lua-desync=multisplit:pos=midsld
 
 [stock_builtin_coverage_tcp_006]
-name = Syndata + MultiDisorder legacy WoW (game filter) / Все сайты (исключение)
+name = Syndata + MultiDisorder legacy WoW (game filter) / Все сайты (айпи)
 author = builtin
 label = stock
-description = Добавлено, чтобы встроенный профиль из Syndata + MultiDisorder legacy WoW (game filter).txt (Все сайты (исключение)) определялся как готовая стратегия, а не custom.
+description = Добавлено, чтобы встроенный профиль из Syndata + MultiDisorder legacy WoW (game filter).txt (Все сайты (айпи)) определялся как готовая стратегия, а не custom.
 --lua-desync=send:repeats=2
 --lua-desync=syndata:blob=fake_tls_7
 --lua-desync=fake:blob=fake_default_tls:repeats=6:tcp_ack=-66000:tcp_ts_up:ip6_hopbyhop2

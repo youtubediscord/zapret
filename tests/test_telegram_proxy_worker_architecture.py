@@ -325,7 +325,7 @@ class TelegramProxyWorkerArchitectureTests(unittest.TestCase):
         self.assertIn("upstream_selected.connect", source)
         self.assertIn("_on_upstream_selected", source)
 
-    def test_page_updates_upstream_combo_when_runtime_selects_working_preset(self) -> None:
+    def test_runtime_working_upstream_does_not_overwrite_saved_preset(self) -> None:
         from telegram_proxy.config.upstream_catalog import UpstreamCatalog
         from telegram_proxy.ui.page import TelegramProxyPage
 
@@ -376,14 +376,10 @@ class TelegramProxyWorkerArchitectureTests(unittest.TestCase):
 
         TelegramProxyPage._on_upstream_selected(page, "no", "Норвегия")
 
-        self.assertEqual(page._upstream_preset_row.indexes, [(1, True)])
-        page._apply_upstream_preset_ui.assert_called_once_with(1)
-        page._request_settings_save.assert_called_once_with(
-            "upstream_preset",
-            preset_id="no",
-            restart="now",
-        )
-        page._append_log_line.assert_called_once_with("Telegram Proxy: выбран рабочий внешний прокси: Норвегия")
+        self.assertEqual(page._upstream_preset_row.indexes, [])
+        page._apply_upstream_preset_ui.assert_not_called()
+        page._request_settings_save.assert_not_called()
+        page._append_log_line.assert_called_once_with("Telegram Proxy: сейчас используется внешний прокси: Норвегия")
 
     def test_tray_toggle_stops_proxy_through_worker_runtime(self) -> None:
         feature_source = inspect.getsource(TelegramProxyFeature)

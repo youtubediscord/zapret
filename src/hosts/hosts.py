@@ -470,7 +470,7 @@ def remove_readonly_attribute(filepath):
         log(f"Ошибка при снятии атрибута 'только для чтения': {e}")
         return False
 
-def safe_read_hosts_file():
+def safe_read_hosts_file(*, create_if_missing: bool = True):
     """Безопасно читает файл hosts с обработкой различных кодировок"""
     hosts_path = HOSTS_PATH
 
@@ -485,6 +485,9 @@ def safe_read_hosts_file():
     
     # ✅ НОВОЕ: Проверяем существование файла
     if not hosts_path.exists():
+        if not create_if_missing:
+            log(f"Файл hosts не существует: {hosts_path}")
+            return ""
         log(f"Файл hosts не существует, создаем новый: {hosts_path}")
         try:
             # Создаем директорию если её нет
@@ -578,11 +581,11 @@ def safe_write_hosts_file(content):
         return False
     
 class HostsManager:
-    def __init__(self, status_callback=None):
+    def __init__(self, status_callback=None, *, apply_bootstrap: bool = False):
         self.status_callback = status_callback
         self._last_status: str | None = None
-        # При инициализации выполняем единоразовый bootstrap hosts.
-        self.apply_hosts_bootstrap_if_needed()
+        if apply_bootstrap:
+            self.apply_hosts_bootstrap_if_needed()
 
     def restore_permissions(self):
         """Восстанавливает права доступа к файлу hosts"""
@@ -815,6 +818,30 @@ class HostsManager:
             log(f"Ошибка при проверке доступности hosts: {e}")
             return False
 
+    def is_hosts_file_readable(self) -> bool:
+        """Проверяет, можно ли прочитать hosts без пробной записи в файл."""
+        try:
+            is_correct, error_msg = check_hosts_file_name()
+            if not is_correct:
+                log(error_msg)
+                return False
+
+            if not HOSTS_PATH.exists():
+                log("Файл hosts не существует, для статуса считаем его пустым")
+                return True
+
+            content = safe_read_hosts_file(create_if_missing=False)
+            return content is not None
+        except PermissionError:
+            log(f"Нет прав на чтение файла hosts: {HOSTS_PATH}")
+            return False
+        except FileNotFoundError:
+            log(f"Файл hosts не найден: {HOSTS_PATH}")
+            return True
+        except Exception as e:
+            log(f"Ошибка при проверке чтения hosts: {e}")
+            return False
+
     def _no_perm(self):
         """Обработка ошибки прав доступа"""
         self.set_status("Нет прав для изменения файла hosts")
@@ -963,7 +990,12 @@ class HostsManager:
             if not desired_rows:
                 if new_lines and not new_lines[-1].endswith("\n"):
                     new_lines[-1] += "\n"
-                if not safe_write_hosts_file("".join(new_lines)):
+                updated_content = "".join(new_lines)
+                if updated_content == content:
+                    self.set_status(f"Файл hosts уже актуален: удалено {removed_count} записей")
+                    log("apply_domain_ip_rows: hosts уже актуален, запись пропущена", "DEBUG")
+                    return True
+                if not safe_write_hosts_file(updated_content):
                     return False
                 self.set_status(f"Файл hosts обновлён: удалено {removed_count} записей")
                 return True
@@ -973,7 +1005,13 @@ class HostsManager:
 
             _insert_managed_hosts_block(new_lines, desired_rows, insert_at=replacement_insert_at)
 
-            if not safe_write_hosts_file("".join(new_lines)):
+            updated_content = "".join(new_lines)
+            if updated_content == content:
+                self.set_status(f"Файл hosts уже актуален: {_format_hosts_entries_count(len(desired_rows))}")
+                log("apply_domain_ip_rows: hosts уже актуален, запись пропущена", "DEBUG")
+                return True
+
+            if not safe_write_hosts_file(updated_content):
                 self.set_status("Не удалось записать файл hosts")
                 return False
 

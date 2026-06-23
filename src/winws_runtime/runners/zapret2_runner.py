@@ -45,6 +45,7 @@ from winws_runtime.runtime.system_ops import (
 _WINDOWS_ABS_RE = re.compile(r"^(?:[A-Za-z]:[\\/]|\\\\)")
 _STATUS_DLL_INIT_FAILED = 0xC0000142
 _TRANSIENT_DRY_RUN_RETRY_DELAY_SEC = 0.75
+_TRANSIENT_DRY_RUN_RETRY_DELAYS_SEC = (_TRANSIENT_DRY_RUN_RETRY_DELAY_SEC, 2.0)
 _PRESET_SWITCH_AFTER_DRY_RUN_SETTLE_SEC = 0.15
 
 
@@ -671,7 +672,8 @@ class Winws2StrategyRunner(StrategyRunnerBase):
             return True
 
         cmd = [self.winws_exe, *dry_run_artifact.launch_args]
-        for attempt in range(2):
+        retry_delays = _TRANSIENT_DRY_RUN_RETRY_DELAYS_SEC
+        for attempt in range(len(retry_delays) + 1):
             try:
                 result = subprocess.run(
                     cmd,
@@ -711,13 +713,19 @@ class Winws2StrategyRunner(StrategyRunnerBase):
             self._last_spawn_stderr = output
             if self._last_spawn_exit_code == 0:
                 return True
-            if attempt == 0 and self._should_retry_dry_run_exit_code(self._last_spawn_exit_code):
+            if (
+                attempt < len(retry_delays)
+                and self._should_retry_dry_run_exit_code(self._last_spawn_exit_code)
+            ):
+                retry_delay = retry_delays[attempt]
                 log(
                     "Preset dry-run hit transient Windows process init error "
-                    f"(code: {self._last_spawn_exit_code}), retrying once",
+                    f"(code: {self._last_spawn_exit_code}), "
+                    f"retrying attempt {attempt + 2}/{len(retry_delays) + 1} "
+                    f"after {retry_delay:g}s",
                     "WARNING",
                 )
-                time.sleep(_TRANSIENT_DRY_RUN_RETRY_DELAY_SEC)
+                time.sleep(retry_delay)
                 continue
             break
 

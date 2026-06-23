@@ -19,6 +19,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from lists.core.layered_files import safe_list_file_name
 from log.log import log
 from profile.match_filters import filter_values
 from profile.editable_settings import normalize_filter_value
@@ -2526,7 +2527,6 @@ class ProfileSetupPageBase(BasePage):
         runtime = self._worker_runtime("_list_file_load_runtime")
         state = self._list_file_load_state_obj()
         if state.is_busy():
-            self._list_file_load_request_id = int(self.__dict__.get("_list_file_load_request_id", 0) or 0) + 1
             state.pending = True
             return
         if self._list_file_status_label is not None:
@@ -2546,13 +2546,35 @@ class ProfileSetupPageBase(BasePage):
             on_finished=self._on_list_file_worker_finished,
         )
 
-    def _on_list_file_editor_state_loaded(self, request_id: int, state) -> None:
+    def _on_list_file_editor_state_loaded(self, request_id: int, result) -> None:
         if request_id != self._list_file_load_request_id:
             return
         if self._list_file_load_state_obj().has_pending():
             return
+        if not self._list_file_load_result_is_current(result):
+            return
+        state = getattr(result, "state", None)
+        if state is None:
+            return
         self._list_file_dirty = False
         self._schedule_list_file_editor_state_apply(state)
+
+    def _list_file_load_result_is_current(self, result) -> bool:
+        result_profile_key = str(getattr(result, "profile_key", "") or "").strip()
+        if result_profile_key != str(self.__dict__.get("_profile_key", "") or "").strip():
+            return False
+        result_filter_kind = str(getattr(result, "filter_kind", "") or "").strip().lower()
+        if result_filter_kind != str(self._current_filter_kind() or "").strip().lower():
+            return False
+        result_file_name = str(getattr(result, "file_name", "") or "").strip()
+        result_filter_file_name = safe_list_file_name(getattr(result, "filter_value", ""))
+        current_file_name = safe_list_file_name(self._current_filter_value())
+        return bool(
+            result_file_name
+            and result_filter_file_name
+            and current_file_name
+            and result_file_name == result_filter_file_name == current_file_name
+        )
 
     def _schedule_list_file_editor_state_apply(self, state) -> None:
         self._pending_list_file_state_apply = state

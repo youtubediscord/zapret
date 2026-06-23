@@ -372,13 +372,21 @@ async def relay_mtproxy_tcp(
     stats: ProxyStats,
     log_fn: Callable[[str], None],
     label: str,
-) -> None:
+    dc: int = 0,
+    on_first_response: Callable[[], None] | None = None,
+) -> tuple[int, int]:
+    t0 = time.monotonic()
+    sent_total = 0
+    recv_total = 0
+
     async def forward_client_to_remote() -> None:
+        nonlocal sent_total
         try:
             while True:
                 data = await client_reader.read(RELAY_BUFFER)
                 if not data:
                     break
+                sent_total += len(data)
                 stats.bytes_sent += len(data)
                 remote_writer.write(crypto.client_to_telegram(data))
                 await remote_writer.drain()
@@ -386,14 +394,22 @@ async def relay_mtproxy_tcp(
             pass
 
     async def forward_remote_to_client() -> None:
+        nonlocal recv_total
         try:
             while True:
                 data = await remote_reader.read(RELAY_BUFFER)
                 if not data:
                     break
+                first_response = recv_total == 0
+                recv_total += len(data)
                 stats.bytes_received += len(data)
                 client_writer.write(crypto.telegram_to_client(data))
                 await client_writer.drain()
+                if first_response and on_first_response is not None:
+                    try:
+                        on_first_response()
+                    except Exception:
+                        pass
         except (asyncio.CancelledError, ConnectionError, OSError):
             pass
 
@@ -414,7 +430,13 @@ async def relay_mtproxy_tcp(
                 await writer.wait_closed()
             except Exception:
                 pass
-        log_fn(f"[{label}] mtproxy tcp relay done")
+        elapsed = time.monotonic() - t0
+        if recv_total == 0 and sent_total > 0:
+            stats.recv_zero_count += 1
+            if dc > 0:
+                stats.recv_zero_per_dc[dc] = stats.recv_zero_per_dc.get(dc, 0) + 1
+        log_fn(f"[{label}] mtproxy tcp relay done: sent={sent_total} recv={recv_total} ({elapsed:.1f}s)")
+    return recv_total, sent_total
 
 
 __all__ = [

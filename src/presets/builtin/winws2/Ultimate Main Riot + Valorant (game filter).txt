@@ -1,5 +1,5 @@
 # Preset: Ultimate Main Riot + Valorant (game filter)
-# BuiltinVersion: 2.23
+# BuiltinVersion: 2.24
 # Description: YouTube + Discord (as MAIN) + Valorant/Riot
 # IconColor: #60cdff
 
@@ -167,6 +167,15 @@
 
 --new
 
+--name=cloudfront.net
+--filter-tcp=80,443-65535
+--hostlist=lists/cloudfront.txt
+--out-range=-d5
+--lua-desync=send
+--lua-desync=multidisorder:pos=1
+
+--new
+
 --name=Amazon TCP
 --filter-tcp=80,443-65535
 --hostlist=lists/amazon.txt
@@ -257,7 +266,7 @@
 
 --new
 
---name=Все сайты (исключение)
+--name=Все сайты (айпи)
 --filter-tcp=80,443-65535
 --ipset-exclude=lists/ipset-ru.txt
 --ipset-exclude=lists/ipset-dns.txt

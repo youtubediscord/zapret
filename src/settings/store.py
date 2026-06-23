@@ -913,7 +913,7 @@ def set_tg_proxy_port(value: int) -> bool:
 
 
 def get_tg_proxy_mode() -> str:
-    return _get_str(("telegram_proxy", "mode"), "socks5")
+    return _get_str(("telegram_proxy", "mode"), "mtproxy")
 
 
 def set_tg_proxy_mode(value: str) -> bool:
@@ -921,7 +921,7 @@ def set_tg_proxy_mode(value: str) -> bool:
 
 
 def get_tg_proxy_upstream_enabled() -> bool:
-    return _get_bool(("telegram_proxy", "upstream_enabled"), True)
+    return _get_bool(("telegram_proxy", "upstream_enabled"), False)
 
 
 def set_tg_proxy_upstream_enabled(value: bool) -> bool:

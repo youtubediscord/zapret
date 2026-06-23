@@ -1084,17 +1084,32 @@ class ProfileSetupUiGuardTests(unittest.TestCase):
             invalid_lines=(),
         )
         page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
+        page._profile_key = "profile-1"
         page._list_file_load_request_id = 9
         page._cleanup_in_progress = False
         page._list_file_dirty = True
+        page._current_filter_kind = Mock(return_value="hostlist")
+        page._current_filter_value = Mock(return_value="lists/youtube.txt")
         page._apply_list_file_editor_state = Mock()
         callbacks = []
+
+        from profile.profile_setup_loader import ProfileListFileLoadResult
 
         with patch(
             "profile.ui.profile_setup_page.QTimer.singleShot",
             side_effect=lambda _delay, callback: callbacks.append(callback),
         ):
-            ProfileSetupPageBase._on_list_file_editor_state_loaded(page, 9, state)
+            ProfileSetupPageBase._on_list_file_editor_state_loaded(
+                page,
+                9,
+                ProfileListFileLoadResult(
+                    profile_key="profile-1",
+                    filter_kind="hostlist",
+                    filter_value="lists/youtube.txt",
+                    file_name="youtube.txt",
+                    state=state,
+                ),
+            )
 
         page._apply_list_file_editor_state.assert_not_called()
         self.assertFalse(page._list_file_dirty)

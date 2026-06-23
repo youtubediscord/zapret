@@ -170,6 +170,7 @@ class ProfileIconTests(unittest.TestCase):
             ("EpicGames & Fortnite", "--hostlist=lists/epicgames-fortnite.txt", "simple:epicgames:EG"),
             ("Ubisoft", "--hostlist=lists/ubisoft.txt", "simple:ubisoft:UB"),
             ("Amazon TCP", "--hostlist=lists/amazon.txt", "fa5b.amazon"),
+            ("cloudfront.net", "--hostlist=lists/cloudfront.txt", "fa5b.amazon"),
         )
 
         for display_name, list_line, expected_icon in cases:

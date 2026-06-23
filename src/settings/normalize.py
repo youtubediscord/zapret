@@ -351,12 +351,16 @@ def normalize_warnings(data: object) -> dict[str, Any]:
 def normalize_telegram_proxy(data: object) -> dict[str, Any]:
     raw = as_dict(data)
     defaults = schema.default_telegram_proxy()
+    mode = as_str_in(raw.get("mode"), schema.VALID_TG_PROXY_MODES, defaults["mode"])
+    upstream_enabled = as_bool(raw.get("upstream_enabled"), defaults["upstream_enabled"])
+    if mode == "mtproxy":
+        upstream_enabled = True
     return {
         "enabled": as_bool(raw.get("enabled"), defaults["enabled"]),
         "host": as_clean_str(raw.get("host"), defaults["host"]) or defaults["host"],
         "port": as_int(raw.get("port"), defaults["port"], minimum=1024, maximum=65535),
-        "mode": as_str_in(raw.get("mode"), schema.VALID_TG_PROXY_MODES, defaults["mode"]),
-        "upstream_enabled": as_bool(raw.get("upstream_enabled"), defaults["upstream_enabled"]),
+        "mode": mode,
+        "upstream_enabled": upstream_enabled,
         "upstream_host": as_clean_str(raw.get("upstream_host"), defaults["upstream_host"]),
         "upstream_port": as_int(
             raw.get("upstream_port"),

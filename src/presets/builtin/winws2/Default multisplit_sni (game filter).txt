@@ -1,5 +1,5 @@
 # Preset: Default multisplit_sni (game filter)
-# BuiltinVersion: 2.23
+# BuiltinVersion: 2.24
 # Description: 
 
 --lua-init=@lua/zapret-lib.lua
@@ -232,6 +232,16 @@
 --name=Cloudflare TCP
 --filter-tcp=80,443-65535
 --hostlist=lists/cloudflare.txt
+--out-range=-n8
+--lua-desync=send:repeats=2
+--lua-desync=syndata:blob=tls_google:ip_autottl=-2,3-20
+--lua-desync=tls_multisplit_sni:seqovl=652:seqovl_pattern=tls_google
+
+--new
+
+--name=cloudfront.net
+--filter-tcp=80,443-65535
+--hostlist=lists/cloudfront.txt
 --out-range=-n8
 --lua-desync=send:repeats=2
 --lua-desync=syndata:blob=tls_google:ip_autottl=-2,3-20

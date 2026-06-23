@@ -762,7 +762,7 @@ class Winws2LaunchPresetValidationTests(unittest.TestCase):
         self.assertIn("--wf-dup-check=0", dry_run_config)
         self.assertIn("--dry-run", dry_run_config)
 
-    def test_winws2_dry_run_retries_once_after_dll_init_failure(self) -> None:
+    def test_winws2_dry_run_allows_second_delayed_retry_after_dll_init_failure(self) -> None:
         from types import SimpleNamespace
         from unittest.mock import Mock, patch
 
@@ -794,6 +794,7 @@ class Winws2LaunchPresetValidationTests(unittest.TestCase):
                     "winws_runtime.runners.zapret2_runner.subprocess.run",
                     side_effect=[
                         SimpleNamespace(returncode=3221225794, stdout=b"", stderr=b""),
+                        SimpleNamespace(returncode=3221225794, stdout=b"", stderr=b""),
                         SimpleNamespace(returncode=0, stdout=b"", stderr=b""),
                     ],
                 ) as run_mock,
@@ -807,8 +808,11 @@ class Winws2LaunchPresetValidationTests(unittest.TestCase):
                 )
 
         self.assertTrue(ok)
-        self.assertEqual(run_mock.call_count, 2)
-        sleep_mock.assert_called_once()
+        self.assertEqual(run_mock.call_count, 3)
+        self.assertEqual(
+            [call.args[0] for call in sleep_mock.call_args_list],
+            [0.75, 2.0],
+        )
         runner._set_runner_state_locked.assert_not_called()
         runner._set_last_error.assert_not_called()
         self.assertEqual(runner._last_spawn_exit_code, 0)

@@ -1,5 +1,5 @@
 # Preset: general ALT12 1.9.9 (game filter)
-# BuiltinVersion: 2.23
+# BuiltinVersion: 2.24
 # IconColor: #60cdff
 
 --lua-init=@lua/zapret-lib.lua
@@ -333,6 +333,16 @@
 
 --new
 
+--name=cloudfront.net
+--filter-tcp=80,443-65535
+--hostlist=lists/cloudfront.txt
+--payload=all
+--lua-desync=fake:blob=fake_stun:tcp_ts=-600000:repeats=8
+--lua-desync=fake:blob=tls_max:tcp_ts=-600000:repeats=8
+--lua-desync=multisplit:pos=1:seqovl=664:seqovl_pattern=tls_max
+
+--new
+
 --name=Amazon TCP
 --filter-tcp=80,443-65535
 --hostlist=lists/amazon.txt
@@ -564,6 +574,16 @@
 --name=GitHub
 --filter-tcp=443
 --hostlist=lists/github.txt
+--payload=all
+--lua-desync=fake:blob=fake_stun:tcp_ts=-600000:repeats=8
+--lua-desync=fake:blob=tls_max:tcp_ts=-600000:repeats=8
+--lua-desync=multisplit:pos=1:seqovl=664:seqovl_pattern=tls_max
+
+--new
+
+--name=githubusercontent.com
+--filter-tcp=443
+--hostlist=lists/githubusercontent.txt
 --payload=all
 --lua-desync=fake:blob=fake_stun:tcp_ts=-600000:repeats=8
 --lua-desync=fake:blob=tls_max:tcp_ts=-600000:repeats=8

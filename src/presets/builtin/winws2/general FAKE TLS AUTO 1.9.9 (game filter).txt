@@ -1,5 +1,5 @@
 # Preset: general FAKE TLS AUTO 1.9.9 (game filter)
-# BuiltinVersion: 2.23
+# BuiltinVersion: 2.24
 # IconColor: #60cdff
 
 --lua-init=@lua/zapret-lib.lua
@@ -350,6 +350,17 @@
 
 --new
 
+--name=cloudfront.net
+--filter-tcp=80,443-65535
+--hostlist=lists/cloudfront.txt
+--payload=all
+--lua-desync=fake:blob=tls_zero4:tcp_seq=-10000:repeats=11
+--lua-desync=fake:blob=fake_default_tls:tcp_seq=-10000:repeats=11:tls_mod=rnd,dupsid,sni=www.google.com
+--lua-desync=fake:blob=fake_http_max:tcp_seq=-10000:repeats=11
+--lua-desync=multidisorder_legacy:pos=1,midsld
+
+--new
+
 --name=Amazon TCP
 --filter-tcp=80,443-65535
 --hostlist=lists/amazon.txt
@@ -595,6 +606,17 @@
 --name=GitHub
 --filter-tcp=443
 --hostlist=lists/github.txt
+--payload=all
+--lua-desync=fake:blob=tls_zero4:tcp_seq=-10000:repeats=11
+--lua-desync=fake:blob=fake_default_tls:tcp_seq=-10000:repeats=11:tls_mod=rnd,dupsid,sni=www.google.com
+--lua-desync=fake:blob=fake_http_max:tcp_seq=-10000:repeats=11
+--lua-desync=multidisorder_legacy:pos=1,midsld
+
+--new
+
+--name=githubusercontent.com
+--filter-tcp=443
+--hostlist=lists/githubusercontent.txt
 --payload=all
 --lua-desync=fake:blob=tls_zero4:tcp_seq=-10000:repeats=11
 --lua-desync=fake:blob=fake_default_tls:tcp_seq=-10000:repeats=11:tls_mod=rnd,dupsid,sni=www.google.com

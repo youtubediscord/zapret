@@ -1,5 +1,5 @@
 # Preset: general FAKE TLS AUTO (game filter)
-# BuiltinVersion: 2.23
+# BuiltinVersion: 2.24
 
 --lua-init=@lua/zapret-lib.lua
 --lua-init=@lua/zapret-antidpi.lua
@@ -91,7 +91,7 @@
 
 --new
 
---name=Все сайты (исключение)
+--name=Все сайты (айпи)
 --filter-tcp=80,443-65535
 --ipset-exclude=lists/ipset-ru.txt
 --ipset-exclude=lists/ipset-dns.txt
@@ -274,6 +274,16 @@
 --name=Cloudflare TCP
 --filter-tcp=80,443-65535
 --hostlist=lists/cloudflare.txt
+--out-range=-d10
+--lua-desync=fake:blob=0x00000000:repeats=11:tcp_ack=-66000:tcp_ts_up
+--lua-desync=fake:blob=fake_default_tls:tls_mod=rnd,dupsid,sni=www.google.com:repeats=11:tcp_ack=-66000:tcp_ts_up
+--lua-desync=multidisorder_legacy:pos=1,midsld:repeats=11
+
+--new
+
+--name=cloudfront.net
+--filter-tcp=80,443-65535
+--hostlist=lists/cloudfront.txt
 --out-range=-d10
 --lua-desync=fake:blob=0x00000000:repeats=11:tcp_ack=-66000:tcp_ts_up
 --lua-desync=fake:blob=fake_default_tls:tls_mod=rnd,dupsid,sni=www.google.com:repeats=11:tcp_ack=-66000:tcp_ts_up

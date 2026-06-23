@@ -50,7 +50,21 @@ class FolderDefaultsTests(unittest.TestCase):
 
         self.assertEqual(
             [folder["name"] for folder in state["folders"].values()],
-            ["YouTube", "Discord", "Мессенджеры", "Соцсети", "Игры", "Roblox", "Хостеры", "Сайты", "ZapretKVN", "Общие", "Все сайты"],
+            [
+                "YouTube",
+                "Discord",
+                "GitHub",
+                "Мессенджеры",
+                "Соцсети",
+                "Игры",
+                "Roblox",
+                "Amazon",
+                "Хостеры",
+                "Сайты",
+                "ZapretKVN",
+                "Общие",
+                "Все сайты",
+            ],
         )
         self.assertEqual(state["folders"][COMMON_FOLDER_KEY]["system"], True)
 
@@ -70,6 +84,11 @@ class FolderDefaultsTests(unittest.TestCase):
     def test_profile_default_folder_is_classified_from_profile_text(self) -> None:
         self.assertEqual(classify_profile_folder("YouTube Russia CDN --hostlist=youtube.txt"), "youtube")
         self.assertEqual(classify_profile_folder("Discord Updates --hostlist=discord.txt"), "discord")
+        self.assertEqual(classify_profile_folder("GitHub --hostlist=lists/github.txt"), "github")
+        self.assertEqual(
+            classify_profile_folder("githubusercontent.com --hostlist=lists/githubusercontent.txt"),
+            "github",
+        )
         self.assertEqual(classify_profile_folder("Telegram --hostlist=telegram.txt"), "messengers")
         self.assertEqual(classify_profile_folder("Facebook --hostlist=facebook.txt"), "social")
         self.assertEqual(classify_profile_folder("Valorant game filter"), "games")
@@ -81,8 +100,9 @@ class FolderDefaultsTests(unittest.TestCase):
         self.assertEqual(classify_profile_folder("Ubisoft --hostlist=lists/ubisoft.txt"), "games")
         self.assertEqual(classify_profile_folder("lol-ru --ipset=lists/ipset-lol-ru.txt"), "games")
         self.assertEqual(classify_profile_folder("cloudflare --ipset=lists/ipset-cloudflare.txt"), "hosters")
+        self.assertEqual(classify_profile_folder("amazon --ipset=lists/ipset-amazon.txt"), "amazon")
+        self.assertEqual(classify_profile_folder("cloudfront.net --hostlist=lists/cloudfront.txt"), "amazon")
         self.assertEqual(classify_profile_folder("digitalocean --ipset=lists/ipset-digitalocean.txt"), "hosters")
-        self.assertEqual(classify_profile_folder("amazon --ipset=lists/ipset-amazon.txt"), "hosters")
         self.assertEqual(classify_profile_folder("ovh --ipset=lists/ipset-ovh.txt"), "hosters")
         self.assertEqual(classify_profile_folder("hetzner --ipset=lists/ipset-hetzner.txt"), "hosters")
         self.assertEqual(classify_profile_folder("timeweb --ipset=lists/ipset-timeweb.txt"), "zapretkvn")
@@ -113,7 +133,21 @@ class FolderDefaultsTests(unittest.TestCase):
 
         self.assertEqual(
             ordered_names,
-            ["YouTube", "Discord", "Мессенджеры", "Соцсети", "Игры", "Roblox", "Хостеры", "Сайты", "ZapretKVN", "Общие", "Все сайты"],
+            [
+                "YouTube",
+                "Discord",
+                "GitHub",
+                "Мессенджеры",
+                "Соцсети",
+                "Игры",
+                "Roblox",
+                "Amazon",
+                "Хостеры",
+                "Сайты",
+                "ZapretKVN",
+                "Общие",
+                "Все сайты",
+            ],
         )
 
 

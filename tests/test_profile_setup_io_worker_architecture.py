@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import inspect
+from types import SimpleNamespace
 import unittest
 
 
@@ -27,7 +28,27 @@ class ProfileSetupIoWorkerArchitectureTests(unittest.TestCase):
         self.assertIn("self._load_state", init_source)
         self.assertNotIn("self._controller", init_source)
         self.assertIn("self._load_state(", run_source)
+        self.assertIn("ProfileListFileLoadResult(", run_source)
         self.assertNotIn("self._controller.load_list_file_editor_state", run_source)
+
+    def test_list_file_load_result_keeps_profile_and_file_identity(self) -> None:
+        from profile.profile_setup_loader import ProfileListFileLoadResult
+
+        state = SimpleNamespace(display_path="lists/facebook.txt")
+
+        result = ProfileListFileLoadResult(
+            profile_key="profile-facebook",
+            filter_kind="hostlist",
+            filter_value="lists/facebook.txt",
+            file_name="facebook.txt",
+            state=state,
+        )
+
+        self.assertEqual(result.profile_key, "profile-facebook")
+        self.assertEqual(result.filter_kind, "hostlist")
+        self.assertEqual(result.filter_value, "lists/facebook.txt")
+        self.assertEqual(result.file_name, "facebook.txt")
+        self.assertIs(result.state, state)
 
     def test_list_file_validation_worker_receives_validator_function(self) -> None:
         from profile.profile_setup_loader import ProfileListFileValidationWorker

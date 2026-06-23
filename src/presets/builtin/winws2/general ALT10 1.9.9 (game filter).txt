@@ -1,5 +1,5 @@
 # Preset: general ALT10 1.9.9 (game filter)
-# BuiltinVersion: 2.23
+# BuiltinVersion: 2.24
 # IconColor: #e6c300ff
 
 --lua-init=@lua/zapret-lib.lua
@@ -323,6 +323,16 @@
 
 --new
 
+--name=cloudfront.net
+--filter-tcp=80,443-65535
+--hostlist=lists/cloudfront.txt
+--payload=all
+--lua-desync=fake:blob=fake_stun_as_tls:tcp_ts=-600000:repeats=6
+--lua-desync=fake:blob=tls_4pda:tcp_ts=-600000:repeats=6
+--lua-desync=fake:blob=http_max:tcp_ts=-600000:repeats=6
+
+--new
+
 --name=Amazon TCP
 --filter-tcp=80,443-65535
 --hostlist=lists/amazon.txt
@@ -554,6 +564,16 @@
 --name=GitHub
 --filter-tcp=443
 --hostlist=lists/github.txt
+--payload=all
+--lua-desync=fake:blob=fake_stun_as_tls:tcp_ts=-600000:repeats=6
+--lua-desync=fake:blob=tls_4pda:tcp_ts=-600000:repeats=6
+--lua-desync=fake:blob=http_max:tcp_ts=-600000:repeats=6
+
+--new
+
+--name=githubusercontent.com
+--filter-tcp=443
+--hostlist=lists/githubusercontent.txt
 --payload=all
 --lua-desync=fake:blob=fake_stun_as_tls:tcp_ts=-600000:repeats=6
 --lua-desync=fake:blob=tls_4pda:tcp_ts=-600000:repeats=6

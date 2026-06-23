@@ -30,7 +30,7 @@ class TelegramProxySettingsUiStateTests(unittest.TestCase):
 
         self.assertEqual(
             build_advanced_settings_auto_sections(state),
-            frozenset({"mtproxy", "cloudflare", "dc_ip", "performance"}),
+            frozenset({"mtproxy", "upstream", "cloudflare", "dc_ip", "performance"}),
         )
 
     def test_manual_advanced_mode_shows_all_settings_without_forcing_toggle(self) -> None:
@@ -55,7 +55,7 @@ class TelegramProxySettingsUiStateTests(unittest.TestCase):
         plan = build_advanced_settings_ui_plan(
             advanced_checked=False,
             proxy_mode="mtproxy",
-            auto_sections=frozenset({"mtproxy"}),
+            auto_sections=frozenset({"mtproxy", "upstream"}),
             cloudflare_enabled=False,
             cloudflare_worker_enabled=False,
         )
@@ -63,7 +63,7 @@ class TelegramProxySettingsUiStateTests(unittest.TestCase):
         self.assertFalse(plan.advanced_card_visible)
         self.assertTrue(plan.should_build_advanced_widgets)
         self.assertTrue(plan.mtproxy_rows_visible)
-        self.assertFalse(plan.upstream_controls_visible)
+        self.assertTrue(plan.upstream_controls_visible)
 
     def test_cloudflare_rows_follow_their_own_toggles(self) -> None:
         plan = build_advanced_settings_ui_plan(

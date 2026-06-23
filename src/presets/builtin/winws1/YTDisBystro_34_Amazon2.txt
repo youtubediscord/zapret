@@ -1,4 +1,5 @@
 # Preset: YTDisBystro_34_Amazon2
+# BuiltinVersion: 1.2
 # IconColor: #60cdff
 # Description: Imported from bat/YTDisBystro_34_Amazon2.txt
 
@@ -69,7 +70,23 @@
 --new
 
 --filter-tcp=80
---hostlist-domains=cloudfront.net,amazon.com,amazonaws.com,awsstatic.com,epicgames.com
+--hostlist-domains=amazon.com,amazonaws.com,awsstatic.com,epicgames.com
+--dpi-desync=fake,multisplit
+--dpi-desync-split-seqovl=2
+--dpi-desync-split-pos=sld+1
+--dpi-desync-fake-http=bin/http_fake_MS.bin
+--dpi-desync-fooling=md5sig
+--dup=2
+--dup-fooling=md5sig
+--dup-cutoff=n3
+
+# === HTTP (порт 80) ===
+
+--new
+
+--comment=cloudfront.net
+--filter-tcp=80
+--hostlist-domains=cloudfront.net
 --dpi-desync=fake,multisplit
 --dpi-desync-split-seqovl=2
 --dpi-desync-split-pos=sld+1
@@ -101,7 +118,18 @@
 --new
 
 --filter-tcp=443,444-65535
---hostlist-domains=awsglobalaccelerator.com,cloudfront.net,amazon.com,amazonaws.com,awsstatic.com,epicgames.com
+--hostlist-domains=awsglobalaccelerator.com,amazon.com,amazonaws.com,awsstatic.com,epicgames.com
+--dpi-desync=multisplit
+--dpi-desync-split-seqovl=211
+--dpi-desync-split-seqovl-pattern=bin/tls_clienthello_5.bin
+
+# === HTTPS ===
+
+--new
+
+--comment=cloudfront.net
+--filter-tcp=443,444-65535
+--hostlist-domains=cloudfront.net
 --dpi-desync=multisplit
 --dpi-desync-split-seqovl=211
 --dpi-desync-split-seqovl-pattern=bin/tls_clienthello_5.bin
@@ -111,7 +139,21 @@
 --new
 
 --filter-udp=443,444-65535
---hostlist-domains=awsglobalaccelerator.com,cloudfront.net,amazon.com,amazonaws.com,awsstatic.com,epicgames.com
+--hostlist-domains=awsglobalaccelerator.com,amazon.com,amazonaws.com,awsstatic.com,epicgames.com
+--dpi-desync=fake
+--dpi-desync-any-protocol
+--dpi-desync-fake-unknown-udp=bin/quic_6.bin
+--dpi-desync-repeats=2
+--dpi-desync-cutoff=n4
+--dpi-desync-ttl=7
+
+# === QUIC ===
+
+--new
+
+--comment=cloudfront.net
+--filter-udp=443,444-65535
+--hostlist-domains=cloudfront.net
 --dpi-desync=fake
 --dpi-desync-any-protocol
 --dpi-desync-fake-unknown-udp=bin/quic_6.bin

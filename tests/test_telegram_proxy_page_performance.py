@@ -106,12 +106,13 @@ class TelegramProxyPagePerformanceTests(unittest.TestCase):
         )
 
         self.assertTrue(TelegramProxyPage._advanced_settings_should_open(page, state))
-        self.assertEqual(TelegramProxyPage._advanced_settings_auto_sections(page, state), {"mtproxy"})
+        self.assertEqual(TelegramProxyPage._advanced_settings_auto_sections(page, state), {"mtproxy", "upstream"})
 
     def test_cloudflare_route_still_auto_opens_advanced_panel(self) -> None:
         page = TelegramProxyPage.__new__(TelegramProxyPage)
         state = replace(
             _default_state_without_upstream(),
+            mode="socks5",
             cloudflare_enabled=True,
             cloudflare_domains=("example.com",),
         )

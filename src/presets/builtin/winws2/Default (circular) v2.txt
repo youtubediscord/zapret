@@ -1,6 +1,6 @@
 # Preset: Default v2 (circular)
 # ActivePreset: Default v2 (circular)
-# BuiltinVersion: 2.23
+# BuiltinVersion: 2.24
 # Modified: 2026-01-21T17:52:34.648239
 # IconColor: #a8c5ff
 
@@ -97,7 +97,7 @@
 
 --new
 
---name=Все сайты (исключение)
+--name=Все сайты (айпи)
 --filter-tcp=80,443-65535
 --ipset-exclude=lists/ipset-ru.txt
 --ipset-exclude=lists/ipset-dns.txt
