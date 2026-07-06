@@ -1,3 +1,5 @@
+import main.process_start_time  # noqa: F401  # первым: фиксирует момент входа в Python
+
 from main.early_startup_crash import install_early_startup_crash_handler
 
 

@@ -21,6 +21,25 @@ from main.shell import shell_bootstrap
 QT_SCROLL_STYLE_AFTER_INTERACTIVE_MS = 2_000
 
 
+def start_qtawesome_warmup() -> None:
+    """Греет импорт qtawesome (~120-190 мс) в фоне после Qt bootstrap.
+
+    Стартует после application_bootstrap(): к этому моменту тяжёлые импорты
+    главного потока позади, дальше идёт конструктор окна (C++-код Qt, GIL
+    свободен), и фоновый импорт успевает прогреться до сборки первой
+    страницы, где qtawesome нужен.
+    """
+    import threading
+
+    def _warm() -> None:
+        try:
+            import qtawesome  # noqa: F401
+        except Exception:
+            pass
+
+    threading.Thread(target=_warm, daemon=True, name="qtawesome-warmup").start()
+
+
 def _create_ipc_manager():
     from startup.ipc_manager import IPCManager
 
@@ -194,6 +213,15 @@ def main() -> None:
     log(APP_VERSION, "🔹 main")
 
     try:
+        from main.process_start_time import exe_to_python_ms
+
+        exe_gap_ms = exe_to_python_ms()
+        if exe_gap_ms is not None:
+            emit_startup_metric("StartupExeToPython", f"{exe_gap_ms}ms")
+    except Exception:
+        pass
+
+    try:
         t_settings = _time.perf_counter()
         from settings.store import materialize_settings_file
 
@@ -217,6 +245,7 @@ def main() -> None:
         "StartupApplicationBootstrap",
         f"{(_time.perf_counter() - t_app) * 1000:.0f}ms",
     )
+    start_qtawesome_warmup()
     if is_qt_event_diagnostic_enabled():
         try:
             from main.qt_event_diagnostics import install_qt_event_diagnostic

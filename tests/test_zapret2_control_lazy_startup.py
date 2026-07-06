@@ -6,6 +6,12 @@ import unittest
 
 class ControlPageImmediateStartupTests(unittest.TestCase):
     def test_control_pages_build_settings_sections_immediately(self) -> None:
+        """Секции настроек строятся синхронно в _build_ui — намеренно.
+
+        Отложенную сборку (таймерами) уже пробовали дважды и откатывали:
+        таймеры создавались криво, интерфейс появлялся дольше. Не возвращать
+        без явного решения владельца.
+        """
         import presets.ui.control.zapret1.page as zapret1_page
         import presets.ui.control.zapret2.page as zapret2_page
 
@@ -21,6 +27,7 @@ class ControlPageImmediateStartupTests(unittest.TestCase):
                 self.assertNotIn("_run_deferred_show_work", page_source)
                 self.assertNotIn("_startup_can_run_deferred_sections", page_source)
                 self.assertNotIn("STARTUP_DEFERRED_SECTIONS", page_source)
+                self.assertNotIn("_build_settings_sections_deferred", page_source)
 
     def test_additional_settings_workers_are_imported_only_when_requested(self) -> None:
         import presets.ui.control.zapret2.page as zapret2_page

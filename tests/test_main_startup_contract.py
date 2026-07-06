@@ -1175,13 +1175,39 @@ class StartupRuntimeSetupTests(unittest.TestCase):
             "from app.feature_facades.profile import ProfileFeature",
             inspect.getsource(feature_assembly.build_preset_profile_features),
         )
-        self.assertIn(
-            "from app.feature_facades.blockcheck import BlockcheckFeature",
-            inspect.getsource(feature_assembly.build_app_features),
-        )
+        # Фасады импортируются лениво внутри build_app_features через
+        # _timed_facade_import, чтобы замерять стоимость каждого импорта.
+        build_source = inspect.getsource(feature_assembly.build_app_features)
+        self.assertIn("_timed_facade_import", build_source)
+        self.assertIn('"blockcheck"', build_source)
         self.assertNotIn(
             "from app.feature_facades import (",
-            inspect.getsource(feature_assembly.build_app_features),
+            build_source,
+        )
+        timed_import_source = inspect.getsource(feature_assembly._timed_facade_import)
+        self.assertIn('import_module(f"app.feature_facades.{facade_name}")', timed_import_source)
+
+    def test_page_deps_presets_defers_preset_page_imports(self) -> None:
+        import inspect
+        import ui.page_deps.presets as page_deps_presets
+
+        source = inspect.getsource(page_deps_presets)
+        top_level = source.split("def build_control_page_kwargs", 1)[0]
+
+        # preset_subpage_base тянет ui.fluent_widgets/qtawesome (~200 мс),
+        # а этот модуль импортируется до первого показа окна.
+        self.assertNotIn("from presets.ui.", top_level)
+        self.assertIn(
+            "from presets.ui.common.preset_subpage_base import RawPresetRuntimeActions",
+            inspect.getsource(page_deps_presets.build_preset_raw_editor_page_kwargs),
+        )
+        self.assertIn(
+            "from presets.ui.common.user_presets_page_runtime import UserPresetsRuntimeActions",
+            inspect.getsource(page_deps_presets.build_user_presets_page_kwargs),
+        )
+        self.assertIn(
+            "from presets.ui.control.control_page_shared import ControlRuntimeActions",
+            inspect.getsource(page_deps_presets.build_control_page_kwargs),
         )
 
     def test_app_features_defers_feature_facades_imports_to_type_checking(self) -> None:

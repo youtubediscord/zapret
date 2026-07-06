@@ -2,13 +2,10 @@ from __future__ import annotations
 
 from app.page_names import PageName
 from settings.mode import ZAPRET1_MODE, ZAPRET2_MODE
-from presets.ui.control.control_page_shared import ControlRuntimeActions
-from presets.ui.control.additional_settings_runtime import (
-    create_additional_settings_save_worker,
-    create_top_summary_worker,
-)
-from presets.ui.common.preset_subpage_base import RawPresetRuntimeActions
-from presets.ui.common.user_presets_page_runtime import UserPresetsRuntimeActions
+
+# Импорты preset-страниц здесь намеренно ленивые (внутри функций-билдеров):
+# preset_subpage_base тянет ui.fluent_widgets/qtawesome (~200 мс), а этот
+# модуль импортируется до первого показа окна через ui.page_factory.
 from ui.navigation_pages import (
     resolve_preset_raw_editor_back_page_for_method,
     resolve_preset_raw_editor_root_page_for_method,
@@ -32,6 +29,12 @@ def build_control_page_kwargs(
     show_page,
     ui_state_store,
 ) -> dict:
+    from presets.ui.control.additional_settings_runtime import (
+        create_additional_settings_save_worker,
+        create_top_summary_worker,
+    )
+    from presets.ui.control.control_page_shared import ControlRuntimeActions
+
     if page_name == PageName.ZAPRET2_MODE_CONTROL:
         user_presets_page = PageName.ZAPRET2_USER_PRESETS
         preset_setup_page = PageName.ZAPRET2_PRESET_SETUP
@@ -189,8 +192,11 @@ def build_user_presets_page_kwargs(
     presets_feature,
     external_actions_feature,
     open_preset_raw_editor,
+    notify=None,
     ui_state_store,
 ) -> dict:
+    from presets.ui.common.user_presets_page_runtime import UserPresetsRuntimeActions
+
     method = ZAPRET2_MODE if page_name == PageName.ZAPRET2_USER_PRESETS else ZAPRET1_MODE
 
     def _create_preset_link_action_worker(request_id: int, *, action: str, parent=None):
@@ -210,6 +216,7 @@ def build_user_presets_page_kwargs(
             warm_preset_list_metadata_cache=presets_feature.warm_preset_list_metadata_cache,
             get_preset_source_path_by_file_name=presets_feature.get_preset_source_path_by_file_name,
             preset_differs_from_builtin_by_file_name=presets_feature.preset_differs_from_builtin_by_file_name,
+            read_single_preset_list_metadata=presets_feature.read_single_preset_list_metadata,
         ),
         "connect_preset_signals": presets_feature.connect_preset_signals,
         "create_user_presets_open_folder_worker": presets_feature.create_user_presets_open_folder_worker,
@@ -226,6 +233,7 @@ def build_user_presets_page_kwargs(
             preset_name,
             allow_internal=True,
         ),
+        "notify": notify,
         "ui_state_store": ui_state_store,
     }
 
@@ -238,6 +246,8 @@ def build_preset_raw_editor_page_kwargs(
     show_page,
     ui_state_store,
 ) -> dict:
+    from presets.ui.common.preset_subpage_base import RawPresetRuntimeActions
+
     method = ZAPRET2_MODE if page_name == PageName.ZAPRET2_PRESET_RAW_EDITOR else ZAPRET1_MODE
     return {
         "create_raw_preset_load_worker": presets_feature.create_raw_preset_load_worker,

@@ -78,26 +78,60 @@ def build_preset_profile_features(paths: Any) -> PresetProfileFeatures:
     )
 
 
+def _timed_facade_import(facade_name: str):
+    from importlib import import_module
+
+    t_facade = _time.perf_counter()
+    module = import_module(f"app.feature_facades.{facade_name}")
+    emit_startup_metric(
+        f"StartupFeatureFacadeImport.{facade_name}",
+        f"{(_time.perf_counter() - t_facade) * 1000:.0f}ms",
+    )
+    return module
+
+
 def build_app_features(*, deps: AppFeatureAssemblyDeps, paths: Any, state: Any) -> AppFeatures:
     """Собирает feature-входы без превращения AppFeatures в общий контейнер."""
     t_import = _time.perf_counter()
-    from app.feature_facades.appearance import build_appearance_feature
-    from app.feature_facades.blockcheck import BlockcheckFeature
-    from app.feature_facades.diagnostics import build_diagnostics_feature
-    from app.feature_facades.dns import build_dns_feature
-    from app.feature_facades.dpi_settings import build_dpi_settings_feature
-    from app.feature_facades.external import build_external_actions_feature
-    from app.feature_facades.hosts import build_hosts_feature
-    from app.feature_facades.lists import build_lists_feature
-    from app.feature_facades.logs import build_logs_feature
-    from app.feature_facades.orchestra import build_orchestra_feature
-    from app.feature_facades.premium import build_premium_feature
-    from app.feature_facades.program_settings import build_program_settings_feature
-    from app.feature_facades.runtime import build_runtime_feature
-    from app.feature_facades.telegram_proxy import build_telegram_proxy_feature
-    from app.feature_facades.tray import build_tray_feature
-    from app.feature_facades.updater import build_updater_feature
-    from app.feature_facades.window_geometry import build_window_geometry_feature
+    facades = {
+        name: _timed_facade_import(name)
+        for name in (
+            "appearance",
+            "blockcheck",
+            "diagnostics",
+            "dns",
+            "dpi_settings",
+            "external",
+            "hosts",
+            "lists",
+            "logs",
+            "orchestra",
+            "premium",
+            "program_settings",
+            "runtime",
+            "telegram_proxy",
+            "tray",
+            "updater",
+            "window_geometry",
+        )
+    }
+    build_appearance_feature = facades["appearance"].build_appearance_feature
+    BlockcheckFeature = facades["blockcheck"].BlockcheckFeature
+    build_diagnostics_feature = facades["diagnostics"].build_diagnostics_feature
+    build_dns_feature = facades["dns"].build_dns_feature
+    build_dpi_settings_feature = facades["dpi_settings"].build_dpi_settings_feature
+    build_external_actions_feature = facades["external"].build_external_actions_feature
+    build_hosts_feature = facades["hosts"].build_hosts_feature
+    build_lists_feature = facades["lists"].build_lists_feature
+    build_logs_feature = facades["logs"].build_logs_feature
+    build_orchestra_feature = facades["orchestra"].build_orchestra_feature
+    build_premium_feature = facades["premium"].build_premium_feature
+    build_program_settings_feature = facades["program_settings"].build_program_settings_feature
+    build_runtime_feature = facades["runtime"].build_runtime_feature
+    build_telegram_proxy_feature = facades["telegram_proxy"].build_telegram_proxy_feature
+    build_tray_feature = facades["tray"].build_tray_feature
+    build_updater_feature = facades["updater"].build_updater_feature
+    build_window_geometry_feature = facades["window_geometry"].build_window_geometry_feature
     emit_startup_metric(
         "StartupFeatureAssemblyImports",
         f"{(_time.perf_counter() - t_import) * 1000:.0f}ms",

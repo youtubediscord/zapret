@@ -380,6 +380,7 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
 
     def _build_ui(self):
         _t_total = _time.perf_counter()
+        _t_top_summary = _time.perf_counter()
         self.top_summary = ControlTopSummaryWidget(
             language=self._ui_language,
             mode_value="Zapret 2",
@@ -390,6 +391,7 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
         self.top_summary.profilesClicked.connect(self._open_preset_setup_page)
         self.top_summary.premiumClicked.connect(self._open_premium_callback)
         self.add_widget(self.top_summary)
+        _log_startup_winws2_control_metric("_build_ui.top_summary", (_time.perf_counter() - _t_top_summary) * 1000)
         self.add_spacing(16)
 
         # Статус работы
@@ -433,19 +435,36 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
         self.loading_label = management_widgets.loading_label
         self.add_widget(management_widgets.card)
         _log_startup_winws2_control_metric("_build_ui.control_card", (_time.perf_counter() - _t_control) * 1000)
+        _t_settings_sections = _time.perf_counter()
         self._build_settings_sections()
+        _log_startup_winws2_control_metric(
+            "_build_ui.settings_sections", (_time.perf_counter() - _t_settings_sections) * 1000
+        )
+        _t_settings_runtime = _time.perf_counter()
         self._attach_program_settings_runtime()
+        _log_startup_winws2_control_metric(
+            "_build_ui.settings_runtime", (_time.perf_counter() - _t_settings_runtime) * 1000
+        )
+        _t_settings_reload = _time.perf_counter()
         self._schedule_additional_settings_reload(force=True)
+        _log_startup_winws2_control_metric(
+            "_build_ui.settings_reload_schedule", (_time.perf_counter() - _t_settings_reload) * 1000
+        )
 
         _log_startup_winws2_control_metric("_build_ui.total", (_time.perf_counter() - _t_total) * 1000)
 
     def _build_settings_sections(self) -> None:
         self.add_spacing(8)
+        _t_sections_import = _time.perf_counter()
         from presets.ui.control.zapret2.sections_build import (
             build_winws2_pages_settings_sections,
         )
         from ui.widgets.win11_controls import Win11ComboRow, Win11ToggleRow
 
+        _log_startup_winws2_control_metric(
+            "_build_ui.settings_sections_import", (_time.perf_counter() - _t_sections_import) * 1000
+        )
+        _t_sections_build = _time.perf_counter()
         section_widgets = build_winws2_pages_settings_sections(
             add_section_title=self.add_section_title,
             tr_fn=lambda key, default: tr_catalog(key, language=self._ui_language, default=default),
@@ -466,6 +485,9 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
             on_open_internet_cleanup=self._on_internet_cleanup_clicked,
             on_open_folder=self._open_folder,
             on_open_docs=self._open_docs,
+        )
+        _log_startup_winws2_control_metric(
+            "_build_ui.settings_sections_build", (_time.perf_counter() - _t_sections_build) * 1000
         )
 
         self.program_settings_section_label = section_widgets.program_settings_section_label

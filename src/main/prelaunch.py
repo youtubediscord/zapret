@@ -70,8 +70,11 @@ def _preload_slow_modules() -> None:
     import threading
 
     def _preload() -> None:
+        # qtawesome здесь НЕ греем: на этой фазе главный поток занят
+        # импортами PyQt6/qfluentwidgets, и фоновый импорт qtawesome
+        # отбирает у него GIL. Прогрев qtawesome стартует позже —
+        # см. start_qtawesome_warmup() в main.entry.
         try:
-            import jinja2
             import requests
             import psutil
             import json

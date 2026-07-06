@@ -52,9 +52,20 @@ def build_window_page_deps_sources(*, features, state, page_actions) -> PageDeps
 
 
 def attach_window_ui_root(window, *, features, state, page_actions) -> None:
+    import time as _time
+
+    from main.runtime_state import log_startup_metric as emit_startup_metric
+
+    t_import = _time.perf_counter()
     from ui.ui_root import WindowUiRoot
     from ui.window_bootstrap_runtime import WindowRuntimeBootstrapDeps
 
+    emit_startup_metric(
+        "StartupWindowUiRootImport",
+        f"{(_time.perf_counter() - t_import) * 1000:.0f}ms",
+    )
+
+    t_construct = _time.perf_counter()
     runtime_bootstrap_deps = WindowRuntimeBootstrapDeps(
         runtime_feature=features.runtime,
         presets_feature=features.presets,
@@ -72,6 +83,10 @@ def attach_window_ui_root(window, *, features, state, page_actions) -> None:
             page_actions=page_actions,
         ),
         runtime_bootstrap_deps,
+    )
+    emit_startup_metric(
+        "StartupWindowUiRootConstruct",
+        f"{(_time.perf_counter() - t_construct) * 1000:.0f}ms",
     )
 
 
