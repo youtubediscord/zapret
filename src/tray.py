@@ -168,6 +168,7 @@ if sys.platform == "win32":
     kernel32.GetModuleHandleW.restype = wintypes.HMODULE
     user32.CreatePopupMenu.restype = wintypes.HMENU
     user32.TrackPopupMenu.restype = wintypes.UINT
+    user32.RegisterWindowMessageW.argtypes = [wintypes.LPCWSTR]
     user32.RegisterWindowMessageW.restype = wintypes.UINT
     user32.LoadImageW.argtypes = [
         wintypes.HINSTANCE,
@@ -184,6 +185,8 @@ if sys.platform == "win32":
     user32.DestroyIcon.restype = wintypes.BOOL
     user32.RegisterClassExW.argtypes = [ctypes.POINTER(WNDCLASSEXW)]
     user32.RegisterClassExW.restype = wintypes.ATOM
+    user32.UnregisterClassW.argtypes = [wintypes.LPCWSTR, wintypes.HINSTANCE]
+    user32.UnregisterClassW.restype = wintypes.BOOL
     user32.CreateWindowExW.argtypes = [
         wintypes.DWORD,
         wintypes.LPCWSTR,
@@ -312,7 +315,7 @@ class SystemTrayManager:
         self._icon_handle = None
         self._message_window = None
         self._taskbar_created_message = None
-        self._class_name = f"Zapret2TrayWindow_{os.getpid()}"
+        self._class_name = f"Zapret2TrayWindow_{os.getpid()}_{id(self):x}"
 
         if sys.platform != "win32":
             log("Native Windows tray backend недоступен вне Windows", "DEBUG")
@@ -401,6 +404,8 @@ class SystemTrayManager:
         self._message_window = None
         if window is not None:
             window.destroy()
+            if getattr(window, "_class_registered", False):
+                self._message_window = window
 
         icon_handle = self._icon_handle
         self._icon_handle = None
@@ -903,6 +908,8 @@ class _TrayMessageWindow:
         self.hwnd = None
         self.taskbar_created_message = None
         self._wndproc = None
+        self._instance = None
+        self._class_registered = False
 
         if sys.platform == "win32":
             self._create_window()
@@ -910,6 +917,7 @@ class _TrayMessageWindow:
     def _create_window(self) -> None:
         self.taskbar_created_message = user32.RegisterWindowMessageW("TaskbarCreated")
         instance = kernel32.GetModuleHandleW(None)
+        self._instance = instance
 
         self._wndproc = WNDPROC(self._dispatch)
         window_class = WNDCLASSEXW()
@@ -924,6 +932,8 @@ class _TrayMessageWindow:
             # 1410 = class already exists.
             if last_error != 1410:
                 raise OSError(last_error, "Не удалось зарегистрировать класс tray window")
+        else:
+            self._class_registered = True
 
         hwnd = user32.CreateWindowExW(
             0,
@@ -940,6 +950,7 @@ class _TrayMessageWindow:
             None,
         )
         if not hwnd:
+            self._unregister_class()
             raise OSError(ctypes.get_last_error(), "Не удалось создать native tray window")
 
         self.hwnd = hwnd
@@ -954,6 +965,19 @@ class _TrayMessageWindow:
             user32.DestroyWindow(hwnd)
         except Exception:
             pass
+        self._unregister_class()
+
+    def _unregister_class(self) -> None:
+        if sys.platform != "win32" or not self._class_registered:
+            return
+        instance = self._instance or kernel32.GetModuleHandleW(None)
+        try:
+            if not bool(user32.UnregisterClassW(self.owner._class_name, instance)):
+                return
+        except Exception:
+            return
+        self._class_registered = False
+        self._wndproc = None
 
     def _dispatch(self, hwnd, message, w_param, l_param):
         try:

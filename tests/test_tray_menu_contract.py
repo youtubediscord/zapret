@@ -78,6 +78,8 @@ class TrayMenuContractTests(unittest.TestCase):
             "kernel32.GetModuleHandleW.restype",
             "user32.RegisterClassExW.argtypes",
             "user32.RegisterClassExW.restype",
+            "user32.UnregisterClassW.argtypes",
+            "user32.UnregisterClassW.restype",
             "user32.CreateWindowExW.argtypes",
             "user32.CreateWindowExW.restype",
             "user32.DestroyWindow.argtypes",
@@ -95,6 +97,16 @@ class TrayMenuContractTests(unittest.TestCase):
         missing = [signature for signature in required_signatures if signature not in source]
 
         self.assertEqual(missing, [])
+
+    def test_native_tray_message_window_unregisters_class_on_destroy(self) -> None:
+        source = (Path(__file__).resolve().parents[1] / "src" / "tray.py").read_text(encoding="utf-8")
+
+        self.assertIn("user32.UnregisterClassW(self.owner._class_name, instance)", source)
+
+    def test_native_tray_class_name_is_unique_per_manager_instance(self) -> None:
+        source = (Path(__file__).resolve().parents[1] / "src" / "tray.py").read_text(encoding="utf-8")
+
+        self.assertIn('self._class_name = f"Zapret2TrayWindow_{os.getpid()}_{id(self):x}"', source)
 
 
 if __name__ == "__main__":
