@@ -12,6 +12,13 @@
   <a href="https://github.com/youtubediscord/zapret/issues/new/choose"><img alt="Вопросы и баги" src="https://img.shields.io/badge/Вопросы_и_баги-GitHub-181717?style=for-the-badge&logo=github&logoColor=white"></a>
 </p>
 
+<p align="center">
+  <a href="https://github.com/youtubediscord/zapret/stargazers"><img alt="Звёзды на GitHub" src="https://img.shields.io/github/stars/youtubediscord/zapret?style=for-the-badge&logo=github&color=FFD700&label=Звёзды"></a>
+  <a href="https://github.com/youtubediscord/zapret/releases"><img alt="Всего скачиваний" src="https://img.shields.io/github/downloads/youtubediscord/zapret/total?style=for-the-badge&logo=github&color=2EA043&label=Скачиваний"></a>
+  <a href="https://github.com/youtubediscord/zapret/releases/latest"><img alt="Последний релиз" src="https://img.shields.io/github/v/release/youtubediscord/zapret?style=for-the-badge&logo=github&color=0969DA&label=Релиз"></a>
+  <a href="https://github.com/youtubediscord/zapret/commits"><img alt="Последний коммит" src="https://img.shields.io/github/last-commit/youtubediscord/zapret?style=for-the-badge&logo=github&color=8250DF&label=Обновлено"></a>
+</p>
+
 Один из самых (_если не самый_) популярных GUI лаунчеров для программы Запрет.
 
 Мы собрали и продолжаем собирать свыше **200 стратегий** обхода блокировок для Discord и YouTube. **Вы можете добавить свою Если напишите нам в Issues!** 
