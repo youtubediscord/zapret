@@ -37,7 +37,7 @@
 <img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/7a32230e-95fc-4b29-8a8b-c5d88fe0750e" />
 
 > [!IMPORTANT]  
-> Есть вопросы? Задай их здесь на нашем [Telegram канале](https://t.me/bypassblock) или же в [группе](https://t.me/youtubenotwork) или [Discord](https://discord.gg/kkcBDG2uws)
+> Есть вопросы? Задай их здесь на нашем [Telegram канале](https://telegram.me/bypassblock) или же в [группе](https://telegram.me/youtubenotwork) или [Discord](https://discord.gg/kkcBDG2uws)
 
 > [!CAUTION]  
 > Совсем никак не работает Запрет?
