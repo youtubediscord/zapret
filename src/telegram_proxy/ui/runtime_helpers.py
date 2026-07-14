@@ -63,6 +63,7 @@ def apply_upstream_preset_ui(
     upstream_mode_toggle,
     upstream_udp_toggle,
     index: int,
+    upstream_runtime_state_label=None,
 ) -> str:
     upstream_enabled = upstream_toggle.isChecked()
     preset = upstream_catalog.preset_at(index)
@@ -71,6 +72,8 @@ def apply_upstream_preset_ui(
     is_mtproxy = bool(preset is not None and upstream_catalog.is_mtproxy(index))
 
     upstream_preset_row.setVisible(upstream_enabled and has_bundled_presets)
+    if upstream_runtime_state_label is not None:
+        upstream_runtime_state_label.setVisible(upstream_enabled and not is_mtproxy)
     upstream_catalog_hint.setVisible(upstream_enabled and not has_bundled_presets)
     upstream_manual_widget.setVisible(upstream_enabled and is_manual)
     mtproxy_action_widget.setVisible(upstream_enabled and is_mtproxy)
@@ -82,6 +85,41 @@ def apply_upstream_preset_ui(
     if preset is not None and is_mtproxy:
         return str(preset.get("id") or "").strip()
     return ""
+
+
+def format_upstream_runtime_state(state) -> str:
+    selected = str(getattr(state, "selected_name", "") or "").strip() or "не выбран"
+    active = str(getattr(state, "active_name", "") or "").strip()
+    mode = str(getattr(state, "state", "unavailable") or "unavailable")
+    if mode == "primary":
+        text = f"Выбрано: {selected} · Сейчас используется: {active or selected}"
+    elif mode == "fallback":
+        text = f"Выбрано: {selected} · Сейчас используется: {active or 'резервный сервер'} (резерв)"
+    elif mode == "checking_primary":
+        if active:
+            reserve = " (резерв)" if active != selected else ""
+            text = (
+                f"Выбрано: {selected} · Сейчас используется: {active}{reserve} "
+                "· Проверяем основной сервер"
+            )
+        else:
+            text = f"Выбрано: {selected} · Сейчас: проверяем основной сервер"
+    else:
+        text = f"Выбрано: {selected} · Сейчас: сервер временно недоступен"
+    queued = max(0, int(getattr(state, "queued_connections", 0) or 0))
+    if queued:
+        text += f" · В очереди: {queued}"
+    return text
+
+
+def apply_upstream_runtime_state(label, state) -> None:
+    if label is None or state is None:
+        return
+    text = format_upstream_runtime_state(state)
+    label.setText(text)
+    set_state_text(label, f"Состояние внешнего SOCKS: {text}")
+    reason = str(getattr(state, "reason", "") or "").strip()
+    set_tooltip(label, reason or "Фактический SOCKS-сервер, который сейчас использует Telegram Proxy.")
 
 
 def apply_ui_texts(

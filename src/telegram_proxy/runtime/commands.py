@@ -171,6 +171,19 @@ def save_settings_action(
     import telegram_proxy.config.settings as telegram_proxy_settings
 
     action_name = str(action or "").strip()
+    if action_name.startswith("upstream") or action_name == "manual_upstream":
+        try:
+            from log.log import log
+
+            if action_name == "upstream_preset":
+                detail = preset_id
+            elif action_name == "manual_upstream":
+                detail = f"{host}:{port}"
+            else:
+                detail = f"enabled={enabled}"
+            log(f"Telegram Proxy: сохранение настройки {action_name} ({detail})", "INFO")
+        except Exception:
+            pass
     if action_name == "host":
         return telegram_proxy_settings.set_host(host)
     if action_name == "port":

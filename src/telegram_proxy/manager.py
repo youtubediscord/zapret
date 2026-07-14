@@ -9,6 +9,7 @@ from typing import Optional, Callable
 
 from telegram_proxy import TelegramProxyRuntime
 from telegram_proxy.wss_proxy import CloudflareFallbackConfig, ProxyStats, UpstreamProxyConfig
+from telegram_proxy.proxy.upstream_controller import UpstreamRuntimeSnapshot
 from telegram_proxy.proxy_logger import get_proxy_logger
 
 _shared_proxy_manager: Optional["TelegramProxyManager"] = None
@@ -19,16 +20,17 @@ class TelegramProxyManager(QThread):
 
     Signals:
         status_changed(bool)      — emitted when proxy starts/stops
-        upstream_selected(str,str) — emitted when bundled SOCKS fallback proves working
+        upstream_state_changed(object) — immutable active SOCKS state
     """
 
     status_changed = pyqtSignal(bool)
-    upstream_selected = pyqtSignal(str, str)
+    upstream_state_changed = pyqtSignal(object)
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self._runtime: Optional[TelegramProxyRuntime] = None
         self._proxy_logger = get_proxy_logger()
+        self._upstream_state: Optional[UpstreamRuntimeSnapshot] = None
 
     @property
     def is_running(self) -> bool:
@@ -39,6 +41,15 @@ class TelegramProxyManager(QThread):
     def stats(self) -> Optional[ProxyStats]:
         c = self._runtime
         return c.stats if c else None
+
+    @property
+    def upstream_state(self) -> Optional[UpstreamRuntimeSnapshot]:
+        runtime = self._runtime
+        if runtime is not None:
+            state = runtime.upstream_state
+            if state is not None:
+                return state
+        return self._upstream_state
 
     @property
     def port(self) -> int:
@@ -76,7 +87,7 @@ class TelegramProxyManager(QThread):
             port=port,
             mode=mode,
             on_log=self._on_log,
-            on_upstream_selected=self._on_upstream_selected,
+            on_upstream_state=self._on_upstream_state,
             host=host,
             upstream_config=upstream_config,
             cloudflare_config=cloudflare_config,
@@ -113,6 +124,13 @@ class TelegramProxyManager(QThread):
             # Only clear if no new runtime was created during stop
             if self._runtime is runtime:
                 self._runtime = None
+
+    def apply_upstream_config(self, upstream_config: Optional[UpstreamProxyConfig]) -> bool:
+        """Горячая замена upstream-конфига без рестарта. False — прокси не запущен."""
+        runtime = self._runtime
+        if runtime is None:
+            return False
+        return runtime.apply_upstream_config(upstream_config)
 
     def restart_proxy(self, port: int = 1353, mode: str = "socks5", host: str = "127.0.0.1",
                       upstream_config: Optional[UpstreamProxyConfig] = None,
@@ -151,8 +169,9 @@ class TelegramProxyManager(QThread):
     def _on_log(self, msg: str) -> None:
         self._proxy_logger.log(msg)
 
-    def _on_upstream_selected(self, preset_id: str, preset_name: str) -> None:
-        self.upstream_selected.emit(str(preset_id or ""), str(preset_name or ""))
+    def _on_upstream_state(self, state: UpstreamRuntimeSnapshot) -> None:
+        self._upstream_state = state
+        self.upstream_state_changed.emit(state)
 
 
 def get_proxy_manager() -> TelegramProxyManager:

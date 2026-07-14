@@ -19,6 +19,7 @@ from dataclasses import dataclass
 from typing import Optional, Callable
 
 from telegram_proxy.wss_proxy import CloudflareFallbackConfig, TelegramWSProxy, ProxyStats, UpstreamProxyConfig
+from telegram_proxy.proxy.upstream_controller import UpstreamRuntimeSnapshot
 
 log = logging.getLogger("tg_proxy")
 
@@ -106,7 +107,7 @@ class TelegramProxyRuntime:
         port: int = DEFAULT_PORT,
         mode: str = "socks5",
         on_log: Optional[Callable[[str], None]] = None,
-        on_upstream_selected: Optional[Callable[[str, str], None]] = None,
+        on_upstream_state: Optional[Callable[[UpstreamRuntimeSnapshot], None]] = None,
         host: str = "127.0.0.1",
         upstream_config: Optional[UpstreamProxyConfig] = None,
         cloudflare_config: Optional[CloudflareFallbackConfig] = None,
@@ -120,7 +121,7 @@ class TelegramProxyRuntime:
         self._port = port
         self._mode = mode
         self._on_log = on_log
-        self._on_upstream_selected = on_upstream_selected
+        self._on_upstream_state = on_upstream_state
         self._host = host
         self._upstream_config = upstream_config
         self._cloudflare_config = cloudflare_config
@@ -142,6 +143,11 @@ class TelegramProxyRuntime:
     @property
     def stats(self) -> Optional[ProxyStats]:
         return self._proxy.stats if self._proxy else None
+
+    @property
+    def upstream_state(self) -> Optional[UpstreamRuntimeSnapshot]:
+        proxy = self._proxy
+        return proxy.upstream_state if proxy else None
 
     @property
     def port(self) -> int:
@@ -168,7 +174,7 @@ class TelegramProxyRuntime:
             port=self._port,
             mode=self._mode,
             on_log=self._on_log,
-            on_upstream_selected=self._on_upstream_selected,
+            on_upstream_state=self._on_upstream_state,
             host=self._host,
             upstream_config=self._upstream_config,
             cloudflare_config=self._cloudflare_config,
@@ -251,6 +257,23 @@ class TelegramProxyRuntime:
             self._fake_tls_domain = str(fake_tls_domain or "")
         if proxy_protocol is not None:
             self._proxy_protocol = bool(proxy_protocol)
+
+    def apply_upstream_config(self, upstream_config: Optional[UpstreamProxyConfig]) -> bool:
+        """Горячая замена upstream-конфига в работающем прокси.
+
+        Возвращает True, если конфиг передан в loop прокси; False — если
+        прокси не запущен (тогда нужен обычный start с новыми настройками).
+        """
+        loop = self._loop
+        proxy = self._proxy
+        if loop is None or proxy is None or not self.is_running:
+            return False
+        self._upstream_config = upstream_config
+        try:
+            loop.call_soon_threadsafe(proxy.apply_upstream_config, upstream_config)
+        except RuntimeError:
+            return False
+        return True
 
     def restart(self) -> bool:
         """Restart with current config."""

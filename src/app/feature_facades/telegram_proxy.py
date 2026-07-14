@@ -114,6 +114,15 @@ class TelegramProxyFeature:
             parent=parent,
         )
 
+    def create_upstream_apply_worker(self, *, manager, parent=None):
+        from telegram_proxy.runtime.workers import TelegramProxyUpstreamApplyWorker
+
+        return TelegramProxyUpstreamApplyWorker(
+            manager=manager,
+            build_upstream_config=self.build_upstream_config,
+            parent=parent,
+        )
+
     def create_stop_runtime_worker(
         self,
         *,

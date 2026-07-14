@@ -35,9 +35,6 @@ class ProxyStats:
     cloudflare_worker_pool_misses: int = 0
     passthrough_connections: int = 0
     upstream_connections: int = 0
-    active_upstream_preset_id: str = ""
-    active_upstream_name: str = ""
-    active_upstream_host: str = ""
     recv_zero_count: int = 0
     recv_zero_per_dc: dict = field(default_factory=dict)
     http_rejected: int = 0

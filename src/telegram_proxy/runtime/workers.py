@@ -96,6 +96,28 @@ class TelegramProxyStartWorker(QThread):
         self.completed.emit(bool(ok))
 
 
+class TelegramProxyUpstreamApplyWorker(QThread):
+    """Горячая замена upstream-конфига в работающем прокси (без рестарта)."""
+
+    completed = pyqtSignal(bool)
+
+    def __init__(self, *, manager, build_upstream_config, parent=None):
+        super().__init__(parent)
+        self._manager = manager
+        self._build_upstream_config = build_upstream_config
+
+    def run(self) -> None:
+        applied = False
+        try:
+            config = self._build_upstream_config()
+            applied = bool(self._manager.apply_upstream_config(config))
+            if applied:
+                log("Telegram Proxy: upstream-конфиг применён без рестарта", "INFO")
+        except Exception as exc:
+            log(f"TelegramProxyUpstreamApplyWorker: ошибка применения upstream: {exc}", "WARNING")
+        self.completed.emit(applied)
+
+
 class TelegramProxyStopRuntimeWorker(QThread):
     stopped = pyqtSignal()
 

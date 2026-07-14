@@ -794,8 +794,8 @@ class TelegramProxyMTProxyCoreTests(unittest.TestCase):
         async def fake_relay(*_args, **_kwargs):
             return (0, 1)
 
-        async def run_three(proxy: TelegramWSProxy):
-            for index in range(3):
+        async def run_seven(proxy: TelegramWSProxy):
+            for index in range(7):
                 await proxy._mtproxy_upstream_proxy_connect(
                     object(),
                     object(),
@@ -833,10 +833,10 @@ class TelegramProxyMTProxyCoreTests(unittest.TestCase):
             patch("telegram_proxy.wss_proxy.socks5.connect_via_socks5", side_effect=fake_connect),
             patch("telegram_proxy.wss_proxy.relay_mtproxy_tcp", side_effect=fake_relay),
         ):
-            asyncio.run(run_three(proxy))
+            asyncio.run(run_seven(proxy))
 
-        self.assertEqual(seen_hosts, ["slow.proxy", "slow.proxy", "fast.proxy"])
-        self.assertIn("temporarily deprioritized after recv=0", "\n".join(logs))
+        self.assertEqual(seen_hosts, ["slow.proxy"] * 6 + ["fast.proxy"])
+        self.assertIn("шесть соединений без ответных данных", "\n".join(logs))
 
     def test_mtproxy_tcp_fallback_tries_upstream_after_direct_connect_failure(self) -> None:
         import asyncio

@@ -19,7 +19,10 @@ class TelegramProxyUiTextsTests(unittest.TestCase):
             "Откройте ссылку. Telegram сам предложит добавить прокси. "
             "Если Telegram не открылся, скопируйте ссылку и отправьте её себе в чат.",
         )
-        self.assertEqual(plan.setup_fallback, "")
+        self.assertEqual(
+            plan.setup_fallback,
+            "Если ничего не помогает — скачайте Zastogram.",
+        )
         self.assertEqual(plan.upstream_title, "Дополнительно")
         self.assertEqual(plan.upstream_toggle_title, "Внешний прокси")
         self.assertEqual(
@@ -36,14 +39,14 @@ class TelegramProxyUiTextsTests(unittest.TestCase):
         self.assertNotIn("upstream", joined)
         self.assertNotIn("WSS relay", joined)
 
-    def test_setup_hint_is_not_added_as_second_visible_line(self) -> None:
+    def test_setup_hint_is_shown_under_setup_buttons(self) -> None:
         import inspect
         from telegram_proxy.ui import settings_build
 
         source = inspect.getsource(settings_build.build_telegram_proxy_settings_panel)
 
         self.assertIn("setup_desc_label", source)
-        self.assertNotIn("layout.addWidget(setup_fallback_label)", source)
+        self.assertIn("layout.addWidget(setup_fallback_label)", source)
 
     def test_cloudflare_settings_panel_exposes_test_and_copy_actions(self) -> None:
         import inspect

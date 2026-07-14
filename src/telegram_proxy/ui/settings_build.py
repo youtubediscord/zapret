@@ -31,6 +31,7 @@ class TelegramProxySettingsPanelWidgets:
     setup_card: object
     setup_open_btn: object
     setup_copy_btn: object
+    setup_zastogram_btn: object
     settings_card: object
     settings_host_row: object
     host_label: object
@@ -54,6 +55,7 @@ class TelegramProxySettingsPanelWidgets:
     upstream_toggle: object
     upstream_catalog: object
     upstream_preset_row: object
+    upstream_runtime_state_label: object
     upstream_catalog_hint: object
     upstream_manual_widget: object
     upstream_host_label: object
@@ -112,6 +114,7 @@ class TelegramProxyAdvancedSettingsWidgets:
     upstream_toggle: object
     upstream_catalog: object
     upstream_preset_row: object
+    upstream_runtime_state_label: object
     upstream_catalog_hint: object
     upstream_manual_widget: object
     upstream_host_label: object
@@ -199,6 +202,7 @@ def build_telegram_proxy_settings_panel(
     on_toggle_proxy,
     on_open_in_telegram,
     on_copy_link,
+    on_open_zastogram,
     on_open_mtproxy,
     on_generate_mtproxy_secret,
     on_copy_fake_tls_nginx_config,
@@ -261,9 +265,24 @@ def build_telegram_proxy_settings_panel(
     setup_copy_btn.clicked.connect(on_copy_link)
     setup_card.add_button(setup_copy_btn)
 
+    setup_zastogram_btn = push_button_cls("Zastogram", icon=FluentIcon.GITHUB)
+    setup_zastogram_btn.setMinimumWidth(132)
+    set_tooltip(setup_zastogram_btn, "Открыть страницу ZaStoGram Desktop на GitHub.")
+    set_control_accessibility(
+        setup_zastogram_btn,
+        name="Открыть ZaStoGram Desktop на GitHub",
+        description="Открывает страницу проекта ZaStoGram Desktop на GitHub в браузере.",
+    )
+    set_state_text(setup_zastogram_btn, "Открыть ZaStoGram Desktop на GitHub")
+    setup_zastogram_btn.clicked.connect(on_open_zastogram)
+    setup_card.add_button(setup_zastogram_btn)
+
     layout.addWidget(setup_card)
 
-    setup_fallback_label = None
+    setup_fallback_label = caption_label_cls(text.setup_fallback)
+    setup_fallback_label.setWordWrap(True)
+    setup_fallback_label.setVisible(bool(text.setup_fallback))
+    layout.addWidget(setup_fallback_label)
 
     settings_card = setting_card_group_cls(text.settings_title, content_parent)
     settings_host_row = QWidget(settings_card)
@@ -356,6 +375,7 @@ def build_telegram_proxy_settings_panel(
         setup_card=setup_card,
         setup_open_btn=setup_open_btn,
         setup_copy_btn=setup_copy_btn,
+        setup_zastogram_btn=setup_zastogram_btn,
         settings_card=settings_card,
         settings_host_row=settings_host_row,
         host_label=host_label,
@@ -379,6 +399,7 @@ def build_telegram_proxy_settings_panel(
         upstream_toggle=None,
         upstream_catalog=upstream_catalog,
         upstream_preset_row=None,
+        upstream_runtime_state_label=None,
         upstream_catalog_hint=None,
         upstream_manual_widget=None,
         upstream_host_label=None,
@@ -545,6 +566,17 @@ def build_telegram_proxy_advanced_settings_panel(
     )
     upstream_preset_row.combo.setFixedWidth(250)
     upstream_card.addSettingCard(upstream_preset_row)
+
+    upstream_runtime_state_label = caption_label_cls("Сейчас используется: будет выбран после запуска")
+    upstream_runtime_state_label.setWordWrap(True)
+    upstream_runtime_state_label.setContentsMargins(16, 0, 16, 4)
+    upstream_runtime_state_label.setVisible(False)
+    preset_index = upstream_card.vBoxLayout.indexOf(upstream_preset_row)
+    insert_widget_into_setting_card_group(
+        upstream_card,
+        preset_index + 1 if preset_index >= 0 else 2,
+        upstream_runtime_state_label,
+    )
 
     upstream_catalog_hint = caption_label_cls(text.upstream_catalog_missing)
     upstream_catalog_hint.setWordWrap(True)
@@ -844,6 +876,7 @@ def build_telegram_proxy_advanced_settings_panel(
         upstream_toggle=upstream_toggle,
         upstream_catalog=upstream_catalog,
         upstream_preset_row=upstream_preset_row,
+        upstream_runtime_state_label=upstream_runtime_state_label,
         upstream_catalog_hint=upstream_catalog_hint,
         upstream_manual_widget=upstream_manual_widget,
         upstream_host_label=upstream_host_label,

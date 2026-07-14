@@ -41,6 +41,7 @@ from telegram_proxy.ui.proxy_runtime_workflow import (
 from telegram_proxy.ui.runtime_helpers import (
     apply_ui_texts,
     apply_upstream_preset_ui,
+    apply_upstream_runtime_state,
     refresh_pivot_texts,
     refresh_status_texts,
 )
@@ -90,6 +91,8 @@ from qfluentwidgets import (
 # How often (ms) the GUI reads new log lines from the ring buffer
 _LOG_REFRESH_MS = 500
 
+_ZASTOGRAM_URL = "https://github.com/youtubediscord/ZaStoGram_desktop"
+
 
 
 class _StatusDot(QWidget):
@@ -129,7 +132,8 @@ class TelegramProxyPage(BasePage):
         self._log_timer = None
         self._stats_timer = None
         self._diag_poll_timer = None
-        self._upstream_restart_timer = None
+        self._restart_debounce_timer = None
+        self._upstream_apply_debounce_timer = None
         self._diag_runtime = OneShotWorkerRuntime()
         self._proxy_start_runtime = OneShotWorkerRuntime()
         self._proxy_start_state = TelegramProxyPageWorkerState(self._proxy_start_runtime)
@@ -146,6 +150,8 @@ class TelegramProxyPage(BasePage):
         self._ensure_hosts_state = TelegramProxyPageWorkerState(self._ensure_hosts_runtime)
         self._settings_save_runtime = OneShotWorkerRuntime()
         self._settings_save_state = TelegramProxyPageQueuedWorkerState(self._settings_save_runtime)
+        self._upstream_apply_runtime = OneShotWorkerRuntime()
+        self._upstream_apply_state = TelegramProxyPageWorkerState(self._upstream_apply_runtime)
         self._open_log_file_runtime = OneShotWorkerRuntime()
         self._open_log_file_state = TelegramProxyPageQueuedWorkerState(self._open_log_file_runtime)
         self._external_link_runtime = OneShotWorkerRuntime()
@@ -356,6 +362,7 @@ class TelegramProxyPage(BasePage):
             on_toggle_proxy=self._on_toggle_proxy,
             on_open_in_telegram=self._on_open_in_telegram,
             on_copy_link=self._on_copy_link,
+            on_open_zastogram=self._on_open_zastogram,
             on_open_mtproxy=self._on_open_mtproxy,
             on_generate_mtproxy_secret=self._on_generate_mtproxy_secret,
             on_copy_fake_tls_nginx_config=self._on_copy_fake_tls_nginx_config,
@@ -376,6 +383,7 @@ class TelegramProxyPage(BasePage):
         self._setup_card = widgets.setup_card
         self._setup_open_btn = widgets.setup_open_btn
         self._setup_copy_btn = widgets.setup_copy_btn
+        self._setup_zastogram_btn = widgets.setup_zastogram_btn
         self._settings_card = widgets.settings_card
         self._settings_host_row = widgets.settings_host_row
         self._host_label = widgets.host_label
@@ -399,6 +407,7 @@ class TelegramProxyPage(BasePage):
         self._upstream_toggle = widgets.upstream_toggle
         self._upstream_catalog = widgets.upstream_catalog
         self._upstream_preset_row = widgets.upstream_preset_row
+        self._upstream_runtime_state_label = widgets.upstream_runtime_state_label
         self._upstream_catalog_hint = widgets.upstream_catalog_hint
         self._upstream_manual_widget = widgets.upstream_manual_widget
         self._upstream_host_label = widgets.upstream_host_label
@@ -457,6 +466,7 @@ class TelegramProxyPage(BasePage):
         self._upstream_toggle = widgets.upstream_toggle
         self._upstream_catalog = widgets.upstream_catalog
         self._upstream_preset_row = widgets.upstream_preset_row
+        self._upstream_runtime_state_label = widgets.upstream_runtime_state_label
         self._upstream_catalog_hint = widgets.upstream_catalog_hint
         self._upstream_manual_widget = widgets.upstream_manual_widget
         self._upstream_host_label = widgets.upstream_host_label
@@ -531,6 +541,7 @@ class TelegramProxyPage(BasePage):
         self._connect_advanced_signals()
         self._apply_ui_texts()
         self._apply_advanced_settings_state(self._current_settings_state)
+        self._on_upstream_state_changed(self._proxy_manager().upstream_state)
         self._log_ui_timing("telegram_proxy_ui.advanced_settings.build", started_at)
 
     def _build_logs_panel(self, layout: QVBoxLayout):
@@ -728,6 +739,7 @@ class TelegramProxyPage(BasePage):
             upstream_mode_toggle=self._upstream_mode_toggle,
             upstream_udp_toggle=self._upstream_udp_toggle,
             index=index,
+            upstream_runtime_state_label=self._upstream_runtime_state_label,
         )
         enable_setting_card_group_auto_height(self._upstream_card)
 
@@ -753,7 +765,7 @@ class TelegramProxyPage(BasePage):
     def _connect_signals(self):
         mgr = self._proxy_manager()
         mgr.status_changed.connect(self._on_status_changed)
-        mgr.upstream_selected.connect(self._on_upstream_selected)
+        mgr.upstream_state_changed.connect(self._on_upstream_state_changed)
 
         self._port_spin.valueChanged.connect(self._on_port_changed)
         self._host_edit.editingFinished.connect(self._on_host_changed)
@@ -763,6 +775,7 @@ class TelegramProxyPage(BasePage):
 
         # Sync initial state — proxy may already be running (e.g., started from tray)
         self._on_status_changed(mgr.is_running)
+        self._on_upstream_state_changed(mgr.upstream_state)
 
     def _connect_advanced_signals(self) -> None:
         if self.__dict__.get("_advanced_signals_connected", False):
@@ -1183,7 +1196,9 @@ class TelegramProxyPage(BasePage):
             manager=mgr,
             restarting=bool(getattr(self, "_restarting", False)),
             starting=bool(getattr(self, "_starting", False)),
-            set_restarting=lambda value: setattr(self, "_restarting", value),
+            # set_restarting(False) здесь = отмена рестарта кнопкой: цикл
+            # прерывается, поэтому отложенный повтор рестарта тоже сбрасываем.
+            set_restarting=lambda value: self._set_restarting_from_toggle(value),
             stop_proxy=self._stop_proxy,
             start_proxy=self._start_proxy,
             request_proxy_enabled_save=lambda value: self._request_settings_save(
@@ -1191,6 +1206,11 @@ class TelegramProxyPage(BasePage):
                 enabled=bool(value),
             ),
         )
+
+    def _set_restarting_from_toggle(self, value: bool) -> None:
+        self._restarting = bool(value)
+        if not value:
+            self.__dict__.pop("_restart_again_pending", None)
 
     def _restart_if_running(self):
         if self.__dict__.get("_cleanup_in_progress", False):
@@ -1242,13 +1262,75 @@ class TelegramProxyPage(BasePage):
             cleanup_in_progress=self._cleanup_in_progress,
         )
 
-    def _schedule_upstream_restart(self):
-        """Debounced proxy restart for SpinBox valueChanged signals."""
-        self._upstream_restart_timer = schedule_upstream_restart(
+    def _schedule_restart(self):
+        """Debounced полный рестарт для SpinBox (pool_size/buffer_kb)."""
+        self._restart_debounce_timer = schedule_upstream_restart(
             page=self,
-            timer=self._upstream_restart_timer,
+            timer=self._restart_debounce_timer,
             restart_callback=self._restart_if_running,
             delay_ms=800,
+        )
+
+    def _schedule_upstream_apply(self):
+        """Debounced горячая замена upstream для SpinBox (порт внешнего прокси)."""
+        self._upstream_apply_debounce_timer = schedule_upstream_restart(
+            page=self,
+            timer=self._upstream_apply_debounce_timer,
+            restart_callback=self._apply_upstream_hot_swap,
+            delay_ms=800,
+        )
+
+    def _apply_upstream_hot_swap(self):
+        """Горячая замена upstream-конфига без рестарта прокси.
+
+        Если прокси не запущен — ничего не делаем: настройки подхватятся
+        при следующем старте. При ошибке применения — fallback на рестарт.
+        """
+        if self.__dict__.get("_cleanup_in_progress", False):
+            return
+        mgr = self._proxy_manager()
+        if not mgr.is_running:
+            return
+        self._worker_state("_upstream_apply_state", "_upstream_apply_runtime").start_or_mark_pending(
+            self._start_upstream_apply_worker
+        )
+
+    def _start_upstream_apply_worker(self) -> None:
+        if self.__dict__.get("_cleanup_in_progress", False):
+            return
+        self._worker_state("_upstream_apply_state", "_upstream_apply_runtime").pending = False
+        mgr = self._proxy_manager()
+
+        def bind_worker(worker) -> None:
+            worker.completed.connect(self._on_upstream_apply_completed)
+
+        self._upstream_apply_runtime.start_qthread_worker(
+            worker_factory=lambda request_id: self._telegram_proxy.create_upstream_apply_worker(
+                manager=mgr,
+                parent=self,
+            ),
+            bind_worker=bind_worker,
+            on_finished=self._on_upstream_apply_worker_finished,
+        )
+
+    @pyqtSlot(bool)
+    def _on_upstream_apply_completed(self, applied: bool) -> None:
+        if self._cleanup_in_progress:
+            return
+        if not applied and self._proxy_manager().is_running:
+            # Горячее применение не удалось — надёжный путь через рестарт.
+            self._restart_if_running()
+
+    def _on_upstream_apply_worker_finished(self, _worker) -> None:
+        if not self._is_current_worker_finish(self.__dict__.get("_upstream_apply_runtime"), _worker):
+            return
+        self._worker_state("_upstream_apply_state", "_upstream_apply_runtime").schedule_after_finish(
+            _worker,
+            is_current_worker_finish=self._is_current_worker_finish,
+            schedule_next=lambda: self._worker_state(
+                "_upstream_apply_state", "_upstream_apply_runtime"
+            ).schedule_start(QTimer.singleShot, self._start_upstream_apply_worker),
+            cleanup_in_progress=self._cleanup_in_progress,
         )
 
     def create_settings_save_worker(self, request_id: int, *, action: str, context_extra: dict | None = None, **kwargs):
@@ -1338,12 +1420,7 @@ class TelegramProxyPage(BasePage):
             return
         if bool(context.get("update_manual")):
             self._update_manual_instructions()
-        restart = str(getattr(self, "_settings_save_restart_pending", "") or "")
-        self._settings_save_restart_pending = ""
-        if restart == "schedule":
-            self._schedule_upstream_restart()
-        elif restart == "now":
-            self._restart_if_running()
+        self._dispatch_pending_restart()
 
     def _on_settings_save_failed(self, request_id: int, action: str, error: str, _context) -> None:
         if not self._settings_save_runtime.is_current(
@@ -1353,8 +1430,23 @@ class TelegramProxyPage(BasePage):
             return
         if self._queued_worker_state("_settings_save_state", "_settings_save_runtime").has_pending():
             return
-        self._settings_save_restart_pending = ""
         log(f"{self.__class__.__name__}: не удалось сохранить настройку Telegram Proxy ({action}): {error}", "WARNING")
+        # Рестарт, накопленный от предыдущих успешных сохранений, не теряем:
+        # конфиг уже изменён на диске, работающий прокси всё ещё на старом.
+        self._dispatch_pending_restart()
+
+    def _dispatch_pending_restart(self) -> None:
+        """Выполнить накопленное действие применения настроек и сбросить его."""
+        restart = str(getattr(self, "_settings_save_restart_pending", "") or "")
+        self._settings_save_restart_pending = ""
+        if restart == "schedule":
+            self._schedule_restart()
+        elif restart == "upstream_schedule":
+            self._schedule_upstream_apply()
+        elif restart == "upstream":
+            self._apply_upstream_hot_swap()
+        elif restart == "now":
+            self._restart_if_running()
 
     def _on_settings_save_worker_finished(self, _worker) -> None:
         state = self._queued_worker_state("_settings_save_state", "_settings_save_runtime")
@@ -1435,6 +1527,10 @@ class TelegramProxyPage(BasePage):
                 enabled=bool(value),
             ),
         )
+        if not getattr(self, "_start_result", False):
+            log("Telegram Proxy: не удалось запустить прокси после рестарта/старта", "WARNING")
+        if self.__dict__.pop("_restart_again_pending", False) and getattr(self, "_start_result", False):
+            QTimer.singleShot(0, self._restart_if_running)
 
     def _on_proxy_start_worker_finished(self, _worker) -> None:
         if not self._is_current_worker_finish(self.__dict__.get("_proxy_start_runtime"), _worker):
@@ -1618,6 +1714,7 @@ class TelegramProxyPage(BasePage):
                 self._stats_timer.stop()
             return
         self._apply_stats(mgr.stats)
+        self._on_upstream_state_changed(mgr.upstream_state)
 
     def _apply_stats(self, stats):
         if stats is None:
@@ -1753,6 +1850,7 @@ class TelegramProxyPage(BasePage):
             self._apply_upstream_preset_ui(self._upstream_preset_row.combo.currentIndex())
         else:
             self._upstream_preset_row.setVisible(False)
+            self._upstream_runtime_state_label.setVisible(False)
             self._upstream_catalog_hint.setVisible(False)
             self._upstream_manual_widget.setVisible(False)
             self._mtproxy_action_widget.setVisible(False)
@@ -2051,30 +2149,16 @@ class TelegramProxyPage(BasePage):
 
     # -- Upstream proxy handlers --
 
-    @pyqtSlot(str, str)
-    def _on_upstream_selected(self, preset_id: str, preset_name: str) -> None:
+    @pyqtSlot(object)
+    def _on_upstream_state_changed(self, state) -> None:
         if self.__dict__.get("_cleanup_in_progress", False):
             return
-        preset_id = str(preset_id or "").strip()
-        if not preset_id:
+        if state is None:
             return
-
-        catalog = self.__dict__.get("_upstream_catalog")
-        choices = tuple(getattr(catalog, "choices", ()) or ())
-        target_index = -1
-        preset = None
-        for index, candidate in enumerate(choices):
-            if str(candidate.get("id") or "").strip() == preset_id:
-                target_index = index
-                preset = candidate
-                break
-        if target_index < 0 or preset is None:
+        label = self.__dict__.get("_upstream_runtime_state_label")
+        if label is None:
             return
-        if catalog.is_manual(target_index) or catalog.is_mtproxy(target_index):
-            return
-
-        display_name = str(preset_name or preset.get("name") or preset_id).strip()
-        self._append_log_line(f"Telegram Proxy: сейчас используется внешний прокси: {display_name}")
+        apply_upstream_runtime_state(label, state)
 
     def _on_upstream_changed(self, checked: bool):
         handle_upstream_toggle(
@@ -2082,7 +2166,7 @@ class TelegramProxyPage(BasePage):
             request_upstream_enabled=lambda value: self._request_settings_save(
                 "upstream_enabled",
                 enabled=bool(value),
-                restart="now",
+                restart="upstream",
             ),
             apply_upstream_preset_ui=self._apply_upstream_preset_ui,
             current_index=self._upstream_preset_row.combo.currentIndex(),
@@ -2090,7 +2174,7 @@ class TelegramProxyPage(BasePage):
             request_upstream_preset_save=lambda preset_id: self._request_settings_save(
                 "upstream_preset",
                 preset_id=preset_id,
-                restart="now",
+                restart="upstream",
             ),
         )
 
@@ -2107,7 +2191,7 @@ class TelegramProxyPage(BasePage):
             request_upstream_preset_save=lambda preset_id: self._request_settings_save(
                 "upstream_preset",
                 preset_id=preset_id,
-                restart="now",
+                restart="upstream",
             ),
             request_manual_upstream_save=lambda host, port, user, password: self._request_settings_save(
                 "manual_upstream",
@@ -2115,7 +2199,7 @@ class TelegramProxyPage(BasePage):
                 port=port,
                 user=user,
                 password=password,
-                restart="now",
+                restart="upstream",
             ),
         )
 
@@ -2126,7 +2210,7 @@ class TelegramProxyPage(BasePage):
             port=self._upstream_port_spin.value(),
             user=self._upstream_user_edit.text(),
             password=self._upstream_pass_edit.text(),
-            restart="now",
+            restart="upstream",
         )
 
     def _on_upstream_port_changed(self, port: int):
@@ -2136,7 +2220,7 @@ class TelegramProxyPage(BasePage):
             port=port,
             user=self._upstream_user_edit.text(),
             password=self._upstream_pass_edit.text(),
-            restart="schedule",
+            restart="upstream_schedule",
         )
 
     def _on_upstream_user_changed(self):
@@ -2146,7 +2230,7 @@ class TelegramProxyPage(BasePage):
             port=self._upstream_port_spin.value(),
             user=self._upstream_user_edit.text(),
             password=self._upstream_pass_edit.text(),
-            restart="now",
+            restart="upstream",
         )
 
     def _on_upstream_pass_changed(self):
@@ -2156,14 +2240,14 @@ class TelegramProxyPage(BasePage):
             port=self._upstream_port_spin.value(),
             user=self._upstream_user_edit.text(),
             password=self._upstream_pass_edit.text(),
-            restart="now",
+            restart="upstream",
         )
 
     def _on_upstream_mode_changed(self, checked: bool):
-        self._request_settings_save("upstream_mode", enabled=bool(checked), restart="now")
+        self._request_settings_save("upstream_mode", enabled=bool(checked), restart="upstream")
 
     def _on_upstream_udp_changed(self, checked: bool):
-        self._request_settings_save("upstream_udp_enabled", enabled=bool(checked), restart="now")
+        self._request_settings_save("upstream_udp_enabled", enabled=bool(checked), restart="upstream")
 
     def _on_open_mtproxy(self):
         """Open MTProxy deep link in browser."""
@@ -2203,6 +2287,14 @@ class TelegramProxyPage(BasePage):
             url,
             success_log=f"Opened deep link: {url}",
             error_prefix="Failed to open link",
+        )
+
+    def _on_open_zastogram(self):
+        """Open ZaStoGram Desktop GitHub page in browser."""
+        self._start_external_link_worker(
+            _ZASTOGRAM_URL,
+            success_log=f"Opened ZaStoGram page: {_ZASTOGRAM_URL}",
+            error_prefix="Failed to open ZaStoGram page",
         )
 
     def create_external_link_worker(self, *, url: str, success_log: str, error_prefix: str):
@@ -2489,6 +2581,13 @@ class TelegramProxyPage(BasePage):
             warning_prefix="telegram proxy settings save worker",
         )
         self._settings_save_runtime.cancel()
+        self._upstream_apply_runtime.stop(
+            blocking=False,
+            log_fn=log,
+            warning_prefix="telegram proxy upstream apply worker",
+        )
+        self._upstream_apply_runtime.cancel()
+        self._worker_state("_upstream_apply_state", "_upstream_apply_runtime").reset()
         self._proxy_start_runtime.stop(
             blocking=False,
             log_fn=log,
@@ -2524,12 +2623,15 @@ class TelegramProxyPage(BasePage):
         )
         self._cloudflare_check_runtime.cancel()
         self._worker_state("_cloudflare_check_state", "_cloudflare_check_runtime").reset()
-        if self._upstream_restart_timer is not None:
-            self._upstream_restart_timer.stop()
-            self._upstream_restart_timer.deleteLater()
-            self._upstream_restart_timer = None
+        for _timer_attr in ("_restart_debounce_timer", "_upstream_apply_debounce_timer"):
+            timer = getattr(self, _timer_attr, None)
+            if timer is not None:
+                timer.stop()
+                timer.deleteLater()
+                setattr(self, _timer_attr, None)
         self._queued_worker_state("_log_line_state", "_log_line_runtime").reset()
         self._queued_worker_state("_settings_save_state", "_settings_save_runtime").reset()
         self._settings_save_restart_pending = ""
+        self.__dict__.pop("_restart_again_pending", None)
         mgr = self._proxy_manager()
         mgr.cleanup()

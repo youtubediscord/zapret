@@ -64,16 +64,26 @@ def restart_proxy_if_running(
         running=bool(manager.is_running),
         restarting=bool(restarting),
     )
+    runtime = _page_runtime(page, "_restart_stop_runtime")
     if not plan.should_restart:
+        # Идёт цикл рестарта/старта: не дропаем запрос, а откладываем повтор,
+        # иначе сервер, выбранный во время рестарта, не применится.
+        if bool(restarting) or bool(getattr(page, "_starting", False)):
+            setattr(page, "_restart_again_pending", True)
+        return
+    if runtime.is_running():
+        setattr(page, "_restart_again_pending", True)
         return
 
     set_restarting(True)
     status_label.setText(plan.status_text)
     set_state_text(status_label, f"Статус Telegram Proxy: {plan.status_text}")
+    try:
+        from log.log import log
 
-    runtime = _page_runtime(page, "_restart_stop_runtime")
-    if runtime.is_running():
-        return
+        log("Telegram Proxy: перезапуск для применения настроек", "INFO")
+    except Exception:
+        pass
     runtime.start_qthread_worker(
         worker_factory=lambda request_id: _mark_worker_request_id(
             create_stop_runtime_worker(manager=manager, parent=page),

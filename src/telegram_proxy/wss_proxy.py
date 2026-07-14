@@ -19,6 +19,7 @@ The relay reads the DC id from the init packet and routes internally.
 """
 
 import asyncio
+import errno
 import logging
 import time
 from typing import Optional, Callable
@@ -67,12 +68,21 @@ from telegram_proxy.proxy.pool import (
 from telegram_proxy.proxy.relay import RELAY_BUFFER, relay_tcp, relay_wss
 from telegram_proxy.proxy.routing import (
     UpstreamProxyConfig,
-    UpstreamProxyEndpoint,
     check_relay_reachable,
     should_route_upstream,
 )
 from telegram_proxy.proxy.stats import ProxyStats
 from telegram_proxy.proxy.transport import RawWebSocket, WsHandshakeError, apply_socket_options
+from telegram_proxy.proxy.upstream_controller import UpstreamRuntimeSnapshot, endpoint_display_name
+from telegram_proxy.proxy.upstream_runtime import (
+    FULL_CONNECT_TIMEOUT,
+    OpenedUpstream,
+    UpstreamBusyError,
+    UpstreamConnectError,
+    UpstreamConnectionExecutor,
+    UpstreamStaleError,
+    UpstreamUnavailableError,
+)
 
 log = logging.getLogger("tg_proxy")
 
@@ -84,7 +94,7 @@ TCP_FALLBACK_CONNECT_TIMEOUT = 3.0
 
 # External SOCKS should still fail over faster than direct TCP, but real client
 # paths to bundled VPS nodes can occasionally need more than 3 seconds.
-UPSTREAM_CONNECT_TIMEOUT = 5.0
+UPSTREAM_CONNECT_TIMEOUT = FULL_CONNECT_TIMEOUT
 
 # DC fail cooldown (seconds)
 DC_FAIL_COOLDOWN = 10.0
@@ -92,14 +102,17 @@ DC_FAIL_COOLDOWN = 10.0
 # How long to wait for first server response before declaring DC blocked
 _RECV_ZERO_TIMEOUT = 8.0
 
-# How many empty upstream relays are enough to try the next bundled proxy first
-_UPSTREAM_ZERO_RECV_FAILS = 2
-_UPSTREAM_PARALLEL_ZERO_RECV_FAILS = 6
-_UPSTREAM_PENALTY_SECONDS = 60.0
-_UPSTREAM_PARALLEL_CONNECT_FAILS = 2
-_UPSTREAM_CONNECT_FAILURE_PENALTIES = (60.0, 180.0, 300.0)
 _WSS_ZERO_RECV_FAILS = 1
 _WSS_DOMAIN_PENALTY_SECONDS = 60.0
+
+# Коды «адрес уже используется» для повторного bind после рестарта.
+_ADDRESS_IN_USE_WINERRORS = frozenset({10048, 10013})
+
+
+def _is_address_in_use_error(exc: OSError) -> bool:
+    if isinstance(exc, OSError) and exc.errno == errno.EADDRINUSE:
+        return True
+    return getattr(exc, "winerror", None) in _ADDRESS_IN_USE_WINERRORS
 
 
 class _Socks5UdpRelayProtocol(asyncio.DatagramProtocol):
@@ -188,7 +201,7 @@ class TelegramWSProxy:
         port: int = 1353,
         mode: str = "socks5",
         on_log: Optional[Callable[[str], None]] = None,
-        on_upstream_selected: Optional[Callable[[str, str], None]] = None,
+        on_upstream_state: Optional[Callable[[UpstreamRuntimeSnapshot], None]] = None,
         host: str = "127.0.0.1",
         upstream_config: Optional[UpstreamProxyConfig] = None,
         cloudflare_config: Optional[CloudflareFallbackConfig] = None,
@@ -203,7 +216,7 @@ class TelegramWSProxy:
         self._mode = mode
         self._host = host
         self._on_log = on_log
-        self._on_upstream_selected = on_upstream_selected
+        self._on_upstream_state = on_upstream_state
         self._upstream = upstream_config or UpstreamProxyConfig()
         self._cloudflare = cloudflare_config or CloudflareFallbackConfig()
         self._cloudflare_domain_balancer = CloudflareDomainBalancer()
@@ -213,15 +226,14 @@ class TelegramWSProxy:
         self._buffer_size = max(4, min(4096, int(buffer_kb or 256))) * 1024
         self._fake_tls_domain = normalize_fake_tls_domain(fake_tls_domain)
         self._proxy_protocol = bool(proxy_protocol)
-        self._upstream_connect_semaphore: asyncio.Semaphore | None = None
-        self._http_upstream_connect_semaphore: asyncio.Semaphore | None = None
-        self._upstream_zero_recv_counts: dict[tuple[str, int, str, str, bool, str, bool], int] = {}
-        self._upstream_connect_failure_counts: dict[tuple[str, int, str, str, bool, str, bool], int] = {}
-        self._upstream_penalty_until: dict[tuple[str, int, str, str, bool, str, bool], float] = {}
-        self._upstream_active_counts: dict[tuple[str, int, str, str, bool, str, bool], int] = {}
+        self._upstream_runtime = UpstreamConnectionExecutor(
+            self._upstream,
+            connect_limit=self._pool_size,
+            on_snapshot=self._on_upstream_state,
+            on_log=self._log,
+        )
         self._wss_domain_penalty_until: dict[tuple[int, bool, str], float] = {}
         self._wss_zero_recv_counts: dict[tuple[int, bool, str], int] = {}
-        self._active_upstream_selected_key: tuple[str, tuple[str, int, str, str, bool, str, bool]] | None = None
         self._servers: list[asyncio.Server] = []
         self._tasks: set[asyncio.Task] = set()
         self._running = False
@@ -392,240 +404,8 @@ class TelegramWSProxy:
             parts.append(f"elapsed={elapsed:.1f}s")
         self._log(" ".join(parts))
 
-    def _get_upstream_connect_semaphore(self) -> asyncio.Semaphore:
-        semaphore = self._upstream_connect_semaphore
-        if semaphore is None:
-            semaphore = asyncio.Semaphore(max(1, self._pool_size or 1))
-            self._upstream_connect_semaphore = semaphore
-        return semaphore
-
-    def _get_http_upstream_connect_semaphore(self) -> asyncio.Semaphore:
-        semaphore = self._http_upstream_connect_semaphore
-        if semaphore is None:
-            semaphore = asyncio.Semaphore(max(1, min(2, self._pool_size or 1)))
-            self._http_upstream_connect_semaphore = semaphore
-        return semaphore
-
-    def _get_upstream_semaphore_for_target(self, upstream_port: int) -> asyncio.Semaphore:
-        if int(upstream_port or 0) == 80:
-            return self._get_http_upstream_connect_semaphore()
-        return self._get_upstream_connect_semaphore()
-
-    @staticmethod
-    def _upstream_endpoint_key(endpoint: UpstreamProxyEndpoint) -> tuple[str, int, str, str, bool, str, bool]:
-        return (
-            str(endpoint.host or "").strip().lower(),
-            int(endpoint.port or 0),
-            str(endpoint.username or ""),
-            str(endpoint.password or ""),
-            bool(endpoint.tls),
-            str(endpoint.tls_server_name or "").strip().lower(),
-            bool(endpoint.tls_verify),
-        )
-
-    def _upstream_penalty_active(self, endpoint: UpstreamProxyEndpoint, now: float | None = None) -> bool:
-        key = self._upstream_endpoint_key(endpoint)
-        until = self._upstream_penalty_until.get(key, 0.0)
-        if until <= 0:
-            return False
-        if until <= (time.monotonic() if now is None else now):
-            self._upstream_penalty_until.pop(key, None)
-            self._upstream_zero_recv_counts.pop(key, None)
-            return False
-        return True
-
-    def _upstream_candidate_order_key(
-        self,
-        index: int,
-        endpoint: UpstreamProxyEndpoint,
-        now: float,
-    ) -> tuple[int, int, int, int]:
-        penalty = self._upstream_penalty_active(endpoint, now)
-        selected_preset = bool(str(self._upstream.preset_id or "").strip())
-        if selected_preset:
-            if not penalty and index == 0:
-                group = 0
-            elif not penalty:
-                group = 1
-            elif endpoint.tls:
-                group = 2
-            else:
-                group = 3
-            key = self._upstream_endpoint_key(endpoint)
-            failures = self._upstream_connect_failure_counts.get(key, 0)
-            active = 0 if index == 0 else self._upstream_active_counts.get(key, 0)
-            return group, failures, active, index
-        if not penalty and (index == 0 or endpoint.tls):
-            group = 0
-        elif penalty and endpoint.tls:
-            group = 1
-        elif not penalty:
-            group = 2
-        else:
-            group = 3
-        key = self._upstream_endpoint_key(endpoint)
-        failures = self._upstream_connect_failure_counts.get(key, 0)
-        active = self._upstream_active_counts.get(key, 0)
-        return group, failures, active, index
-
-    def _mark_upstream_active(self, endpoint: UpstreamProxyEndpoint) -> None:
-        key = self._upstream_endpoint_key(endpoint)
-        self._upstream_active_counts[key] = self._upstream_active_counts.get(key, 0) + 1
-
-    def _unmark_upstream_active(self, endpoint: UpstreamProxyEndpoint) -> None:
-        key = self._upstream_endpoint_key(endpoint)
-        count = self._upstream_active_counts.get(key, 0)
-        if count <= 1:
-            self._upstream_active_counts.pop(key, None)
-        else:
-            self._upstream_active_counts[key] = count - 1
-
-    def _selected_primary_parallel_active(self, endpoint: UpstreamProxyEndpoint) -> bool:
-        selected_preset_id = str(self._upstream.preset_id or "").strip()
-        if not selected_preset_id:
-            return False
-        if str(endpoint.preset_id or "").strip() != selected_preset_id:
-            return False
-        return self._upstream_active_counts.get(self._upstream_endpoint_key(endpoint), 0) > 1
-
-    def _mark_upstream_connect_failure(
-        self,
-        endpoint: UpstreamProxyEndpoint,
-        label: str,
-        exc: Exception,
-    ) -> bool:
-        key = self._upstream_endpoint_key(endpoint)
-        count = self._upstream_connect_failure_counts.get(key, 0) + 1
-        self._upstream_connect_failure_counts[key] = count
-        if (
-            self._selected_primary_parallel_active(endpoint)
-            and count < _UPSTREAM_PARALLEL_CONNECT_FAILS
-        ):
-            return False
-        penalty = _UPSTREAM_CONNECT_FAILURE_PENALTIES[min(count - 1, len(_UPSTREAM_CONNECT_FAILURE_PENALTIES) - 1)]
-        self._upstream_penalty_until[key] = time.monotonic() + penalty
-        self._log(
-            f"[{label}] upstream {endpoint.host}:{endpoint.port} temporarily deprioritized "
-            f"after connect {type(exc).__name__}"
-        )
-        return True
-
-    def _mark_upstream_zero_recv(self, endpoint: UpstreamProxyEndpoint, label: str) -> None:
-        key = self._upstream_endpoint_key(endpoint)
-        count = self._upstream_zero_recv_counts.get(key, 0) + 1
-        self._upstream_zero_recv_counts[key] = count
-        threshold = (
-            _UPSTREAM_PARALLEL_ZERO_RECV_FAILS
-            if self._selected_primary_parallel_active(endpoint)
-            else _UPSTREAM_ZERO_RECV_FAILS
-        )
-        if count < threshold:
-            return
-        self._upstream_penalty_until[key] = time.monotonic() + _UPSTREAM_PENALTY_SECONDS
-        self._log(
-            f"[{label}] upstream {endpoint.host}:{endpoint.port} temporarily deprioritized "
-            f"after recv=0 ({count}/{threshold})"
-        )
-
-    def _mark_upstream_recv_ok(self, endpoint: UpstreamProxyEndpoint) -> None:
-        key = self._upstream_endpoint_key(endpoint)
-        self._upstream_zero_recv_counts.pop(key, None)
-        self._upstream_connect_failure_counts.pop(key, None)
-        self._upstream_penalty_until.pop(key, None)
-
-    @staticmethod
-    def _upstream_display_name(endpoint: UpstreamProxyEndpoint) -> str:
-        name = str(endpoint.preset_name or "").strip()
-        if name:
-            return name
-        host = str(endpoint.host or "").strip()
-        port = int(endpoint.port or 0)
-        return f"{host}:{port}" if host and port > 0 else "внешний прокси"
-
-    def _notify_working_upstream(self, endpoint: UpstreamProxyEndpoint, label: str) -> None:
-        endpoint_key = self._upstream_endpoint_key(endpoint)
-        preset_id = str(endpoint.preset_id or "").strip()
-        preset_name = self._upstream_display_name(endpoint)
-        self.stats.active_upstream_preset_id = preset_id
-        self.stats.active_upstream_name = preset_name
-        self.stats.active_upstream_host = str(endpoint.host or "").strip()
-        if not preset_id:
-            return
-        selected_key = (preset_id, endpoint_key)
-        if selected_key == self._active_upstream_selected_key:
-            return
-        self._active_upstream_selected_key = selected_key
-        self._log(f"[{label}] working upstream proxy selected: {preset_name}")
-        if self._on_upstream_selected is None:
-            return
-        try:
-            self._on_upstream_selected(preset_id, preset_name)
-        except Exception:
-            pass
-
-    def _upstream_proxy_candidates(self) -> tuple[UpstreamProxyEndpoint, ...]:
-        primary = UpstreamProxyEndpoint(
-            host=self._upstream.host,
-            port=self._upstream.port,
-            username=self._upstream.username,
-            password=self._upstream.password,
-            tls=self._upstream.tls,
-            tls_server_name=self._upstream.tls_server_name,
-            tls_verify=self._upstream.tls_verify,
-            preset_id=self._upstream.preset_id,
-            preset_name=self._upstream.preset_name,
-        )
-        candidates = (primary, *tuple(self._upstream.fallback_proxies or ()))
-        result: list[UpstreamProxyEndpoint] = []
-        seen: set[tuple[str, int, str, str, bool, str, bool]] = set()
-        for endpoint in candidates:
-            host = str(endpoint.host or "").strip()
-            try:
-                port = int(endpoint.port)
-            except (TypeError, ValueError):
-                port = 0
-            if not host or port <= 0:
-                continue
-            key = (
-                host.lower(),
-                port,
-                str(endpoint.username or ""),
-                str(endpoint.password or ""),
-                bool(endpoint.tls),
-                str(endpoint.tls_server_name or "").strip().lower(),
-                bool(endpoint.tls_verify),
-            )
-            if key in seen:
-                continue
-            seen.add(key)
-            result.append(
-                UpstreamProxyEndpoint(
-                    host=host,
-                    port=port,
-                    username=str(endpoint.username or ""),
-                    password=str(endpoint.password or ""),
-                    tls=bool(endpoint.tls),
-                    tls_server_name=str(endpoint.tls_server_name or "").strip(),
-                    tls_verify=bool(endpoint.tls_verify),
-                    preset_id=str(endpoint.preset_id or "").strip(),
-                    preset_name=str(endpoint.preset_name or "").strip(),
-                )
-            )
-        if any(endpoint.tls for endpoint in result):
-            result = [endpoint for endpoint in result if endpoint.tls]
-        if len(result) <= 1:
-            return tuple(result)
-        now = time.monotonic()
-        return tuple(
-            endpoint for _, endpoint in sorted(
-                enumerate(result),
-                key=lambda item: self._upstream_candidate_order_key(item[0], item[1], now),
-            )
-        )
-
     def _has_healthy_upstream_proxy(self) -> bool:
-        candidates = self._upstream_proxy_candidates()
-        return any(not self._upstream_penalty_active(endpoint) for endpoint in candidates)
+        return self._upstream_runtime.has_available_endpoint()
 
     async def _open_upstream_proxy(
         self,
@@ -636,126 +416,72 @@ class TelegramWSProxy:
         dc: int,
         is_media: bool,
         mtproxy: bool = False,
-        allow_penalized: bool = True,
-    ) -> tuple[asyncio.StreamReader, asyncio.StreamWriter, UpstreamProxyEndpoint] | None:
+    ) -> OpenedUpstream | None:
         media_tag = " media" if is_media else ""
         prefix = "MTProxy " if mtproxy else ""
-        attempted: set[tuple[str, int, str, str, bool, str, bool]] = set()
-        attempt_index = 0
-        while True:
-            remaining_candidates = tuple(
-                endpoint
-                for endpoint in self._upstream_proxy_candidates()
-                if self._upstream_endpoint_key(endpoint) not in attempted
+        try:
+            opened = await self._upstream_runtime.open_connection(upstream_host, upstream_port)
+        except (UpstreamBusyError, UpstreamUnavailableError) as exc:
+            self._log(f"[{label}] {prefix}DC{dc}{media_tag} upstream skipped: {exc}")
+            self._record_route(
+                dc=dc,
+                is_media=is_media,
+                route="внешний SOCKS5",
+                status="пропуск",
+                reason=str(exc),
             )
-            if not remaining_candidates:
-                return None
-
-            healthy_candidates = tuple(
-                endpoint for endpoint in remaining_candidates
-                if not self._upstream_penalty_active(endpoint)
-            )
-            if healthy_candidates:
-                candidates = healthy_candidates
-            elif not allow_penalized:
-                self._log(f"[{label}] upstream temporarily unavailable; skip penalized fallback")
-                return None
-            else:
-                candidates = remaining_candidates
-            if not candidates:
-                return None
-            endpoint = candidates[0]
-            endpoint_key = self._upstream_endpoint_key(endpoint)
-            next_step = "try next bundled SOCKS5" if len(candidates) > 1 else "none"
-            fallback_tag = "backup " if attempt_index > 0 else ""
-            attempt_index += 1
-            tls_tag = "yes" if endpoint.tls else "no"
+            return None
+        except (UpstreamConnectError, UpstreamStaleError) as exc:
+            failed_endpoint = getattr(exc, "endpoint", None)
+            endpoint_name = endpoint_display_name(failed_endpoint) or "предыдущий сервер"
+            self.stats.failed_connections += 1
             self._log(
-                f"[{label}] {prefix}DC{dc}{media_tag} {fallback_tag}upstream proxy "
-                f"-> {endpoint.host}:{endpoint.port} tls={tls_tag}"
+                f"[{label}] {prefix}DC{dc}{media_tag} upstream {endpoint_name} "
+                f"connect failed: {type(exc).__name__}: {exc}"
             )
-            t_connect = time.monotonic()
-            self._mark_upstream_active(endpoint)
-            try:
-                rr, rw = await asyncio.wait_for(
-                    socks5.connect_via_socks5(
-                        endpoint.host,
-                        endpoint.port,
-                        upstream_host,
-                        upstream_port,
-                        username=endpoint.username,
-                        password=endpoint.password,
-                        timeout=UPSTREAM_CONNECT_TIMEOUT,
-                        tls=endpoint.tls,
-                        tls_server_name=endpoint.tls_server_name,
-                        tls_verify=endpoint.tls_verify,
-                    ),
-                    timeout=UPSTREAM_CONNECT_TIMEOUT,
-                )
-                apply_socket_options(rw.transport, self._buffer_size)
-            except Exception as exc:
-                elapsed = time.monotonic() - t_connect
-                self.stats.failed_connections += 1
-                self._log(
-                    f"[{label}] {prefix}DC{dc}{media_tag} upstream connect failed "
-                    f"({elapsed:.1f}s): {type(exc).__name__}: {exc}"
-                )
-                self._log_route_detail(
-                    label,
-                    route="upstream SOCKS5",
-                    dc=dc,
-                    is_media=is_media,
-                    target=f"{upstream_host}:{upstream_port} via {endpoint.host}:{endpoint.port}",
-                    result="error",
-                    reason=self._route_error(exc),
-                    next_step=next_step,
-                    elapsed=elapsed,
-                )
-                self._record_route(
-                    dc=dc,
-                    is_media=is_media,
-                    route="внешний SOCKS5",
-                    status="ошибка",
-                    reason=self._route_error(exc),
-                )
-                keep_selected_primary = self._selected_primary_parallel_active(endpoint)
-                penalized = self._mark_upstream_connect_failure(endpoint, label, exc)
-                self._unmark_upstream_active(endpoint)
-                if keep_selected_primary and not penalized:
-                    self._log(
-                        f"[{label}] selected upstream {endpoint.host}:{endpoint.port} "
-                        "kept primary after parallel connect timeout"
-                    )
-                    return None
-                attempted.add(endpoint_key)
-                continue
-
-            elapsed = time.monotonic() - t_connect
-            self._log(f"[{label}] {prefix}DC{dc}{media_tag} upstream connected ({elapsed:.1f}s)")
             self._log_route_detail(
                 label,
                 route="upstream SOCKS5",
                 dc=dc,
                 is_media=is_media,
-                target=f"{upstream_host}:{upstream_port} via {endpoint.host}:{endpoint.port}",
-                result="connected",
-                elapsed=elapsed,
+                target=f"{upstream_host}:{upstream_port} via {endpoint_name}",
+                result="error",
+                reason=self._route_error(exc),
+                next_step="следующее соединение использует общий активный сервер",
             )
-            self.stats.upstream_connections += 1
-            self._record_route(dc=dc, is_media=is_media, route="внешний SOCKS5", status="OK")
-            return rr, rw, endpoint
+            self._record_route(
+                dc=dc,
+                is_media=is_media,
+                route="внешний SOCKS5",
+                status="ошибка",
+                reason=self._route_error(exc),
+            )
+            return None
+
+        endpoint = opened.endpoint
+        apply_socket_options(opened.writer.transport, self._buffer_size)
+        self._log(
+            f"[{label}] {prefix}DC{dc}{media_tag} upstream connected via "
+            f"{endpoint_display_name(endpoint)} ({opened.elapsed:.1f}s)"
+        )
+        self._log_route_detail(
+            label,
+            route="upstream SOCKS5",
+            dc=dc,
+            is_media=is_media,
+            target=f"{upstream_host}:{upstream_port} via {endpoint_display_name(endpoint)}",
+            result="connected",
+            elapsed=opened.elapsed,
+        )
+        self.stats.upstream_connections += 1
+        self._record_route(dc=dc, is_media=is_media, route="внешний SOCKS5", status="OK")
+        return opened
 
     async def _open_udp_relay(self, label: str) -> _Socks5UdpRelay:
         if not self._upstream.enabled or not self._upstream.udp_enabled:
             raise socks5.Socks5Error("SOCKS5 UDP relay is disabled")
 
-        endpoint = next(
-            (
-                item for item in self._upstream_proxy_candidates()
-                if str(item.host or "").strip() and int(item.port or 0) > 0
-            ),
-            None,
-        )
+        endpoint = self._upstream_runtime.current_endpoint()
         if endpoint is None:
             raise socks5.Socks5Error("No upstream SOCKS5 proxy for UDP relay")
 
@@ -817,6 +543,10 @@ class TelegramWSProxy:
     def is_running(self) -> bool:
         return self._running
 
+    @property
+    def upstream_state(self) -> UpstreamRuntimeSnapshot:
+        return self._upstream_runtime.snapshot()
+
     async def start(self) -> None:
         """Start the proxy server(s)."""
         if self._running:
@@ -834,26 +564,40 @@ class TelegramWSProxy:
         self._http_upstream_required = False
         self._ws_blacklist = set()
         self._dc_cooldown = {}
-        self._upstream_zero_recv_counts = {}
-        self._upstream_connect_failure_counts = {}
-        self._upstream_penalty_until = {}
-        self._upstream_active_counts = {}
         self._wss_domain_penalty_until = {}
         self._wss_zero_recv_counts = {}
-        self._active_upstream_selected_key = None
         self._cloudflare_domain_balancer.reset()
         # Reset semaphore for fresh event loop
         reset_wss_semaphore()
-        self._upstream_connect_semaphore = None
-        self._http_upstream_connect_semaphore = None
+        self._upstream_runtime = UpstreamConnectionExecutor(
+            self._upstream,
+            connect_limit=self._pool_size,
+            on_snapshot=self._on_upstream_state,
+            on_log=self._log,
+        )
 
         handler = self._handle_mtproxy_client if self._mode == "mtproxy" else self._handle_socks5_client
-        server = await asyncio.start_server(
-            handler,
-            self._host,
-            self._port,
-            start_serving=False,
-        )
+        # После рестарта предыдущий сокет может освобождаться с задержкой —
+        # повторяем bind с backoff вместо мгновенного падения.
+        bind_deadline = time.monotonic() + 3.0
+        while True:
+            try:
+                server = await asyncio.start_server(
+                    handler,
+                    self._host,
+                    self._port,
+                    start_serving=False,
+                )
+                break
+            except OSError as exc:
+                # Ретраим только «порт ещё занят» (освобождается после рестарта);
+                # прочие ошибки (невалидный host, нет прав) — сразу наружу.
+                if not _is_address_in_use_error(exc) or time.monotonic() >= bind_deadline:
+                    raise
+                self._log(
+                    f"Port {self._host}:{self._port} busy ({exc}), retrying bind..."
+                )
+                await asyncio.sleep(0.25)
         self._servers.append(server)
 
         for srv in self._servers:
@@ -863,6 +607,7 @@ class TelegramWSProxy:
         self._running = True
         mode_label = "MTProxy" if self._mode == "mtproxy" else "SOCKS5"
         self._log(f"{mode_label} proxy started on {self._host}:{self._port}")
+        self._upstream_runtime.emit_snapshot(force=True)
 
         # Pre-fill WebSocket connection pool (non-blocking)
         asyncio.create_task(self._ws_pool.warmup())
@@ -882,15 +627,18 @@ class TelegramWSProxy:
         self._running = False
         self._log("Stopping proxy...")
 
-        # Close all pooled WebSocket connections
-        await self._ws_pool.close_all()
-        await self._cloudflare_worker_pool.close_all()
-
+        # Сначала освобождаем слушающий порт: закрытие пулов/соединений может
+        # занять секунды, а рестарт ждёт stop с коротким таймаутом.
         for srv in self._servers:
             srv.close()
         for srv in self._servers:
             await srv.wait_closed()
         self._servers.clear()
+
+        # Close all pooled WebSocket connections
+        await self._ws_pool.close_all()
+        await self._cloudflare_worker_pool.close_all()
+        await self._upstream_runtime.close()
 
         for task in list(self._tasks):
             task.cancel()
@@ -899,6 +647,23 @@ class TelegramWSProxy:
         self._tasks.clear()
 
         self._log("Proxy stopped")
+
+    def apply_upstream_config(
+        self,
+        upstream_config: Optional[UpstreamProxyConfig],
+    ) -> None:
+        """Горячая замена upstream-конфига без рестарта прокси.
+
+        Должен вызываться из потока event loop прокси (см.
+        TelegramProxyRuntime.apply_upstream_config). Новые соединения сразу
+        используют новый основной сервер; состояние проверок сбрасывается,
+        а соединения прежнего внешнего SOCKS закрываются, чтобы Telegram
+        переподключился через новый сервер.
+        """
+        self._upstream = upstream_config or UpstreamProxyConfig()
+        self._upstream_runtime.apply_config(self._upstream)
+        target = str(self._upstream.preset_name or self._upstream.host or "").strip() or "manual"
+        self._log(f"Upstream config applied without restart: {target}")
 
     # ---- Connection handlers ----
 
@@ -2022,58 +1787,49 @@ class TelegramWSProxy:
                 f"[{label}] MTProxy DC{dc}{media_tag} upstream target "
                 f"{target_host}:{target_port} -> {upstream_host}:{upstream_port}"
             )
-        fallback_mode = should_route_upstream(self._upstream, mode="fallback")
-        async with self._get_upstream_connect_semaphore():
-            opened = await self._open_upstream_proxy(
-                upstream_host=upstream_host,
-                upstream_port=upstream_port,
+        opened = await self._open_upstream_proxy(
+            upstream_host=upstream_host,
+            upstream_port=upstream_port,
+            label=label,
+            dc=dc,
+            is_media=is_media,
+            mtproxy=True,
+        )
+        if opened is None:
+            return False
+        rr, rw = opened.reader, opened.writer
+        upstream_notified = False
+
+        def notify_on_first_response() -> None:
+            nonlocal upstream_notified
+            if upstream_notified:
+                return
+            upstream_notified = True
+            self._upstream_runtime.record_recv_ok(opened)
+
+        try:
+            rw.write(relay_init)
+            await rw.drain()
+            relay_result = await relay_mtproxy_tcp(
+                client_reader=client_reader,
+                client_writer=client_writer,
+                remote_reader=rr,
+                remote_writer=rw,
+                crypto=crypto,
+                stats=self.stats,
+                log_fn=self._log,
                 label=label,
                 dc=dc,
-                is_media=is_media,
-                mtproxy=True,
-                allow_penalized=not fallback_mode,
+                on_first_response=notify_on_first_response,
             )
-            if opened is None:
-                return False
-            rr, rw, endpoint = opened
-            upstream_notified = False
-
-            def notify_on_first_response() -> None:
-                nonlocal upstream_notified
-                if upstream_notified:
-                    return
-                upstream_notified = True
-                self._mark_upstream_recv_ok(endpoint)
-                self._notify_working_upstream(endpoint, label)
-
-            try:
-                rw.write(relay_init)
-                await rw.drain()
-                relay_result = await relay_mtproxy_tcp(
-                    client_reader=client_reader,
-                    client_writer=client_writer,
-                    remote_reader=rr,
-                    remote_writer=rw,
-                    crypto=crypto,
-                    stats=self.stats,
-                    log_fn=self._log,
-                    label=label,
-                    dc=dc,
-                    on_first_response=notify_on_first_response,
-                )
-                recv_total = 0
-                sent_total = 0
-                if isinstance(relay_result, tuple):
-                    recv_total = int(relay_result[0] or 0)
-                    sent_total = int(relay_result[1] or 0) if len(relay_result) > 1 else 0
-                if recv_total > 0:
-                    if not upstream_notified:
-                        self._mark_upstream_recv_ok(endpoint)
-                        self._notify_working_upstream(endpoint, label)
-                elif sent_total > 0 and not fallback_mode:
-                    self._mark_upstream_zero_recv(endpoint, label)
-            finally:
-                self._unmark_upstream_active(endpoint)
+            recv_total = int(relay_result[0] or 0) if isinstance(relay_result, tuple) else 0
+            if recv_total > 0:
+                if not upstream_notified:
+                    self._upstream_runtime.record_recv_ok(opened)
+            else:
+                self._upstream_runtime.record_zero_recv(opened)
+        finally:
+            self._upstream_runtime.release(opened)
         return True
 
     async def _tcp_fallback(
@@ -2248,49 +2004,45 @@ class TelegramWSProxy:
                 f"[{label}] DC{dc}{media_tag} upstream target "
                 f"{target_host}:{target_port} -> {upstream_host}:{upstream_port}"
             )
-        async with self._get_upstream_semaphore_for_target(upstream_port):
-            opened = await self._open_upstream_proxy(
-                upstream_host=upstream_host,
-                upstream_port=upstream_port,
-                label=label,
+        opened = await self._open_upstream_proxy(
+            upstream_host=upstream_host,
+            upstream_port=upstream_port,
+            label=label,
+            dc=dc,
+            is_media=is_media,
+        )
+        if opened is None:
+            return False
+        rr, rw = opened.reader, opened.writer
+        upstream_notified = False
+
+        def notify_on_first_response() -> None:
+            nonlocal upstream_notified
+            if upstream_notified:
+                return
+            upstream_notified = True
+            self._upstream_runtime.record_recv_ok(opened)
+
+        try:
+            # Forward the buffered init packet
+            rw.write(init)
+            await rw.drain()
+            recv_total, _watchdog_fired = await self._relay_tcp(
+                client_reader,
+                client_writer,
+                rr,
+                rw,
+                label,
                 dc=dc,
-                is_media=is_media,
-                allow_penalized=not fallback_mode,
+                on_first_response=notify_on_first_response,
             )
-            if opened is None:
-                return False
-            rr, rw, endpoint = opened
-            upstream_notified = False
-
-            def notify_on_first_response() -> None:
-                nonlocal upstream_notified
-                if upstream_notified:
-                    return
-                upstream_notified = True
-                self._mark_upstream_recv_ok(endpoint)
-                self._notify_working_upstream(endpoint, label)
-
-            try:
-                # Forward the buffered init packet
-                rw.write(init)
-                await rw.drain()
-                recv_total, watchdog_fired = await self._relay_tcp(
-                    client_reader,
-                    client_writer,
-                    rr,
-                    rw,
-                    label,
-                    dc=dc,
-                    on_first_response=notify_on_first_response,
-                )
-                if recv_total > 0:
-                    if not upstream_notified:
-                        self._mark_upstream_recv_ok(endpoint)
-                        self._notify_working_upstream(endpoint, label)
-                else:
-                    self._mark_upstream_zero_recv(endpoint, label)
-            finally:
-                self._unmark_upstream_active(endpoint)
+            if recv_total > 0:
+                if not upstream_notified:
+                    self._upstream_runtime.record_recv_ok(opened)
+            else:
+                self._upstream_runtime.record_zero_recv(opened)
+        finally:
+            self._upstream_runtime.release(opened)
         return True
 
     def _upstream_target(

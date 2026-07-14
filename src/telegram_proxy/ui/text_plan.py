@@ -55,7 +55,7 @@ TELEGRAM_PROXY_SETTINGS_TEXT = TelegramProxySettingsText(
         "Откройте ссылку. Telegram сам предложит добавить прокси. "
         "Если Telegram не открылся, скопируйте ссылку и отправьте её себе в чат."
     ),
-    setup_fallback="",
+    setup_fallback="Если ничего не помогает — скачайте Zastogram.",
     settings_title="Основные настройки",
     proxy_mode_title="Режим прокси",
     proxy_mode_description="SOCKS5 — основной режим. MTProxy нужен для secret, Fake TLS и Cloudflare-сценариев.",

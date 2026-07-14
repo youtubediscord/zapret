@@ -288,6 +288,7 @@ class TelegramProxyAccessibilityTests(unittest.TestCase):
             on_toggle_proxy=lambda: None,
             on_open_in_telegram=lambda: None,
             on_copy_link=lambda: None,
+            on_open_zastogram=lambda: None,
             on_open_mtproxy=lambda: None,
             on_generate_mtproxy_secret=lambda: None,
             on_copy_fake_tls_nginx_config=lambda: None,
@@ -310,6 +311,12 @@ class TelegramProxyAccessibilityTests(unittest.TestCase):
             "Копировать ссылку Telegram Proxy",
         )
         self.assertIn("буфер обмена", widgets.setup_copy_btn.accessibleDescription())
+        self.assertEqual(widgets.setup_zastogram_btn.accessibleName(), "Открыть ZaStoGram Desktop на GitHub")
+        self.assertEqual(
+            widgets.setup_zastogram_btn.property("screenReaderStateText"),
+            "Открыть ZaStoGram Desktop на GitHub",
+        )
+        self.assertIn("GitHub", widgets.setup_zastogram_btn.accessibleDescription())
         self.assertEqual(widgets.host_edit.accessibleName(), "Адрес Telegram Proxy")
         self.assertIn("IP-адрес", widgets.host_edit.accessibleDescription())
         self.assertEqual(widgets.port_spin.accessibleName(), "Порт Telegram Proxy, значение: 1353")
@@ -386,6 +393,7 @@ class TelegramProxyAccessibilityTests(unittest.TestCase):
             on_toggle_proxy=lambda: None,
             on_open_in_telegram=lambda: None,
             on_copy_link=lambda: None,
+            on_open_zastogram=lambda: None,
             on_open_mtproxy=lambda: None,
             on_generate_mtproxy_secret=lambda: None,
             on_copy_fake_tls_nginx_config=lambda: None,
