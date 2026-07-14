@@ -127,6 +127,41 @@ class TelegramProxyUpstreamCatalogTest(unittest.TestCase):
         self.assertNotIn("password", catalog.choices[0])
         self.assertEqual(catalog.choices[1]["id"], MANUAL_PRESET_ID)
 
+    def test_mtproxy_can_be_first_choice_before_bundled_socks(self) -> None:
+        from telegram_proxy.config.upstream_catalog import UpstreamCatalog, UpstreamPresetResolver
+
+        mtproxy_link = (
+            "tg://proxy?server=198.51.100.30&port=9443&"
+            "secret=ee000000000000000000000000000000006578616d706c652e636f6d"
+        )
+        catalog_fixture = [
+            {
+                "id": "mtproxy-de1",
+                "name": "Германия 1",
+                "type": "mtproxy",
+                "link": mtproxy_link,
+            },
+            {
+                "id": "uk",
+                "name": "Великобритания",
+                "type": "socks5",
+                "host": "203.0.113.10",
+                "port": 443,
+                "username": "preset_user",
+                "password": "preset_password",
+                "tls": True,
+            },
+        ]
+
+        catalog = UpstreamCatalog(build_presets=catalog_fixture)
+        resolver = UpstreamPresetResolver(catalog_fixture)
+
+        self.assertEqual(catalog.items()[0][0], "Германия 1 (MTProxy)")
+        self.assertTrue(catalog.is_mtproxy(0))
+        self.assertEqual(resolver.mtproxy_link_by_id("mtproxy-de1"), mtproxy_link)
+        self.assertIsNone(resolver.socks5_by_id("mtproxy-de1"))
+        self.assertEqual(resolver.first_socks5()["id"], "uk")
+
     def test_enabling_first_bundled_socks_proxy_saves_only_preset_id(self) -> None:
         from telegram_proxy.config.upstream_catalog import UpstreamCatalog
         from telegram_proxy.ui.upstream_workflow import handle_upstream_toggle
