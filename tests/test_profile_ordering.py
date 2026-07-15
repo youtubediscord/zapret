@@ -90,7 +90,12 @@ class ProfileOrderRoundTripTests(unittest.TestCase):
     def test_vencord_is_last_in_discord_default_order(self) -> None:
         items = (
             _item("discord-tcp", "discord.com", match_lines=("--filter-tcp=443",), source_order=0),
-            _item("discord-udp", "Discord UDP", match_lines=("--filter-udp=443-65535",), source_order=1),
+            _item(
+                "discord-udp",
+                "Discord UDP (обычно не нужно)",
+                match_lines=("--filter-udp=443-65535",),
+                source_order=1,
+            ),
             _item("discord-voice", "Discord voice", match_lines=("--filter-l7=stun,discord",), source_order=2),
             _item(
                 "vencord",

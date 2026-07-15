@@ -209,7 +209,7 @@ class ProfileDisplayItemsTests(unittest.TestCase):
             ),
             _item(
                 "udp-discord",
-                name="Discord UDP",
+                name="Discord UDP (обычно не нужно)",
                 list_type="hostlist",
                 lines=("--filter-udp=50000-59000", "--hostlist=lists/discord.txt"),
                 order=1,

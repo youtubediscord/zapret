@@ -1,4 +1,5 @@
 # Preset: mgts1
+# BuiltinVersion: 1.3
 # IconColor: #60cdff
 # Description: Imported from bat/mgts1.txt
 
@@ -31,7 +32,7 @@
 
 --new
 
---comment=Discord UDP
+--comment=Discord UDP (обычно не нужно)
 --filter-udp=443-65535
 --ipset=lists/ipset-discord.txt
 --dpi-desync=fake

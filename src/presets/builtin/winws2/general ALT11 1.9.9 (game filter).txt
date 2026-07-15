@@ -1,5 +1,5 @@
 # Preset: general ALT11 1.9.9 (game filter)
-# BuiltinVersion: 2.24
+# BuiltinVersion: 2.25
 # IconColor: #67d1e4ff
 
 --lua-init=@lua/zapret-lib.lua
@@ -90,7 +90,7 @@
 
 --new
 
---name=Discord UDP
+--name=Discord UDP (обычно не нужно)
 --filter-udp=443-65535
 --ipset=lists/ipset-discord.txt
 --out-range=-n4

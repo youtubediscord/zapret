@@ -382,23 +382,34 @@ class BuiltinProfileCatalogTests(unittest.TestCase):
 
     def test_cloudfront_builtin_preset_changes_bump_metadata_versions(self) -> None:
         offenders: list[str] = []
-        expected_versions = {
-            "winws1": "1.2",
-            "winws2": "2.24",
+        minimum_versions = {
+            "winws1": (1, 2),
+            "winws2": (2, 24),
         }
 
         for engine, marker in {
             "winws1": "--comment=cloudfront.net",
             "winws2": "--name=cloudfront.net",
         }.items():
-            expected_header = f"# BuiltinVersion: {expected_versions[engine]}"
             for path in sorted((PUBLIC_ROOT / "src" / "presets" / "builtin" / engine).glob("*.txt")):
                 text = path.read_text(encoding="utf-8", errors="replace")
                 if marker not in text:
                     continue
                 header_lines = text.splitlines()[:5]
-                if expected_header not in header_lines:
-                    offenders.append(f"{engine}/{path.name}: нет {expected_header}")
+                version_line = next(
+                    (line for line in header_lines if line.startswith("# BuiltinVersion: ")),
+                    "",
+                )
+                try:
+                    actual_version = tuple(
+                        int(part)
+                        for part in version_line.removeprefix("# BuiltinVersion: ").split(".")
+                    )
+                except ValueError:
+                    actual_version = ()
+                if actual_version < minimum_versions[engine]:
+                    expected = ".".join(str(part) for part in minimum_versions[engine])
+                    offenders.append(f"{engine}/{path.name}: BuiltinVersion ниже {expected}")
 
         self.assertEqual(offenders, [])
 
@@ -544,7 +555,7 @@ class BuiltinProfileCatalogTests(unittest.TestCase):
                 "updates.discord.com",
                 "discord.media",
                 "discord.com",
-                "Discord UDP",
+                "Discord UDP (обычно не нужно)",
                 "Голосовые звонки/чаты",
             }
         )

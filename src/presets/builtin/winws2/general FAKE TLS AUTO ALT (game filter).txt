@@ -1,5 +1,5 @@
 # Preset: general FAKE TLS AUTO ALT (game filter)
-# BuiltinVersion: 2.24
+# BuiltinVersion: 2.25
 
 --lua-init=@lua/zapret-lib.lua
 --lua-init=@lua/zapret-antidpi.lua
@@ -355,7 +355,7 @@
 
 --new
 
---name=Discord UDP
+--name=Discord UDP (обычно не нужно)
 --filter-udp=443-65535
 --ipset=lists/ipset-discord.txt
 --out-range=-n2
