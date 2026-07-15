@@ -776,6 +776,7 @@ class TelegramProxyMTProxyCoreTests(unittest.TestCase):
 
         from telegram_proxy.proxy.mtproxy import PROTO_TAG_INTERMEDIATE, generate_relay_init
         from telegram_proxy.proxy.routing import UpstreamProxyConfig, UpstreamProxyEndpoint
+        from telegram_proxy.proxy.upstream_controller import ZERO_RECV_OBSERVATION_WINDOW
         from telegram_proxy.wss_proxy import TelegramWSProxy
 
         class _RemoteWriter:
@@ -796,6 +797,8 @@ class TelegramProxyMTProxyCoreTests(unittest.TestCase):
 
         async def run_seven(proxy: TelegramWSProxy):
             for index in range(7):
+                if index == 5:
+                    clock[0] += ZERO_RECV_OBSERVATION_WINDOW
                 await proxy._mtproxy_upstream_proxy_connect(
                     object(),
                     object(),
@@ -810,6 +813,7 @@ class TelegramProxyMTProxyCoreTests(unittest.TestCase):
 
         seen_hosts: list[str] = []
         logs: list[str] = []
+        clock = [1000.0]
         relay_init = generate_relay_init(PROTO_TAG_INTERMEDIATE, dc=5, is_media=True)
         proxy = TelegramWSProxy(
             mode="mtproxy",
@@ -828,6 +832,7 @@ class TelegramProxyMTProxyCoreTests(unittest.TestCase):
                 ),
             ),
         )
+        proxy._upstream_runtime.controller._clock = lambda: clock[0]
 
         with (
             patch("telegram_proxy.wss_proxy.socks5.connect_via_socks5", side_effect=fake_connect),

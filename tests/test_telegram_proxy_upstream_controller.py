@@ -7,6 +7,7 @@ from telegram_proxy.proxy.routing import UpstreamProxyConfig, UpstreamProxyEndpo
 from telegram_proxy.proxy.upstream_controller import (
     RETRY_DELAYS,
     ZERO_RECV_LIMIT,
+    ZERO_RECV_OBSERVATION_WINDOW,
     UpstreamStateController,
 )
 from telegram_proxy.proxy.upstream_runtime import (
@@ -110,9 +111,20 @@ class UpstreamStateControllerTests(unittest.TestCase):
         for item in attempts[:-1]:
             self.assertIsNone(self.controller.record_zero_recv(item))
             self.assertEqual(self.controller.snapshot().active_name, "Германия 1")
+        self.clock.advance(ZERO_RECV_OBSERVATION_WINDOW)
         transition = self.controller.record_zero_recv(attempts[-1])
         self.assertIsNotNone(transition)
         self.assertEqual(self.controller.snapshot().active_name, "Великобритания")
+
+    def test_concurrent_zero_burst_waits_for_inflight_real_data(self) -> None:
+        attempts = [self.controller.select_attempt() for _ in range(ZERO_RECV_LIMIT + 1)]
+
+        for item in attempts[:ZERO_RECV_LIMIT]:
+            self.assertIsNone(self.controller.record_zero_recv(item))
+
+        self.assertEqual(self.controller.snapshot().active_name, "Германия 1")
+        self.assertIsNone(self.controller.record_recv_ok(attempts[-1]))
+        self.assertEqual(self.controller.snapshot().active_name, "Германия 1")
 
     def test_primary_returns_only_after_probe_receives_real_data(self) -> None:
         self.assertIsNotNone(self._fail_active_twice())

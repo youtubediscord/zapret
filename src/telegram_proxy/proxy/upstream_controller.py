@@ -14,6 +14,7 @@ EndpointKey = tuple[str, int, str, str, bool, str, bool]
 CONNECT_FAILURE_WINDOW = 10.0
 CONNECT_FAILURE_LIMIT = 2
 ZERO_RECV_LIMIT = 6
+ZERO_RECV_OBSERVATION_WINDOW = 2.0
 RETRY_DELAYS = (60.0, 180.0, 300.0)
 
 
@@ -124,6 +125,7 @@ class UpstreamTransition:
 class _EndpointHealth:
     connect_failures: deque[float] = field(default_factory=deque)
     zero_recv_count: int = 0
+    zero_recv_started_at: float | None = None
     failure_round: int = 0
     unavailable_until: float = 0.0
 
@@ -335,8 +337,14 @@ class UpstreamStateController:
             self._reason = f"пробная проверка не получила данные: {endpoint_display_name(attempt.endpoint)}"
             self.emit_snapshot()
             return None
+        if health.zero_recv_started_at is None:
+            health.zero_recv_started_at = now
         health.zero_recv_count += 1
-        if health.zero_recv_count < ZERO_RECV_LIMIT:
+        observation_time = now - health.zero_recv_started_at
+        if (
+            health.zero_recv_count < ZERO_RECV_LIMIT
+            or observation_time < ZERO_RECV_OBSERVATION_WINDOW
+        ):
             return None
         retry_after = self._penalize(attempt.endpoint, now)
         return self._fail_active(
@@ -351,6 +359,7 @@ class UpstreamStateController:
         health = self._health_for(attempt.endpoint)
         health.connect_failures.clear()
         health.zero_recv_count = 0
+        health.zero_recv_started_at = None
         health.failure_round = 0
         health.unavailable_until = 0.0
         if attempt.is_probe:
@@ -403,6 +412,7 @@ class UpstreamStateController:
         health.unavailable_until = now + retry_after
         health.connect_failures.clear()
         health.zero_recv_count = 0
+        health.zero_recv_started_at = None
         return retry_after
 
     def _clear_probe(self, attempt: UpstreamAttempt) -> None:
@@ -459,6 +469,7 @@ __all__ = [
     "CONNECT_FAILURE_WINDOW",
     "RETRY_DELAYS",
     "ZERO_RECV_LIMIT",
+    "ZERO_RECV_OBSERVATION_WINDOW",
     "UpstreamAttempt",
     "UpstreamRuntimeSnapshot",
     "UpstreamStateController",
