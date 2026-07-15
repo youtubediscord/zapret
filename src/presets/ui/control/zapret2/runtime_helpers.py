@@ -19,6 +19,7 @@ def apply_program_settings_snapshot(
     tray_close_mode_combo=None,
     defender_toggle=None,
     max_block_toggle=None,
+    state_media_block_toggle=None,
 ) -> None:
     apply_program_settings_toggles(
         snapshot,
@@ -27,6 +28,7 @@ def apply_program_settings_snapshot(
         tray_close_mode_combo=tray_close_mode_combo,
         defender_toggle=defender_toggle,
         max_block_toggle=max_block_toggle,
+        state_media_block_toggle=state_media_block_toggle,
     )
 
 
@@ -68,6 +70,7 @@ def apply_profile_language(
     tray_close_mode_combo,
     defender_toggle,
     max_block_toggle,
+    state_media_block_toggle,
     additional_settings_card,
     discord_restart_toggle,
     wssize_toggle,
@@ -113,6 +116,18 @@ def apply_profile_language(
     max_block_toggle.set_texts(
         tr_catalog("page.control.setting.max_block.title", language=language, default="Блокировать установку MAX"),
         tr_catalog("page.control.setting.max_block.desc", language=language, default="Блокирует запуск/установку MAX и домены в hosts"),
+    )
+    state_media_block_toggle.set_texts(
+        tr_catalog(
+            "page.control.setting.state_media_block.title",
+            language=language,
+            default="Блокировать государственные СМИ РФ",
+        ),
+        tr_catalog(
+            "page.control.setting.state_media_block.desc",
+            language=language,
+            default="Добавляет базовый список государственных новостных сайтов в hosts",
+        ),
     )
     additional_settings_card.titleLabel.setText(
         tr_catalog("page.winws2_control.card.advanced", language=language, default="Дополнительные настройки")

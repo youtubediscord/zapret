@@ -14,12 +14,13 @@ from settings.schema import (
 
 @dataclass(frozen=True, slots=True)
 class ProgramSettingsSnapshot:
-    revision: tuple[bool, bool, str, bool, bool]
+    revision: tuple[bool, bool, str, bool, bool, bool]
     auto_dpi_enabled: bool
     gui_autostart_enabled: bool
     tray_close_mode: str
     defender_disabled: bool
     max_blocked: bool
+    russian_state_media_blocked: bool
 
 
 _warmed_tray_close_mode_lock = RLock()
@@ -65,6 +66,7 @@ class ProgramSettingsRuntimeService:
         tray_close_mode: str,
         defender_disabled: bool,
         max_blocked: bool,
+        russian_state_media_blocked: bool,
     ) -> ProgramSettingsSnapshot:
         normalized_tray_close_mode = normalize_tray_close_mode(tray_close_mode)
         revision = (
@@ -73,6 +75,7 @@ class ProgramSettingsRuntimeService:
             normalized_tray_close_mode,
             bool(defender_disabled),
             bool(max_blocked),
+            bool(russian_state_media_blocked),
         )
         return ProgramSettingsSnapshot(
             revision=revision,
@@ -81,6 +84,7 @@ class ProgramSettingsRuntimeService:
             tray_close_mode=normalized_tray_close_mode,
             defender_disabled=bool(defender_disabled),
             max_blocked=bool(max_blocked),
+            russian_state_media_blocked=bool(russian_state_media_blocked),
         )
 
     def _read_fast_snapshot(self) -> ProgramSettingsSnapshot:
@@ -103,6 +107,7 @@ class ProgramSettingsRuntimeService:
             tray_close_mode=window.get("tray_close_mode", TRAY_CLOSE_MODE_NORMAL),
             defender_disabled=bool(program.get("defender_disabled", False)),
             max_blocked=bool(program.get("max_blocked", False)),
+            russian_state_media_blocked=bool(program.get("russian_state_media_blocked", False)),
         )
 
     def read_snapshot(self) -> ProgramSettingsSnapshot:
@@ -147,12 +152,14 @@ class ProgramSettingsRuntimeService:
                 normalized_mode,
                 bool(snapshot.defender_disabled),
                 bool(snapshot.max_blocked),
+                bool(snapshot.russian_state_media_blocked),
             ),
             auto_dpi_enabled=bool(snapshot.auto_dpi_enabled),
             gui_autostart_enabled=bool(snapshot.gui_autostart_enabled),
             tray_close_mode=normalized_mode,
             defender_disabled=bool(snapshot.defender_disabled),
             max_blocked=bool(snapshot.max_blocked),
+            russian_state_media_blocked=bool(snapshot.russian_state_media_blocked),
         )
         return self.publish_snapshot(updated)
 

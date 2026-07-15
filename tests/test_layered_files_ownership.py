@@ -251,6 +251,59 @@ class ExternalFinalProtectionTests(unittest.TestCase):
                 "9.9.9.9\n",
             )
 
+    def test_delete_keeps_external_final_intact(self) -> None:
+        # Пользователь создал список с именем поставляемого файла (пустая
+        # user-крошка) и удалил профиль: итог установщика обязан уцелеть.
+        with TemporaryDirectory() as temp_dir:
+            lists_dir = Path(temp_dir) / "lists"
+            (lists_dir / "user").mkdir(parents=True)
+            (lists_dir / "user" / "discord-images.txt").write_text("", encoding="utf-8")
+            (lists_dir / "discord-images.txt").write_text("media.discordapp.net\n", encoding="utf-8")
+
+            delete_profile_user_list_file(lists_dir, "discord-images.txt")
+
+            self.assertEqual(
+                (lists_dir / "discord-images.txt").read_text(encoding="utf-8"),
+                "media.discordapp.net\n",
+            )
+            self.assertFalse((lists_dir / "user" / "discord-images.txt").exists())
+
+    def test_rename_away_from_external_final_keeps_it_intact(self) -> None:
+        # Переименование профиля, чья пустая user-крошка носила имя
+        # поставляемого списка: старый итог остаётся, крошка переезжает.
+        with TemporaryDirectory() as temp_dir:
+            lists_dir = Path(temp_dir) / "lists"
+            (lists_dir / "user").mkdir(parents=True)
+            (lists_dir / "user" / "discord-images.txt").write_text("", encoding="utf-8")
+            (lists_dir / "discord-images.txt").write_text("media.discordapp.net\n", encoding="utf-8")
+
+            rename_profile_user_list_file(lists_dir, "discord-images.txt", "custom.txt")
+
+            self.assertEqual(
+                (lists_dir / "discord-images.txt").read_text(encoding="utf-8"),
+                "media.discordapp.net\n",
+            )
+            self.assertFalse((lists_dir / "user" / "discord-images.txt").exists())
+            self.assertTrue((lists_dir / "user" / "custom.txt").is_file())
+
+    def test_rename_away_from_layered_final_removes_stale_final(self) -> None:
+        # Старое поведение для user-owned списка не сломано: унесённый
+        # user-слой забирает с собой протухший итог.
+        with TemporaryDirectory() as temp_dir:
+            lists_dir = Path(temp_dir) / "lists"
+            (lists_dir / "user").mkdir(parents=True)
+            (lists_dir / "user" / "custom.txt").write_text("qwen.ai\n", encoding="utf-8")
+            rebuild_profile_list_file(lists_dir, "custom.txt")
+            self.assertTrue((lists_dir / "custom.txt").is_file())
+
+            rename_profile_user_list_file(lists_dir, "custom.txt", "renamed.txt")
+
+            self.assertFalse((lists_dir / "custom.txt").exists())
+            self.assertEqual(
+                (lists_dir / "renamed.txt").read_text(encoding="utf-8"),
+                "qwen.ai\n",
+            )
+
     def test_delete_unlinks_final_without_base(self) -> None:
         # Удаление user-only списка обязано убрать итог (авторитетный unlink).
         with TemporaryDirectory() as temp_dir:

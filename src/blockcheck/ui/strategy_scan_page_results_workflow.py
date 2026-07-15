@@ -201,6 +201,19 @@ def apply_finished_scan(
     _set_strategy_scan_status(status_label, finish_plan.status_text)
     progress_bar.setValue(min(finish_plan.total_count, progress_bar.maximum()))
     set_state_text(progress_bar, "Ход подбора стратегии: не выполняется")
+
+    fatal_error = str(getattr(finish_plan, "fatal_error", "") or "")
+    if fatal_error:
+        InfoBarHelper.error(
+            parent_widget,
+            tr_catalog(
+                "page.blockcheck_public.scan_fatal_error_title",
+                default="Подбор стратегии остановлен",
+            ),
+            fatal_error,
+            duration=15000,
+        )
+
     if finish_plan.support_status_code == "ready_after_error":
         set_support_status(
             tr_catalog(

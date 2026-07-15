@@ -13,6 +13,16 @@ def _profile_setup_load_result(payload, *, apply_result=None):
     return ProfileSetupLoadResult(payload=payload, apply_result=apply_result)
 
 
+def profile_save_result_keys(result) -> tuple[str, str]:
+    """Нормализует результат edit-операции service к паре
+    (old_profile_key, new_profile_key). None (отказ) → пустая пара."""
+    if isinstance(result, tuple) and len(result) == 2:
+        old_key, new_key = result
+        return str(old_key or "").strip(), str(new_key or "").strip()
+    single_key = str(result or "").strip()
+    return single_key, single_key
+
+
 class ProfileSetupLoadResult:
     def __init__(self, *, payload, apply_signature=None, apply_result=None) -> None:
         self.payload = payload
@@ -165,7 +175,10 @@ class ProfileListFileSaveWorker(QThread):
 
 
 class ProfileSettingsSaveWorker(QThread):
-    saved = pyqtSignal(int, str, object)
+    # saved: (request_id, (old_profile_key, new_profile_key), payload).
+    # Пара ключей — persistent-ссылки из service: правка имени/match-строк
+    # меняет persistent_key, и старый ключ нужен списку для точечной замены.
+    saved = pyqtSignal(int, object, object)
     failed = pyqtSignal(int, str)
 
     def __init__(
@@ -193,23 +206,32 @@ class ProfileSettingsSaveWorker(QThread):
 
     def run(self) -> None:
         try:
-            profile_key = self._save_settings(
-                profile_key=self._profile_key,
-                filter_kind=self._filter_kind,
-                filter_value=self._filter_value,
-                in_range=self._in_range,
-                out_range=self._out_range,
+            old_profile_key, new_profile_key = profile_save_result_keys(
+                self._save_settings(
+                    profile_key=self._profile_key,
+                    filter_kind=self._filter_kind,
+                    filter_value=self._filter_value,
+                    in_range=self._in_range,
+                    out_range=self._out_range,
+                )
             )
-            payload = self._load_profile(str(profile_key or self._profile_key))
+            payload = self._load_profile(str(new_profile_key or self._profile_key))
+            if payload is None and new_profile_key and new_profile_key != self._profile_key:
+                # persistent-ссылка нового ключа может не резолвиться
+                # (ключи пересобираются при сохранении) — успешное сохранение
+                # не должно падать в failed: повтор по исходному ключу запроса.
+                payload = self._load_profile(self._profile_key)
         except Exception as exc:
             log(f"ProfileSettingsSaveWorker: не удалось сохранить настройки profile: {exc}", "ERROR")
             self.failed.emit(self._request_id, str(exc))
             return
-        self.saved.emit(self._request_id, str(profile_key or ""), _profile_setup_load_result(payload))
+        self.saved.emit(self._request_id, (old_profile_key, new_profile_key), _profile_setup_load_result(payload))
 
 
 class ProfileRawTextSaveWorker(QThread):
-    saved = pyqtSignal(int, str, object)
+    # saved: (request_id, (old_profile_key, new_profile_key), payload) —
+    # см. комментарий у ProfileSettingsSaveWorker.saved.
+    saved = pyqtSignal(int, object, object)
     failed = pyqtSignal(int, str)
 
     def __init__(self, request_id: int, save_raw_text, load_profile, profile_key: str, raw_text: str, parent=None):
@@ -222,16 +244,22 @@ class ProfileRawTextSaveWorker(QThread):
 
     def run(self) -> None:
         try:
-            profile_key = self._save_raw_text(
-                profile_key=self._profile_key,
-                raw_text=self._raw_text,
+            old_profile_key, new_profile_key = profile_save_result_keys(
+                self._save_raw_text(
+                    profile_key=self._profile_key,
+                    raw_text=self._raw_text,
+                )
             )
-            payload = self._load_profile(str(profile_key or self._profile_key))
+            payload = self._load_profile(str(new_profile_key or self._profile_key))
+            if payload is None and new_profile_key and new_profile_key != self._profile_key:
+                # См. комментарий в ProfileSettingsSaveWorker.run: fallback на
+                # исходный ключ запроса при нерезолвящейся new-ссылке.
+                payload = self._load_profile(self._profile_key)
         except Exception as exc:
             log(f"ProfileRawTextSaveWorker: не удалось сохранить сырой текст profile: {exc}", "ERROR")
             self.failed.emit(self._request_id, str(exc))
             return
-        self.saved.emit(self._request_id, str(profile_key or ""), _profile_setup_load_result(payload))
+        self.saved.emit(self._request_id, (old_profile_key, new_profile_key), _profile_setup_load_result(payload))
 
 
 class ProfileEnabledSaveWorker(QThread):

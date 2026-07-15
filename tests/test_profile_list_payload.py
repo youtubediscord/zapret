@@ -1512,7 +1512,8 @@ class ProfileListPayloadTests(unittest.TestCase):
                 )
                 preset_after, _manifest = service.load_selected_preset()
 
-        self.assertEqual(updated, "profile:0")
+        # Успех: пара (old, new) persistent_key первого дубликата.
+        self.assertEqual(updated, ("name:Same", "name:Same"))
         self.assertIn("--lua-desync=split", [segment.text for segment in preset_after.profiles[0].segments])
         # Второй дубликат не тронут и сохранил свой уникальный ключ.
         self.assertIn("--lua-desync=fake", [segment.text for segment in preset_after.profiles[1].segments])

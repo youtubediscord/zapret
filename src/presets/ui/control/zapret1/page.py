@@ -120,6 +120,7 @@ class Zapret1ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
         self.tray_close_mode_combo = None
         self.defender_toggle = None
         self.max_block_toggle = None
+        self.state_media_block_toggle = None
         self.discord_restart_toggle = None
         self.wssize_toggle = None
         self.debug_log_toggle = None
@@ -231,6 +232,7 @@ class Zapret1ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
             on_tray_close_mode_changed=self._on_tray_close_mode_changed,
             on_defender_toggled=self._on_defender_toggled,
             on_max_blocker_toggled=self._on_max_blocker_toggled,
+            on_state_media_block_toggled=self._on_state_media_block_toggled,
             on_discord_restart_changed=self._on_discord_restart_changed,
             on_wssize_toggled=self._on_wssize_toggled,
             on_debug_log_toggled=self._on_debug_log_toggled,
@@ -275,6 +277,7 @@ class Zapret1ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
         self.internet_cleanup_card = section_widgets.internet_cleanup_card
         self.folder_card = section_widgets.folder_card
         self.docs_card = section_widgets.docs_card
+        self.state_media_block_toggle = section_widgets.state_media_block_toggle
         self.test_btn = self.test_card.button
         self.internet_cleanup_btn = self.internet_cleanup_card.button
         self.folder_btn = self.folder_card.button
@@ -297,6 +300,7 @@ class Zapret1ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
             tray_close_mode_combo=self.tray_close_mode_combo,
             defender_toggle=self.defender_toggle,
             max_block_toggle=self.max_block_toggle,
+            state_media_block_toggle=self.state_media_block_toggle,
         )
 
     def _sync_program_settings(self) -> None:
@@ -909,6 +913,7 @@ class Zapret1ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
             tray_close_mode_combo=self.tray_close_mode_combo,
             defender_toggle=self.defender_toggle,
             max_block_toggle=self.max_block_toggle,
+            state_media_block_toggle=self.state_media_block_toggle,
             test_card=self.test_card,
             internet_cleanup_card=self.internet_cleanup_card,
             folder_card=self.folder_card,

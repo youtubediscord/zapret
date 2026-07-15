@@ -311,7 +311,7 @@
 
 --new
 
---comment=Все сайты UDP (исключение)
+--comment=Все сайты UDP (айпи)
 --filter-udp=443-65535
 --ipset-exclude=lists/ipset-ru.txt
 --ipset-exclude=lists/ipset-dns.txt

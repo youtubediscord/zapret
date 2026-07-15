@@ -36,6 +36,7 @@ class PageName(Enum):
     NETWORK = auto()                 # Сеть
     HOSTS = auto()                   # Разблокировка сервисов
     BLOCKCHECK = auto()              # BlockCheck
+    WINWS_LOG_ANALYZER = auto()      # Анализ debug-лога winws2
     APPEARANCE = auto()              # Оформление
     PREMIUM = auto()                 # Донат/Premium
     LOGS = auto()                    # Логи

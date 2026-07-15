@@ -404,12 +404,13 @@ class StartupRuntimeSetupTests(unittest.TestCase):
                 calls.append("create_window")
                 return window
 
-        class Ipc:
-            def start_server(self, target_window) -> None:
-                calls.append("ipc.start")
+        class Bridge:
+            def __init__(self, target_window) -> None:
+                pass
 
-            def stop(self) -> None:
-                calls.append("ipc.stop")
+            def start(self) -> bool:
+                calls.append("bridge.start")
+                return True
 
         with (
             patch.object(entry, "shell_bootstrap", return_value=False),
@@ -419,7 +420,7 @@ class StartupRuntimeSetupTests(unittest.TestCase):
             patch.object(window_module, "LupiDPIApp", object()),
             patch.object(shutdown_module, "connect_windows_session_shutdown", side_effect=lambda *_: calls.append("shutdown.hook")),
             patch.object(entry, "_configure_window_appearance", side_effect=lambda *_: calls.append("appearance")),
-            patch.object(entry, "_create_ipc_manager", side_effect=lambda: Ipc()),
+            patch("startup.show_window_bridge.ShowWindowBridge", Bridge),
             patch.object(
                 entry.QTimer,
                 "singleShot",
@@ -431,7 +432,6 @@ class StartupRuntimeSetupTests(unittest.TestCase):
             ),
             patch.object(entry, "_build_application_post_startup_deps", side_effect=lambda **_: calls.append("build_post_startup_deps") or object()),
             patch.object(entry, "_install_post_startup_tasks", side_effect=lambda *_: calls.append("install_post_startup")),
-            patch.object(entry.atexit, "register", side_effect=lambda *_: calls.append("atexit.register")),
         ):
             with self.assertRaises(SystemExit):
                 entry.main()
@@ -441,7 +441,7 @@ class StartupRuntimeSetupTests(unittest.TestCase):
         self.assertLess(calls.index("app.exec"), calls.index("install_post_startup"))
         self.assertLess(calls.index("startup_interactive.emit"), calls.index("install_post_startup"))
         self.assertLess(calls.index("appearance"), calls.index("install_post_startup"))
-        self.assertLess(calls.index("ipc.start"), calls.index("install_post_startup"))
+        self.assertLess(calls.index("bridge.start"), calls.index("install_post_startup"))
 
     def test_post_startup_install_is_bound_to_interactive_ready(self) -> None:
         from main import entry
@@ -583,9 +583,9 @@ class StartupRuntimeSetupTests(unittest.TestCase):
         from main import entry
 
         source = inspect.getsource(entry)
-        top_level = source.split("def _create_ipc_manager", 1)[0]
+        top_level = source.split("def _build_application_post_startup_deps", 1)[0]
 
-        self.assertNotIn("from startup.ipc_manager import IPCManager", top_level)
+        self.assertNotIn("from startup.show_window_bridge import ShowWindowBridge", top_level)
         self.assertNotIn("from main.application_post_startup import build_application_post_startup_deps", top_level)
         self.assertNotIn("from main.post_startup import install_post_startup_tasks", top_level)
 
@@ -1835,16 +1835,22 @@ class StartupRuntimeSetupTests(unittest.TestCase):
         import settings.appearance as appearance_settings
         from ui.navigation.sidebar_state import clear_warmed_sidebar_expanded, peek_warmed_sidebar_expanded
 
-        appearance_settings.clear_warmed_ui_language_cache()
-        appearance_settings.clear_warmed_rkn_background_cache()
-        appearance_settings.clear_warmed_background_preset_cache()
-        appearance_settings.clear_warmed_mica_enabled_cache()
-        appearance_settings.clear_warmed_window_opacity_cache()
-        appearance_settings.clear_warmed_animations_enabled_cache()
-        appearance_settings.clear_warmed_smooth_scroll_enabled_cache()
-        appearance_settings.clear_warmed_editor_smooth_scroll_enabled_cache()
-        appearance_settings.clear_warmed_premium_effects_cache()
-        clear_warmed_sidebar_expanded()
+        def _clear_warmed_caches() -> None:
+            appearance_settings.clear_warmed_ui_language_cache()
+            appearance_settings.clear_warmed_rkn_background_cache()
+            appearance_settings.clear_warmed_background_preset_cache()
+            appearance_settings.clear_warmed_mica_enabled_cache()
+            appearance_settings.clear_warmed_window_opacity_cache()
+            appearance_settings.clear_warmed_animations_enabled_cache()
+            appearance_settings.clear_warmed_smooth_scroll_enabled_cache()
+            appearance_settings.clear_warmed_editor_smooth_scroll_enabled_cache()
+            appearance_settings.clear_warmed_premium_effects_cache()
+            clear_warmed_sidebar_expanded()
+
+        _clear_warmed_caches()
+        # Тест прогревает кэши значениями из data (ui_language="en" и т.д.);
+        # без сброса они утекают в последующие тесты всего прогона.
+        self.addCleanup(_clear_warmed_caches)
         with patch("settings.store.read_settings", return_value=data) as read_settings:
             state = build_initial_ui_state()
 

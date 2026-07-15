@@ -28,6 +28,7 @@ def apply_program_settings_snapshot(
     tray_close_mode_combo=None,
     defender_toggle=None,
     max_block_toggle=None,
+    state_media_block_toggle=None,
 ) -> None:
     apply_program_settings_toggles(
         snapshot,
@@ -36,6 +37,7 @@ def apply_program_settings_snapshot(
         tray_close_mode_combo=tray_close_mode_combo,
         defender_toggle=defender_toggle,
         max_block_toggle=max_block_toggle,
+        state_media_block_toggle=state_media_block_toggle,
     )
 
 
@@ -64,6 +66,7 @@ def apply_winws1_pages_language(
     tray_close_mode_combo,
     defender_toggle,
     max_block_toggle,
+    state_media_block_toggle,
     test_card,
     internet_cleanup_card,
     folder_card,
@@ -120,6 +123,19 @@ def apply_winws1_pages_language(
         max_block_toggle.set_texts(
             tr_catalog("page.control.setting.max_block.title", language=language, default="Блокировать установку MAX"),
             tr_catalog("page.control.setting.max_block.desc", language=language, default="Блокирует запуск/установку MAX и домены в hosts"),
+        )
+    if state_media_block_toggle is not None:
+        state_media_block_toggle.set_texts(
+            tr_catalog(
+                "page.control.setting.state_media_block.title",
+                language=language,
+                default="Блокировать государственные СМИ РФ",
+            ),
+            tr_catalog(
+                "page.control.setting.state_media_block.desc",
+                language=language,
+                default="Добавляет базовый список государственных новостных сайтов в hosts",
+            ),
         )
 
     connection_test_title = tr_catalog("page.winws1_control.button.connection_test", language=language, default="Тест соединения")

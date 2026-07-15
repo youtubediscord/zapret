@@ -36,3 +36,21 @@ def build_windows_feature_toggles(
         defender_toggle=defender_toggle,
         max_block_toggle=max_block_toggle,
     )
+
+
+def build_state_media_block_toggle(
+    *,
+    tr_fn,
+    win11_toggle_row_cls,
+    on_state_media_block_toggled,
+):
+    state_media_block_toggle = win11_toggle_row_cls(
+        "fa5s.newspaper",
+        tr_fn("page.control.setting.state_media_block.title", "Блокировать государственные СМИ РФ"),
+        tr_fn(
+            "page.control.setting.state_media_block.desc",
+            "Добавляет базовый список государственных новостных сайтов в hosts",
+        ),
+    )
+    state_media_block_toggle.toggled.connect(on_state_media_block_toggled)
+    return state_media_block_toggle

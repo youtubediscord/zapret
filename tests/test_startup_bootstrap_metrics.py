@@ -68,7 +68,7 @@ class StartupBootstrapMetricsTests(unittest.TestCase):
         self.assertIn("StartupApplicationControllerInit", source)
         self.assertIn("StartupLateBootstrapShutdownHook", source)
         self.assertIn("StartupLateBootstrapAppearance", source)
-        self.assertIn("StartupLateBootstrapIpc", source)
+        self.assertIn("StartupLateBootstrapShowBridge", source)
         self.assertIn("StartupLateBootstrapDeferredHooks", source)
         self.assertIn("StartupLateBootstrapTotal", source)
 

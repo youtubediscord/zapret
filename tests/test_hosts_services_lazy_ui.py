@@ -138,6 +138,31 @@ class HostsServicesLazyUiTests(unittest.TestCase):
         page._reset_services_runtime_bindings.assert_not_called()
         self.assertEqual(page._services_matrix_model.selected_profile_for_service("Service 0"), "zapret_dns")
 
+    def test_catalog_refresh_does_not_clear_layout_before_new_plan_arrives(self) -> None:
+        page = self._make_page()
+        HostsPage._build_services_selectors(page, self._make_catalog_plan())
+
+        page._clear_layout = Mock(side_effect=AssertionError("layout не должен очищаться до получения нового плана"))
+        page._reset_services_runtime_bindings = Mock(
+            side_effect=AssertionError("виджеты не должны сбрасываться до получения нового плана")
+        )
+        page._start_services_catalog_worker = Mock()
+
+        HostsPage._refresh_services_selectors(page)
+
+        page._start_services_catalog_worker.assert_called_once_with()
+
+    def test_catalog_refresh_falls_back_to_rebuild_when_ui_not_mounted(self) -> None:
+        page = self._make_page()
+        page._services_ui_mounted = False
+        page._rebuild_services_selectors = Mock()
+        page._start_services_catalog_worker = Mock()
+
+        HostsPage._refresh_services_selectors(page)
+
+        page._rebuild_services_selectors.assert_called_once_with()
+        page._start_services_catalog_worker.assert_not_called()
+
     def test_rebuild_with_same_direct_shape_updates_toggle_without_clearing_layout(self) -> None:
         page = self._make_page()
         first_plan = self._make_direct_catalog_plan(checked=False)

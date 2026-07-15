@@ -12,7 +12,7 @@ def _source(path: str) -> str:
 
 def test_keyboard_navigation_lists_do_not_use_native_single_selection() -> None:
     targets = {
-        "src/profile/ui/profile_setup_page.py",
+        "src/profile/ui/profile_strategy_list_widget.py",
         "src/profile/ui/profiles_list.py",
         "src/profile/ui/profile_order_list.py",
         "src/presets/ui/common/user_presets_build.py",
@@ -28,7 +28,7 @@ def test_keyboard_navigation_lists_do_not_use_native_single_selection() -> None:
 
 def test_keyboard_row_delegates_paint_focused_current_row() -> None:
     targets = {
-        "src/profile/ui/profile_setup_page.py",
+        "src/profile/ui/profile_strategy_list_widget.py",
         "src/profile/ui/profile_list_delegate.py",
         "src/ui/presets_menu/delegate.py",
         "src/dns/ui/choice_list.py",

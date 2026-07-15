@@ -9,6 +9,7 @@ from PyQt6.QtWidgets import QListView, QVBoxLayout, QWidget
 from log.log import log
 from profile.list_view_state import build_profile_list_view_state, moved_profile_display_items
 from profile.ui.profile_list_delegate import ProfileListDelegate
+from profile.ui.profile_list_filter_state import ProfileListFilterState
 from profile.ui.profile_list_model import ProfileListModel
 from profile.ui.profile_list_view import ProfileListView
 from profile.ui.widgets.profile_type_selector import ProfileTypeSelector
@@ -39,9 +40,12 @@ class ProfileListViewStateWorker(QThread):
         super().__init__(parent)
         self._request_id = int(request_id)
         self._items = tuple(items or ())
-        self._active_profile_types = set(active_profile_types or {"all"})
-        self._search_query = str(search_query or "")
-        self._show_only_added = bool(show_only_added)
+        # Снимок фильтров на момент запроса: воркер не читает живой канон.
+        self._filters = ProfileListFilterState(
+            search_query=str(search_query or ""),
+            show_only_added=bool(show_only_added),
+            active_profile_types=set(active_profile_types or {"all"}),
+        )
         self._group_expanded = dict(group_expanded) if isinstance(group_expanded, dict) else None
         self._folder_state = dict(folder_state) if isinstance(folder_state, dict) else None
         self._move_request = dict(move_request or {}) if isinstance(move_request, dict) else None
@@ -67,9 +71,9 @@ class ProfileListViewStateWorker(QThread):
                 )
             state = build_profile_list_view_state(
                 items,
-                active_profile_types=self._active_profile_types,
-                search_query=self._search_query,
-                show_only_added=self._show_only_added,
+                active_profile_types=self._filters.active_profile_types,
+                search_query=self._filters.search_query,
+                show_only_added=self._filters.show_only_added,
                 group_expanded=group_expanded,
                 folder_state=self._folder_state,
             )
@@ -77,6 +81,49 @@ class ProfileListViewStateWorker(QThread):
             self.failed.emit(self._request_id, str(exc))
             return
         self.loaded.emit(self._request_id, state)
+
+
+def _instance_attr(obj, name: str, default=None):
+    """getattr, устойчивый к QWidget.__new__ без __init__ (duck-typed стабы
+    в тестах): PyQt кидает RuntimeError вместо AttributeError для
+    отсутствующих атрибутов неинициализированного QObject."""
+    try:
+        return getattr(obj, name, default)
+    except RuntimeError:
+        return default
+
+
+class _PendingViewStateMutation:
+    """Накопитель точечных правок view-state между запросом и стартом воркера.
+
+    Единственное место, где живут pending-значения items / group_expanded /
+    folder_state / move_request: виджет не держит теневых копий состояния
+    модели, а pending items читаются только через `_current_view_state_items`.
+    """
+
+    __slots__ = ("items", "group_expanded", "folder_state", "move_request", "reset_group_expanded")
+
+    def __init__(self) -> None:
+        self.items: tuple[Any, ...] | None = None
+        self.group_expanded: dict[str, bool] | None = None
+        self.folder_state: dict[str, Any] | None = None
+        self.move_request: dict[str, str] | None = None
+        self.reset_group_expanded = False
+
+    def take_reset_group_expanded(self) -> bool:
+        value = bool(self.reset_group_expanded)
+        self.reset_group_expanded = False
+        return value
+
+    def take_folder_state(self) -> dict[str, Any] | None:
+        value = self.folder_state
+        self.folder_state = None
+        return value
+
+    def take_move_request(self) -> dict[str, str] | None:
+        value = self.move_request
+        self.move_request = None
+        return value
 
 
 class ProfilesList(QWidget):
@@ -90,18 +137,19 @@ class ProfilesList(QWidget):
     folder_toggled = pyqtSignal(str, bool)
     folders_toggled = pyqtSignal(object, bool)
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, *, filter_state: ProfileListFilterState | None = None):
         super().__init__(parent)
-        self._active_profile_types: set[str] = {"all"}
-        self._search_query = ""
-        self._show_only_added = False
+        # Канон фильтров (намерение пользователя): общий объект со страницей;
+        # standalone-виджет создаёт собственный.
+        self._filters = filter_state if filter_state is not None else ProfileListFilterState()
         self._view_state_runtime = OneShotWorkerRuntime()
         self._view_state_state = LatestValueWorkerState(self._view_state_runtime, empty_value=False)
-        self._view_state_group_expanded: dict[str, bool] | None = None
-        self._view_state_folder_state: dict[str, Any] | None = None
-        self._view_state_items: tuple[Any, ...] | None = None
-        self._view_state_move_request: dict[str, str] | None = None
-        self._view_state_reset_group_expanded = False
+        self._pending_view_state = _PendingViewStateMutation()
+        # Scroll-anchor: reset «того же списка» (правка профиля, fallback-пути)
+        # восстанавливает позицию прокрутки; реальная смена списка
+        # (build_profiles / смена preset / смена фильтров) — начинает сверху.
+        self._scroll_to_top_on_reset = False
+        self._scroll_anchor: tuple[tuple[str, str], int] | None = None
         self._build_ui()
 
     def _build_ui(self) -> None:
@@ -124,6 +172,13 @@ class ProfilesList(QWidget):
         set_control_accessibility(self._view, name="Список профилей", description=profile_list_description)
         self._view.set_screen_reader_list_name("Список профилей")
         self._view.setModel(self._model)
+        # Точечные правки списка модель применяет insert/remove/move-сигналами,
+        # и QListView сам сохраняет позицию прокрутки. Полный reset «того же
+        # списка» восстанавливает позицию по scroll-anchor (identity верхней
+        # видимой строки + пиксельное смещение); реальная смена списка
+        # (другой preset, фильтры) — начинает сверху.
+        self._model.modelAboutToBeReset.connect(self._on_model_about_to_be_reset)
+        self._model.modelReset.connect(self._on_model_reset)
         set_state_text(self._view, "Список профилей: список пока загружается")
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setFocusProxy(self._view)
@@ -219,44 +274,195 @@ class ProfilesList(QWidget):
     def set_smooth_scroll_enabled(self, enabled: bool) -> None:
         apply_smooth_scroll_mode(self._view, enabled)
 
+    def _filter_state(self) -> ProfileListFilterState:
+        """Канон фильтров; лениво создаётся для duck-typed стабов из тестов."""
+        filters = _instance_attr(self, "_filters")
+        if filters is None:
+            filters = ProfileListFilterState()
+            self._filters = filters
+        return filters
+
+    @property
+    def _search_query(self) -> str:
+        """Тонкий test-facing доступ к канону фильтров."""
+        return str(self._filter_state().search_query or "")
+
+    @_search_query.setter
+    def _search_query(self, value: str) -> None:
+        self._filter_state().search_query = str(value or "")
+
+    @property
+    def _show_only_added(self) -> bool:
+        """Тонкий test-facing доступ к канону фильтров."""
+        return bool(self._filter_state().show_only_added)
+
+    @_show_only_added.setter
+    def _show_only_added(self, value: bool) -> None:
+        self._filter_state().show_only_added = bool(value)
+
+    @property
+    def _active_profile_types(self) -> set[str]:
+        """Тонкий test-facing доступ к канону фильтров."""
+        return set(self._filter_state().active_profile_types or {"all"})
+
+    @_active_profile_types.setter
+    def _active_profile_types(self, value: set[str]) -> None:
+        self._filter_state().active_profile_types = set(value or {"all"})
+
+    def _pending_view_state_mutation(self) -> _PendingViewStateMutation:
+        """Pending-мутации view-state; лениво создаётся для стабов из тестов."""
+        pending = _instance_attr(self, "_pending_view_state")
+        if pending is None:
+            pending = _PendingViewStateMutation()
+            self._pending_view_state = pending
+        return pending
+
+    def _view_state_runtime_obj(self) -> OneShotWorkerRuntime:
+        runtime = _instance_attr(self, "_view_state_runtime")
+        if runtime is None:
+            runtime = OneShotWorkerRuntime()
+            self._view_state_runtime = runtime
+        return runtime
+
     def build_profiles(self, items: tuple[Any, ...]) -> None:
+        # Новый список целиком (смена preset): якорь прежнего списка не
+        # применяется, после reset начинаем сверху.
+        self._scroll_to_top_on_reset = True
         self._request_view_state_rebuild(
             items=tuple(items or ()),
             reset_group_expanded=True,
         )
 
     def apply_view_state(self, view_state) -> None:
-        self._active_profile_types = set(getattr(view_state, "active_profile_types", None) or {"all"})
-        self._search_query = str(getattr(view_state, "search_query", "") or "")
-        self._show_only_added = bool(getattr(view_state, "show_only_added", False))
-        self._view_state_group_expanded = dict(getattr(view_state, "group_expanded", None) or {})
+        scroll_to_top = (
+            _instance_attr(self, "_scroll_to_top_on_reset", False)
+            or not self._view_state_filters_match(view_state)
+        )
+        # Канон синхронизируется с применённым снимком: view_state «выигрывает»
+        # у намерения на момент применения, страница затем возвращает свежий
+        # запрос/фильтр, если они успели разойтись (см. _apply_payload).
+        filters = self._filter_state()
+        filters.active_profile_types = set(getattr(view_state, "active_profile_types", None) or {"all"})
+        filters.search_query = str(getattr(view_state, "search_query", "") or "")
+        filters.show_only_added = bool(getattr(view_state, "show_only_added", False))
+        pending = self._pending_view_state_mutation()
+        pending.group_expanded = dict(getattr(view_state, "group_expanded", None) or {})
         try:
-            self._profile_type_selector.set_active_profile_types(self._active_profile_types)
+            self._profile_type_selector.set_active_profile_types(set(filters.active_profile_types))
         except Exception:
             pass
-        self._model.apply_view_state(view_state)
+        self._scroll_to_top_on_reset = scroll_to_top
+        try:
+            self._model.apply_view_state(view_state)
+        finally:
+            self._scroll_to_top_on_reset = False
         if self._model.rowCount() <= 0:
             state_text = self._empty_profile_list_state_text()
             set_state_text(self, state_text)
             set_state_text(self._view, state_text)
         elif not self._view.currentIndex().isValid():
-            self._view.setCurrentIndex(self._model.index(0, 0))
-        self._view_state_items = None
+            self._set_current_index_without_scroll(self._model.index(0, 0))
+        pending.items = None
+
+    def _set_current_index_without_scroll(self, index) -> None:
+        # setCurrentIndex с включённым autoScroll прокручивает список к
+        # элементу; после точечного удаления текущей строки или reset модели
+        # это перекидывало бы список наверх.
+        auto_scroll = self._view.hasAutoScroll()
+        self._view.setAutoScroll(False)
+        try:
+            self._view.setCurrentIndex(index)
+        finally:
+            self._view.setAutoScroll(auto_scroll)
+
+    def _view_state_filters_match(self, view_state) -> bool:
+        """Совпадают ли фильтры нового состояния с текущими фильтрами модели.
+
+        Смена поиска/типов/«только добавленные» — это «новый список»: якорь
+        прокрутки не применяется, после reset начинаем сверху."""
+        try:
+            options = self._model.view_state_options()
+        except Exception:
+            return True
+        return (
+            set(options.get("active_profile_types") or {"all"})
+            == set(getattr(view_state, "active_profile_types", None) or {"all"})
+            and str(options.get("search_query") or "") == str(getattr(view_state, "search_query", "") or "")
+            and bool(options.get("show_only_added")) == bool(getattr(view_state, "show_only_added", False))
+        )
+
+    def _applied_view_filters_differ(self) -> bool:
+        """Расходится ли применённый снимок фильтров модели с каноном.
+
+        Применённое состояние отстаёт от намерения, пока view-state готовится
+        в воркере или пришёл из устаревшего payload — тогда повторный запрос
+        с тем же намерением всё равно нужен."""
+        try:
+            options = self._model.view_state_options()
+        except Exception:
+            return False
+        filters = self._filter_state()
+        return (
+            set(options.get("active_profile_types") or {"all"})
+            != set(filters.active_profile_types or {"all"})
+            or str(options.get("search_query") or "") != str(filters.search_query or "")
+            or bool(options.get("show_only_added")) != bool(filters.show_only_added)
+        )
+
+    def _on_model_about_to_be_reset(self) -> None:
+        self._scroll_anchor = None
+        if _instance_attr(self, "_scroll_to_top_on_reset", False):
+            return
+        self._scroll_anchor = self._capture_scroll_anchor()
+
+    def _on_model_reset(self) -> None:
+        anchor = self._scroll_anchor
+        self._scroll_anchor = None
+        if anchor is not None and self._restore_scroll_anchor(*anchor):
+            return
+        self._view.scrollToTop()
+
+    def _capture_scroll_anchor(self) -> tuple[tuple[str, str], int] | None:
+        """Якорь прокрутки: identity верхней видимой строки + её пиксельное
+        смещение относительно верха viewport (обычно ≤ 0)."""
+        if self._view.verticalScrollBar().value() <= 0:
+            return None
+        index = self._view.indexAt(QPoint(0, 0))
+        if not index.isValid():
+            return None
+        identity = self._model.stable_row_identity_at(index.row())
+        if identity is None:
+            return None
+        return identity, int(self._view.visualRect(index).top())
+
+    def _restore_scroll_anchor(self, identity: tuple[str, str], offset: int) -> bool:
+        """Возвращает якорную строку на прежнее место после reset «того же
+        списка». Если строка исчезла — False, вызывающий уходит наверх."""
+        row = self._model.row_for_stable_identity(identity)
+        if row < 0:
+            return False
+        self._view.scrollTo(self._model.index(row, 0), QListView.ScrollHint.PositionAtTop)
+        scrollbar = self._view.verticalScrollBar()
+        scrollbar.setValue(max(0, scrollbar.value() - int(offset)))
+        return True
 
     def _empty_profile_list_state_text(self) -> str:
-        if str(self._search_query or "").strip():
+        filters = self._filter_state()
+        if str(filters.search_query or "").strip():
             return "Список профилей: по фильтру ничего не найдено"
-        if bool(self._show_only_added):
+        if bool(filters.show_only_added):
             return "Список профилей: добавленных профилей не найдено"
-        if self._active_profile_types and "all" not in self._active_profile_types:
+        active_profile_types = set(filters.active_profile_types or {"all"})
+        if active_profile_types and "all" not in active_profile_types:
             return "Список профилей: по выбранным типам ничего не найдено"
         return "Список профилей: список пуст"
 
     def view_state_options(self) -> dict[str, Any]:
         options = self._model.view_state_options()
-        options["active_profile_types"] = set(self._active_profile_types or {"all"})
-        options["search_query"] = str(self._search_query or "")
-        options["show_only_added"] = bool(self._show_only_added)
+        filters = self._filter_state()
+        options["active_profile_types"] = set(filters.active_profile_types or {"all"})
+        options["search_query"] = str(filters.search_query or "")
+        options["show_only_added"] = bool(filters.show_only_added)
         return options
 
     def update_profiles(self, items: tuple[Any, ...]) -> bool:
@@ -323,11 +529,21 @@ class ProfilesList(QWidget):
         if not clean_profile_id or not replacement_items:
             return False
         current_items = self._current_view_state_items()
-        if not any(
-            str(getattr(item, "user_profile_id", "") or "").strip() == clean_profile_id
-            for item in current_items
-        ):
+        replaced_positions = tuple(
+            position
+            for position, item in enumerate(current_items)
+            if str(getattr(item, "user_profile_id", "") or "").strip() == clean_profile_id
+        )
+        if not replaced_positions:
             return False
+        if len(replaced_positions) == len(replacement_items):
+            # Замена на месте: элементы остаются на прежних позициях,
+            # прокрутка и порядок списка не страдают.
+            items_list = list(current_items)
+            for position, replacement in zip(replaced_positions, replacement_items):
+                items_list[position] = replacement
+            self._request_view_state_rebuild(items=tuple(items_list))
+            return True
         next_items = tuple(
             item
             for item in current_items
@@ -415,17 +631,29 @@ class ProfilesList(QWidget):
 
     def set_search_query(self, query: str) -> None:
         value = str(query or "")
-        if self._search_query == value:
+        filters = self._filter_state()
+        if filters.search_query == value and not self._filter_rebuild_needed():
             return
-        self._search_query = value
+        filters.search_query = value
         self._request_view_state_rebuild()
 
     def set_show_only_added(self, enabled: bool) -> None:
         value = bool(enabled)
-        if self._show_only_added == value:
+        filters = self._filter_state()
+        if filters.show_only_added == value and not self._filter_rebuild_needed():
             return
-        self._show_only_added = value
+        filters.show_only_added = value
         self._request_view_state_rebuild()
+
+    def _filter_rebuild_needed(self) -> bool:
+        """Нужен ли повторный запрос view-state при неизменном каноне фильтров.
+
+        Канон — общий объект со страницей, и страница пишет в него ДО вызова
+        виджета, поэтому «значение совпало» не означает «применено». Rebuild
+        нужен, когда применённый снимок модели отстаёт от канона ИЛИ когда
+        воркер ещё занят: его in-flight результат снят с устаревших фильтров,
+        и без pending он затёр бы свежее намерение (см. _on_view_state_loaded)."""
+        return self._applied_view_filters_differ() or self._view_state_state_obj().is_busy()
 
     def _on_view_clicked(self, index) -> None:
         if not index.isValid():
@@ -450,9 +678,10 @@ class ProfilesList(QWidget):
 
     def _apply_profile_type_filter(self, active_profile_types: set[str]) -> None:
         active = set(active_profile_types or {"all"})
-        if self._active_profile_types == active:
+        filters = self._filter_state()
+        if set(filters.active_profile_types or {"all"}) == active and not self._applied_view_filters_differ():
             return
-        self._active_profile_types = active
+        filters.active_profile_types = active
         self._request_view_state_rebuild()
 
     def _request_all_groups_expanded(self, expanded: bool) -> None:
@@ -474,7 +703,7 @@ class ProfilesList(QWidget):
         )
 
     def _current_group_expanded(self) -> dict[str, bool]:
-        pending = self.__dict__.get("_view_state_group_expanded")
+        pending = self._pending_view_state_mutation().group_expanded
         if isinstance(pending, dict):
             return {
                 str(group_key): bool(expanded)
@@ -500,21 +729,18 @@ class ProfilesList(QWidget):
         move_request: dict[str, str] | None = None,
         reset_group_expanded: bool = False,
     ) -> None:
+        pending = self._pending_view_state_mutation()
         if group_expanded is not None:
-            self._view_state_group_expanded = dict(group_expanded)
+            pending.group_expanded = dict(group_expanded)
         if isinstance(folder_state, dict):
-            self._view_state_folder_state = dict(folder_state)
+            pending.folder_state = dict(folder_state)
         if items is not None:
-            self._view_state_items = tuple(items or ())
+            pending.items = tuple(items or ())
         if isinstance(move_request, dict):
-            self._view_state_move_request = dict(move_request)
+            pending.move_request = dict(move_request)
         if reset_group_expanded:
-            self._view_state_group_expanded = None
-            self._view_state_reset_group_expanded = True
-        runtime = self.__dict__.get("_view_state_runtime")
-        if runtime is None:
-            runtime = OneShotWorkerRuntime()
-            self._view_state_runtime = runtime
+            pending.group_expanded = None
+            pending.reset_group_expanded = True
         state = self._view_state_state_obj()
         if state.is_busy():
             state.pending = True
@@ -522,25 +748,20 @@ class ProfilesList(QWidget):
         self._start_view_state_worker()
 
     def _start_view_state_worker(self) -> None:
-        runtime = self.__dict__.get("_view_state_runtime")
-        if runtime is None:
-            runtime = OneShotWorkerRuntime()
-            self._view_state_runtime = runtime
+        runtime = self._view_state_runtime_obj()
         options = self._model.view_state_options()
-        items = tuple(self.__dict__.get("_view_state_items") or options.get("items") or ())
-        if bool(self.__dict__.pop("_view_state_reset_group_expanded", False)):
+        pending = self._pending_view_state_mutation()
+        items = tuple(pending.items or options.get("items") or ())
+        if pending.take_reset_group_expanded():
             group_expanded = None
         else:
-            group_expanded = dict(
-                self.__dict__.get("_view_state_group_expanded")
-                or options.get("group_expanded")
-                or {}
-            )
-        folder_state = self.__dict__.pop("_view_state_folder_state", None)
-        move_request = self.__dict__.pop("_view_state_move_request", None)
-        active_profile_types = set(self._active_profile_types or {"all"})
-        search_query = str(self._search_query or "")
-        show_only_added = bool(self._show_only_added)
+            group_expanded = dict(pending.group_expanded or options.get("group_expanded") or {})
+        folder_state = pending.take_folder_state()
+        move_request = pending.take_move_request()
+        filters = self._filter_state()
+        active_profile_types = set(filters.active_profile_types or {"all"})
+        search_query = str(filters.search_query or "")
+        show_only_added = bool(filters.show_only_added)
 
         runtime.start_qthread_worker(
             worker_factory=lambda request_id: ProfileListViewStateWorker(
@@ -560,19 +781,15 @@ class ProfilesList(QWidget):
         )
 
     def _view_state_state_obj(self) -> LatestValueWorkerState:
-        state = self.__dict__.get("_view_state_state")
-        runtime = self.__dict__.get("_view_state_runtime")
+        state = _instance_attr(self, "_view_state_state")
         if state is None:
-            if runtime is None:
-                runtime = OneShotWorkerRuntime()
-                self._view_state_runtime = runtime
-            pending = bool(self.__dict__.pop("_view_state_rebuild_pending", False))
-            state = LatestValueWorkerState(runtime, empty_value=False, pending=pending)
-            self.__dict__["_view_state_state"] = state
+            state = LatestValueWorkerState(self._view_state_runtime_obj(), empty_value=False)
+            self._view_state_state = state
         return state
 
     def _current_view_state_items(self) -> tuple[Any, ...]:
-        pending = self.__dict__.get("_view_state_items")
+        """Единственная точка чтения items: pending-мутация, иначе модель."""
+        pending = self._pending_view_state_mutation().items
         if isinstance(pending, tuple):
             return pending
         try:
@@ -610,7 +827,7 @@ class ProfilesList(QWidget):
         return False
 
     def _on_view_state_loaded(self, request_id: int, state) -> None:
-        runtime = self.__dict__.get("_view_state_runtime")
+        runtime = _instance_attr(self, "_view_state_runtime")
         if runtime is None or not runtime.is_current(request_id):
             return
         if self._view_state_state_obj().has_pending():
@@ -618,9 +835,14 @@ class ProfilesList(QWidget):
         self.apply_view_state(state)
 
     def _on_view_state_failed(self, request_id: int, error: str) -> None:
-        runtime = self.__dict__.get("_view_state_runtime")
+        runtime = _instance_attr(self, "_view_state_runtime")
         if runtime is None or not runtime.is_current(request_id):
             return
+        # Флаг «после reset — наверх» взводится в build_profiles и штатно
+        # снимается в finally apply_view_state; при падении воркера apply не
+        # случится, и без сброса все последующие reset «того же списка»
+        # прыгали бы наверх.
+        self._scroll_to_top_on_reset = False
         log(f"ProfilesList: не удалось подготовить фильтр profile-списка: {error}", "ERROR")
 
     def _on_view_state_worker_finished(self, worker) -> None:
@@ -643,7 +865,7 @@ class ProfilesList(QWidget):
         pending = state.take_pending_for_scheduled_start()
         if not pending:
             return
-        runtime = self.__dict__.get("_view_state_runtime")
+        runtime = _instance_attr(self, "_view_state_runtime")
         if runtime is not None and runtime.is_running():
             state.pending = True
             return

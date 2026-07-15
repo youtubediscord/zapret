@@ -31,7 +31,7 @@ class SingleOwnerGuardTests(unittest.TestCase):
         "src/main/tray_window_port.py",
         "src/main/window_native_commands.py",
         "src/ui/window_close_flow.py",
-        "src/startup/ipc_manager.py",
+        "src/startup/show_window_bridge.py",
     )
 
     def test_orchestrators_do_not_mutate_window_state(self) -> None:

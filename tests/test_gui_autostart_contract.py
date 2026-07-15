@@ -266,6 +266,7 @@ class GuiAutostartContractTests(unittest.TestCase):
                 "gui_autostart_enabled": True,
                 "defender_disabled": False,
                 "max_blocked": False,
+                "russian_state_media_blocked": False,
             },
             "window": {
                 "tray_close_mode": "normal",
@@ -303,12 +304,13 @@ class GuiAutostartContractTests(unittest.TestCase):
 
         toggle = _FakeToggle(False)
         snapshot = ProgramSettingsSnapshot(
-            revision=(False, True, "normal", False, False),
+            revision=(False, True, "normal", False, False, False),
             auto_dpi_enabled=False,
             gui_autostart_enabled=True,
             tray_close_mode="normal",
             defender_disabled=False,
             max_blocked=False,
+            russian_state_media_blocked=False,
         )
 
         apply_program_settings_toggles(snapshot, gui_autostart_toggle=toggle)

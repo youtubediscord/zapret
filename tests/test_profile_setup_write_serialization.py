@@ -45,9 +45,11 @@ class ProfileSetupWriteSerializationTests(unittest.TestCase):
             __import__("profile.ui.profile_setup_page", fromlist=[""])
         )
         init_source = inspect.getsource(ProfileSetupPageBase.__init__)
-        queue_source = inspect.getsource(ProfileSetupPageBase._queue_profile_setup_write_operation)
-        start_next_source = inspect.getsource(ProfileSetupPageBase._start_next_profile_setup_write_operation)
-        schedule_source = inspect.getsource(ProfileSetupPageBase._schedule_profile_setup_write_operation_start)
+        from profile.ui.profile_setup_save_controllers import ProfileSetupSaveController
+
+        queue_source = inspect.getsource(ProfileSetupSaveController._queue_profile_setup_write_operation)
+        start_next_source = inspect.getsource(ProfileSetupSaveController._start_next_profile_setup_write_operation)
+        schedule_source = inspect.getsource(ProfileSetupSaveController._schedule_profile_setup_write_operation_start)
         cleanup_source = inspect.getsource(ProfileSetupPageBase.cleanup)
 
         self.assertIsInstance(ProfileSetupPageBase._profile_setup_write_state_obj(page), QueuedWorkerState)
@@ -68,10 +70,12 @@ class ProfileSetupWriteSerializationTests(unittest.TestCase):
             __import__("profile.ui.profile_setup_page", fromlist=[""])
         )
         init_source = inspect.getsource(ProfileSetupPageBase.__init__)
-        queue_source = inspect.getsource(ProfileSetupPageBase._queue_user_profile_write_operation)
-        pop_source = inspect.getsource(ProfileSetupPageBase._pop_next_pending_user_profile_write_operation)
-        has_pending_source = inspect.getsource(ProfileSetupPageBase._has_pending_user_profile_write_operation)
-        schedule_source = inspect.getsource(ProfileSetupPageBase._schedule_next_pending_user_profile_write_operation_start)
+        from profile.ui.profile_user_profile_controller import ProfileUserProfileController
+
+        queue_source = inspect.getsource(ProfileUserProfileController._queue_user_profile_write_operation)
+        pop_source = inspect.getsource(ProfileUserProfileController._pop_next_pending_user_profile_write_operation)
+        has_pending_source = inspect.getsource(ProfileUserProfileController._has_pending_user_profile_write_operation)
+        schedule_source = inspect.getsource(ProfileUserProfileController._schedule_next_pending_user_profile_write_operation_start)
         cleanup_source = inspect.getsource(ProfileSetupPageBase.cleanup)
 
         self.assertIsInstance(ProfileSetupPageBase._user_profile_write_state_obj(page), QueuedWorkerState)

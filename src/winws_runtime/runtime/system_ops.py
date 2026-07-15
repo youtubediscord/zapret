@@ -9,13 +9,19 @@ from log.log import log
 from settings.mode import EXE_NAME_WINWS1, EXE_NAME_WINWS2
 
 
+# Канонические Win32-коды ошибок WinDivert живут в едином центре диагностики.
+from winws_runtime.health.windivert_diagnostics import (  # noqa: E402
+    _ERROR_SERVICE_DISABLED,
+    _ERROR_SERVICE_DOES_NOT_EXIST,
+    _ERROR_SERVICE_MARKED_FOR_DELETE,
+)
+
 _KNOWN_WINDIVERT_DRIVERS = ("WinDivert", "WinDivert14", "WinDivert64", "Monkey")
 _KNOWN_WINDIVERT_SERVICES = ("WinDivert", "WinDivert14", "WinDivert64", "windivert", "Monkey")
 _SERVICE_STOPPED = 0x00000001
 _SERVICE_STOP_PENDING = 0x00000003
 _SERVICE_RUNNING = 0x00000004
 _SERVICE_DISABLED = 0x00000004
-_ERROR_SERVICE_MARKED_FOR_DELETE = 1072
 _WINDIVERT_LAYER_NETWORK = 0
 _WINDIVERT_LAYER_REFLECT = 4
 _WINDIVERT_FLAG_SNIFF = 1
@@ -56,6 +62,17 @@ def force_kill_all_winws_processes() -> bool:
         return bool(kill_winws_force())
     except Exception as e:
         log(f"Ошибка force kill winws: {e}", "DEBUG")
+        return False
+
+
+def _is_kaspersky_present_safe() -> bool:
+    """Детект Kaspersky для cleanup; ошибка детекта = вести себя как раньше."""
+    try:
+        from utils.antivirus_probe import is_kaspersky_present
+
+        return bool(is_kaspersky_present())
+    except Exception as e:
+        log(f"Ошибка детекта Kaspersky: {e}", "DEBUG")
         return False
 
 
@@ -269,7 +286,7 @@ def probe_windivert_state_runtime() -> WinDivertRuntimeProbeResult:
         layer=_WINDIVERT_LAYER_REFLECT,
         flags=_WINDIVERT_FLAG_SNIFF | _WINDIVERT_FLAG_RECV_ONLY | _WINDIVERT_FLAG_NO_INSTALL,
     )
-    installed = bool(installed_ok or int(installed_error or 0) != 1060)
+    installed = bool(installed_ok or int(installed_error or 0) != _ERROR_SERVICE_DOES_NOT_EXIST)
 
     ready_ok, ready_error = _probe_windivert_open_runtime(
         dll,
@@ -398,9 +415,34 @@ def standard_windivert_cleanup_runtime(*, sleep_seconds: float = 0.8) -> bool:
 
 def aggressive_windivert_cleanup_runtime() -> bool:
     log("Performing aggressive WinDivert cleanup via Win API...", "INFO")
+    kaspersky_present = _is_kaspersky_present_safe()
     ok = True
     ok = force_kill_all_winws_processes() and ok
-    time.sleep(0.3)
+
+    # Принудительная выгрузка драйвера, пока ядро не закрыло filter handles,
+    # провоцирует BSOD в tcpip.sys при активных WFP-фильтрах антивируса.
+    # Ждём реального завершения (нет winws-процессов, службы не RUNNING),
+    # таймаут не считается ошибкой cleanup — просто идём дальше.
+    settled = wait_for_windivert_cleanup_settle_runtime(
+        max_wait_seconds=5.0,
+        poll_interval=0.25,
+        retry_cleanup=False,
+    )
+    if not settled:
+        log("WinDivert не стабилизировался перед выгрузкой драйвера (timeout)", "WARNING")
+
+    if kaspersky_present:
+        log(
+            "Обнаружен Kaspersky: пропускаем выгрузку драйвера WinDivert и удаление служб, "
+            "чтобы не провоцировать конфликт с фильтрами антивируса",
+            "INFO",
+        )
+        ok = clear_stopped_windivert_delete_flags_runtime() and ok
+        ok = restore_known_windivert_services_demand_start_runtime() and ok
+        ok = force_kill_all_winws_processes() and ok
+        log("Aggressive cleanup completed (Kaspersky-safe mode)", "INFO")
+        return ok
+
     ok = unload_known_windivert_drivers_runtime() and ok
     time.sleep(0.2)
     services_removed = stop_and_delete_runtime_services(retry_count=3)
@@ -531,7 +573,11 @@ def wait_for_windivert_spawn_ready_runtime(
             return last_probe
 
         blocking_services = find_blocking_windivert_registry_services_runtime()
-        if int(last_probe.error_code or 0) in (1058, 1060) and not blocking_services:
+        if (
+            int(last_probe.error_code or 0)
+            in (_ERROR_SERVICE_DISABLED, _ERROR_SERVICE_DOES_NOT_EXIST)
+            and not blocking_services
+        ):
             # Зомби-состояние после недавнего stop: записи SCM уже нет, но драйвер
             # ещё жив — старт winws2 в этот момент падает с 0xC0000142. Один раз
             # делаем ту же выгрузку, что и retry-путь; на свежей системе это no-op.
@@ -542,7 +588,10 @@ def wait_for_windivert_spawn_ready_runtime(
                 if reprobe.ready:
                     return reprobe
                 last_probe = reprobe
-                if int(last_probe.error_code or 0) not in (1058, 1060):
+                if int(last_probe.error_code or 0) not in (
+                    _ERROR_SERVICE_DISABLED,
+                    _ERROR_SERVICE_DOES_NOT_EXIST,
+                ):
                     time.sleep(interval)
                     continue
             log(
@@ -557,7 +606,7 @@ def wait_for_windivert_spawn_ready_runtime(
                 stage="network_open_probe_bypassed:registry_clean",
             )
 
-        if int(last_probe.error_code or 0) == 1058 and not restored_service_start_type:
+        if int(last_probe.error_code or 0) == _ERROR_SERVICE_DISABLED and not restored_service_start_type:
             restored_service_start_type = True
             log("WinDivert service disabled during readiness probe; restoring manual start", "WARNING")
             restored_ok = restore_known_windivert_services_demand_start_runtime()

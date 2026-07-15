@@ -124,6 +124,7 @@ def apply_program_settings_toggles(
     tray_close_mode_combo=None,
     defender_toggle=None,
     max_block_toggle=None,
+    state_media_block_toggle=None,
 ) -> None:
     if auto_dpi_toggle is not None:
         set_toggle_checked(auto_dpi_toggle, getattr(snapshot, "auto_dpi_enabled", False))
@@ -135,6 +136,11 @@ def apply_program_settings_toggles(
         set_toggle_checked(defender_toggle, getattr(snapshot, "defender_disabled", False))
     if max_block_toggle is not None:
         set_toggle_checked(max_block_toggle, getattr(snapshot, "max_blocked", False))
+    if state_media_block_toggle is not None:
+        set_toggle_checked(
+            state_media_block_toggle,
+            getattr(snapshot, "russian_state_media_blocked", False),
+        )
 
 
 def show_action_result_plan(plan, *, parent_widget, set_status, info_bar_cls, toggle=None) -> None:

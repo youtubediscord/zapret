@@ -317,6 +317,59 @@ def build_max_block_toggle_start_plan(*, enable: bool, language: str) -> Control
     )
 
 
+def build_state_media_block_toggle_start_plan(*, enable: bool, language: str) -> ControlToggleActionStartPlan:
+    from app.ui_texts import tr as tr_catalog
+
+    if enable:
+        return ControlToggleActionStartPlan(
+            blocked=False,
+            blocked_title="",
+            blocked_content="",
+            blocked_revert_checked=None,
+            confirmations=(
+                ControlConfirmationDialogPlan(
+                    title=tr_catalog(
+                        "page.control.dialog.state_media_block_enable.title",
+                        language=language,
+                        default="Блокировка государственных СМИ РФ",
+                    ),
+                    content=(
+                        "Включить блокировку базового списка государственных новостных сайтов РФ?\n\n"
+                        "Что будет сделано:\n"
+                        "• В файл hosts будет добавлен отдельный блок ZapretGUI\n"
+                        "• Домены из списка будут направлены на 127.0.0.1 и ::1\n"
+                        "• При выключении будет удалён только этот блок\n\n"
+                        "Для записи в hosts могут потребоваться права администратора."
+                    ),
+                    revert_checked=False,
+                ),
+            ),
+            start_status="",
+        )
+
+    return ControlToggleActionStartPlan(
+        blocked=False,
+        blocked_title="",
+        blocked_content="",
+        blocked_revert_checked=None,
+        confirmations=(
+            ControlConfirmationDialogPlan(
+                title=tr_catalog(
+                    "page.control.dialog.state_media_block_disable.title",
+                    language=language,
+                    default="Отключение блокировки государственных СМИ РФ",
+                ),
+                content=(
+                    "Отключить блокировку государственных СМИ РФ?\n\n"
+                    "Из hosts будет удалён только блок, созданный ZapretGUI."
+                ),
+                revert_checked=True,
+            ),
+        ),
+        start_status="",
+    )
+
+
 def build_internet_cleanup_start_plan(*, language: str) -> ControlToggleActionStartPlan:
     from app.ui_texts import tr as tr_catalog
 

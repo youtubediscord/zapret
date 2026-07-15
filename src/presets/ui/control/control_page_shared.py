@@ -488,6 +488,11 @@ class ControlPageActionMixin:
                 self._show_windows_feature_action_result(result, self.defender_toggle)
             elif action == "max_block":
                 self._show_windows_feature_action_result(result, self.max_block_toggle)
+            elif action == "state_media_block":
+                self._show_windows_feature_action_result(
+                    result,
+                    getattr(self, "state_media_block_toggle", None),
+                )
             elif action == "tray_close_mode":
                 self._remember_tray_close_mode(str(result or "normal"))
         finally:

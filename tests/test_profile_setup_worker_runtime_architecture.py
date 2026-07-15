@@ -7,32 +7,37 @@ import unittest
 class ProfileSetupWorkerRuntimeArchitectureTests(unittest.TestCase):
     def test_profile_setup_save_workers_start_through_runtime(self) -> None:
         from profile.ui.profile_setup_page import ProfileSetupPageBase
+        from profile.ui.profile_list_file_editor_controller import ProfileListFileEditorController
+        from profile.ui.profile_setup_save_controllers import ProfileSetupSaveController
+        from profile.ui.profile_setup_payload_controller import ProfileSetupPayloadController
+        from profile.ui.profile_strategy_controller import ProfileStrategyController
+        from profile.ui.profile_user_profile_controller import ProfileUserProfileController
 
         module_source = inspect.getsource(
             __import__("profile.ui.profile_setup_page", fromlist=[""])
         )
         init_source = inspect.getsource(ProfileSetupPageBase.__init__)
-        payload_source = inspect.getsource(ProfileSetupPageBase._request_profile_setup_payload)
-        payload_start_source = inspect.getsource(ProfileSetupPageBase._start_profile_setup_load_worker)
-        list_load_source = inspect.getsource(ProfileSetupPageBase._request_list_file_editor_state)
-        validation_request_source = inspect.getsource(ProfileSetupPageBase._request_list_file_validation)
-        validation_start_source = inspect.getsource(ProfileSetupPageBase._start_list_file_validation_worker)
-        save_request_source = inspect.getsource(ProfileSetupPageBase._request_list_file_save)
-        save_start_source = inspect.getsource(ProfileSetupPageBase._start_list_file_save_worker)
-        settings_request_source = inspect.getsource(ProfileSetupPageBase._request_settings_save)
-        settings_start_source = inspect.getsource(ProfileSetupPageBase._start_settings_save_worker)
-        raw_request_source = inspect.getsource(ProfileSetupPageBase._request_raw_profile_save)
-        raw_start_source = inspect.getsource(ProfileSetupPageBase._start_raw_profile_save_worker)
+        payload_source = inspect.getsource(ProfileSetupPayloadController._request_profile_setup_payload)
+        payload_start_source = inspect.getsource(ProfileSetupPayloadController._start_profile_setup_load_worker)
+        list_load_source = inspect.getsource(ProfileListFileEditorController._request_list_file_editor_state)
+        validation_request_source = inspect.getsource(ProfileListFileEditorController._request_list_file_validation)
+        validation_start_source = inspect.getsource(ProfileListFileEditorController._start_list_file_validation_worker)
+        save_request_source = inspect.getsource(ProfileListFileEditorController._request_list_file_save)
+        save_start_source = inspect.getsource(ProfileListFileEditorController._start_list_file_save_worker)
+        settings_request_source = inspect.getsource(ProfileSetupSaveController._request_settings_save)
+        settings_start_source = inspect.getsource(ProfileSetupSaveController._start_settings_save_worker)
+        raw_request_source = inspect.getsource(ProfileSetupSaveController._request_raw_profile_save)
+        raw_start_source = inspect.getsource(ProfileSetupSaveController._start_raw_profile_save_worker)
         enabled_source = inspect.getsource(ProfileSetupPageBase._on_enabled_changed)
-        enabled_start_source = inspect.getsource(ProfileSetupPageBase._start_enabled_save_worker)
-        user_update_request_source = inspect.getsource(ProfileSetupPageBase._request_user_profile_update)
-        user_update_start_source = inspect.getsource(ProfileSetupPageBase._start_user_profile_update_worker)
-        user_delete_source = inspect.getsource(ProfileSetupPageBase._request_user_profile_delete)
-        user_delete_start_source = inspect.getsource(ProfileSetupPageBase._start_user_profile_delete_worker)
-        strategy_apply_request_source = inspect.getsource(ProfileSetupPageBase._request_strategy_apply)
-        strategy_apply_start_source = inspect.getsource(ProfileSetupPageBase._start_strategy_apply_worker)
-        strategy_feedback_request_source = inspect.getsource(ProfileSetupPageBase._request_strategy_feedback_save)
-        strategy_feedback_start_source = inspect.getsource(ProfileSetupPageBase._start_strategy_feedback_save_worker)
+        enabled_start_source = inspect.getsource(ProfileSetupSaveController._start_enabled_save_worker)
+        user_update_request_source = inspect.getsource(ProfileUserProfileController._request_user_profile_update)
+        user_update_start_source = inspect.getsource(ProfileUserProfileController._start_user_profile_update_worker)
+        user_delete_source = inspect.getsource(ProfileUserProfileController._request_user_profile_delete)
+        user_delete_start_source = inspect.getsource(ProfileUserProfileController._start_user_profile_delete_worker)
+        strategy_apply_request_source = inspect.getsource(ProfileStrategyController._request_strategy_apply)
+        strategy_apply_start_source = inspect.getsource(ProfileStrategyController._start_strategy_apply_worker)
+        strategy_feedback_request_source = inspect.getsource(ProfileStrategyController._request_strategy_feedback_save)
+        strategy_feedback_start_source = inspect.getsource(ProfileStrategyController._start_strategy_feedback_save_worker)
         cleanup_source = inspect.getsource(ProfileSetupPageBase.cleanup)
 
         expected_runtimes = (

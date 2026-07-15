@@ -13,8 +13,8 @@
 --ipcache-lifetime=8400
 --ipcache-hostname=1
 
---wf-tcp-out=80,443,1080,2053,2083,2087,2096,8443
---wf-udp-out=80,443
+--wf-tcp-out=80,443-65535
+--wf-udp-out=80,443-65535
 
 --wf-raw-part=@windivert.filter/windivert_part.discord_media.txt
 --wf-raw-part=@windivert.filter/windivert_part.stun.txt
@@ -39,6 +39,7 @@
 --blob=tls17:@bin/tls_clienthello_17.bin
 --blob=tls18:@bin/tls_clienthello_18.bin
 --blob=tls_sber:@bin/tls_clienthello_sberbank_ru.bin
+--blob=tls_sber_v2:@bin/tls_clienthello_sberbank_ru_v2.bin
 --blob=tls_vk:@bin/tls_clienthello_vk_com.bin
 --blob=tls_vk_kyber:@bin/tls_clienthello_vk_com_kyber.bin
 --blob=tls_deepseek:@bin/tls_clienthello_chat_deepseek_com.bin

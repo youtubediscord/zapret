@@ -83,6 +83,10 @@ class FolderDefaultsTests(unittest.TestCase):
 
     def test_profile_default_folder_is_classified_from_profile_text(self) -> None:
         self.assertEqual(classify_profile_folder("YouTube Russia CDN --hostlist=youtube.txt"), "youtube")
+        self.assertEqual(
+            classify_profile_folder("i.ytimg.com (превью роликов) --hostlist=lists/i.ytimg.txt"),
+            "youtube",
+        )
         self.assertEqual(classify_profile_folder("Discord Updates --hostlist=discord.txt"), "discord")
         self.assertEqual(classify_profile_folder("GitHub --hostlist=lists/github.txt"), "github")
         self.assertEqual(

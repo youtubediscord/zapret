@@ -217,6 +217,15 @@ class ProfileIconTests(unittest.TestCase):
                 self.assertEqual(icon.icon_name, "simple:roblox:RB")
                 self.assertEqual(icon.color, "#E2231A")
 
+    def test_githubusercontent_profile_uses_github_icon(self) -> None:
+        icon = resolve_profile_icon(
+            "githubusercontent.com",
+            ("--filter-tcp=443", "--hostlist-domains=raw.githubusercontent.com,objects.githubusercontent.com"),
+        )
+
+        self.assertEqual(icon.icon_name, "simple:github:GH")
+        self.assertEqual(icon.color, "#F0F3F6")
+
     def test_ytimg_preview_profile_uses_youtube_icon(self) -> None:
         icon = resolve_profile_icon(
             "i.ytimg.com (превью роликов)",

@@ -116,8 +116,21 @@ def _apply_smooth_scroll_policy_to_targets(window, enabled: bool, *, editors: bo
     """Применяет режим прокрутки к редакторам или ко всем остальным виджетам."""
     try:
         from ui.smooth_scroll import apply_smooth_scroll_mode, is_editor_smooth_scroll_target
+    except Exception:
+        return
 
-        for target in _iter_smooth_scroll_targets(window):
+    iterator = _iter_smooth_scroll_targets(window)
+    while True:
+        try:
+            target = next(iterator)
+        except StopIteration:
+            break
+        except Exception:
+            break
+
+        # Ошибка одного виджета (например, уже удалённого на C++-стороне)
+        # не должна отменять применение настройки к остальным.
+        try:
             if bool(is_editor_smooth_scroll_target(target)) != editors:
                 continue
 
@@ -128,8 +141,8 @@ def _apply_smooth_scroll_policy_to_targets(window, enabled: bool, *, editors: bo
                     custom_setter(enabled)
                 except Exception:
                     pass
-    except Exception:
-        pass
+        except Exception:
+            continue
 
 
 def _iter_smooth_scroll_targets(window):

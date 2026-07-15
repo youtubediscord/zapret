@@ -437,8 +437,11 @@ def finalize_scan_report(
 
     total_count = max(scan_cursor, report.total_tested)
     elapsed = report.elapsed_seconds
+    fatal_error = str(getattr(report, "fatal_error", "") or "")
 
-    if report.cancelled:
+    if fatal_error:
+        status_text = f"Остановлено из-за ошибки. Протестировано: {total_count}, рабочих: {working} ({elapsed:.1f}s)"
+    elif report.cancelled:
         status_text = f"Отменено. Протестировано: {total_count}, рабочих: {working} ({elapsed:.1f}s)"
     else:
         status_text = f"Готово. Протестировано: {total_count}, рабочих: {working} ({elapsed:.1f}s)"
@@ -460,9 +463,10 @@ def finalize_scan_report(
         baseline_accessible=bool(report.baseline_accessible),
         status_text=status_text,
         log_message=f"\n{status_text}",
-        support_status_code="ready",
+        support_status_code="ready_after_error" if fatal_error else "ready",
         notification_kind=notification_kind,
         baseline_variant="stun" if scan_protocol in {"stun_voice", "udp_games"} else "tcp",
+        fatal_error=fatal_error,
     )
 
 

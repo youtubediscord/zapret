@@ -233,6 +233,24 @@ class ControlPageWindowsFeatureMixin:
 
         self._request_program_settings_save("max_block", bool(enable))
 
+    def _on_state_media_block_toggled(self, enable: bool) -> None:
+        import presets.ui.control.control_runtime as control_runtime
+
+        start_plan = control_runtime.build_state_media_block_toggle_start_plan(
+            enable=enable,
+            language=self._ui_language,
+        )
+        toggle = getattr(self, "state_media_block_toggle", None)
+        for dialog_plan in start_plan.confirmations:
+            if not self._confirm_windows_feature_action(dialog_plan, toggle):
+                self._sync_program_settings()
+                return
+
+        if start_plan.start_status:
+            self._set_status(start_plan.start_status)
+
+        self._request_program_settings_save("state_media_block", bool(enable))
+
     def _on_internet_cleanup_clicked(self) -> None:
         import presets.ui.control.control_runtime as control_runtime
 

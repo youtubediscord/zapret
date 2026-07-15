@@ -252,3 +252,57 @@ def set_max_block_enabled(
             revert_checked=None,
             final_status="",
         )
+
+
+def set_state_media_block_enabled(
+    enable: bool,
+    *,
+    status_callback: Callable[[str], None] | None = None,
+) -> ProgramSettingActionResult:
+    try:
+        from windows_features.state_media_blocker import RussianStateMediaBlockerManager
+
+        manager = RussianStateMediaBlockerManager(status_callback=status_callback)
+
+        if enable:
+            success, message = manager.enable_blocking()
+            if success:
+                return ProgramSettingActionResult(
+                    level="success",
+                    title="Блокировка включена",
+                    content=message,
+                    revert_checked=None,
+                    final_status="Готово",
+                )
+            return ProgramSettingActionResult(
+                level="warning",
+                title="Блокировка не включена",
+                content=message,
+                revert_checked=False,
+                final_status="Готово",
+            )
+
+        success, message = manager.disable_blocking()
+        if success:
+            return ProgramSettingActionResult(
+                level="success",
+                title="Блокировка отключена",
+                content=message,
+                revert_checked=None,
+                final_status="Готово",
+            )
+        return ProgramSettingActionResult(
+            level="warning",
+            title="Блокировка не отключена",
+            content=message,
+            revert_checked=True,
+            final_status="Готово",
+        )
+    except Exception as e:
+        return ProgramSettingActionResult(
+            level="error",
+            title="Ошибка",
+            content=f"Ошибка при переключении блокировки государственных СМИ РФ: {e}",
+            revert_checked=None,
+            final_status="",
+        )

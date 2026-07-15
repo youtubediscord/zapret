@@ -166,6 +166,9 @@ class RawPresetEditorWorkerArchitectureTests(unittest.TestCase):
         with patch(
             "presets.ui.common.preset_subpage_base.QTimer.singleShot",
             side_effect=lambda _delay, callback: scheduled.append(callback),
+        ), patch(
+            "presets.ui.common.preset_subpage_base.QApplication.instance",
+            return_value=None,
         ):
             PresetRawEditorPage.on_page_hidden(page)
             PresetRawEditorPage.on_page_activated(page)

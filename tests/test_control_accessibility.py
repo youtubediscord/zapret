@@ -115,6 +115,7 @@ def _language_refresh_kwargs() -> dict[str, object]:
         "tray_close_mode_combo": _ToggleTarget(),
         "defender_toggle": _ToggleTarget(),
         "max_block_toggle": _ToggleTarget(),
+        "state_media_block_toggle": _ToggleTarget(),
         "test_card": _CardTarget(),
         "internet_cleanup_card": _CardTarget(),
         "folder_card": _CardTarget(),

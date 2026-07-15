@@ -405,18 +405,18 @@ description = Добавлено, чтобы встроенный профиль
 --lua-desync=hostfakesplit_multi:hosts=google.com,vimeo.com:tcp_ts=-1000:tcp_md5:repeats=2
 
 [stock_builtin_coverage_udp_004]
-name = Default (game filter) / Все сайты UDP (исключение)
+name = Default (game filter) / Все сайты UDP (айпи)
 author = builtin
 label = stock
-description = Добавлено, чтобы встроенный профиль из Default (game filter).txt (Все сайты UDP (исключение)) определялся как готовая стратегия, а не custom.
+description = Добавлено, чтобы встроенный профиль из Default (game filter).txt (Все сайты UDP (айпи)) определялся как готовая стратегия, а не custom.
 --lua-desync=fake:blob=quic6:repeats=2:ip_autottl=-1,3-20:ip6_autottl=-1,3-20:payload=all:out_range=-n3
 --lua-desync=udplen:increment=8:pattern=0x0F0F0E0F
 
 [stock_builtin_coverage_udp_005]
-name = Default v1 (game filter) / Все сайты UDP (исключение)
+name = Default v1 (game filter) / Все сайты UDP (айпи)
 author = builtin
 label = stock
-description = Добавлено, чтобы встроенный профиль из Default v1 (game filter).txt (Все сайты UDP (исключение)) определялся как готовая стратегия, а не custom.
+description = Добавлено, чтобы встроенный профиль из Default v1 (game filter).txt (Все сайты UDP (айпи)) определялся как готовая стратегия, а не custom.
 --lua-desync=fake:blob=stun_pat:ip_autottl=-2,3-20:ip6_autottl=-2,3-20:repeats=10:payload=all
 
 [stock_builtin_coverage_udp_006]

@@ -69,11 +69,14 @@ class BlockcheckStrategyScannerCleanupTests(unittest.TestCase):
         scanner._process_lock = nullcontext()
         scanner._shutdown_sync = Mock(return_value=SimpleNamespace(still_running=False))
 
-        with patch.object(strategy_scanner, "standard_windivert_cleanup_runtime") as standard_cleanup:
+        with (
+            patch.object(strategy_scanner, "standard_windivert_cleanup_runtime") as standard_cleanup,
+            patch.object(strategy_scanner, "_strategy_cleanup_pause_seconds", return_value=0.8),
+        ):
             scanner._kill_current_process()
 
         proc.terminate.assert_called_once_with()
-        standard_cleanup.assert_called_once_with()
+        standard_cleanup.assert_called_once_with(sleep_seconds=0.8)
 
     def test_launch_checks_windivert_readiness_before_popen(self) -> None:
         from blockcheck.strategy_scanner import StrategyScanner
@@ -107,16 +110,24 @@ class BlockcheckStrategyScannerCleanupTests(unittest.TestCase):
 
         scanner = object.__new__(StrategyScanner)
         scanner._cancelled = False
+        scanner._fatal_error = ""
         scanner._cb = SimpleNamespace(on_log=Mock())
 
         blocked_probe = SimpleNamespace(ready=False, error_code=1058, stage="network_open")
         with (
             patch.object(strategy_scanner, "wait_for_windivert_spawn_ready_runtime", return_value=blocked_probe),
             patch.object(strategy_scanner, "aggressive_windivert_cleanup_runtime"),
+            patch(
+                "winws_runtime.health.windivert_diagnostics.describe_windivert_conflict_hint",
+                return_value="",
+            ),
         ):
-            ready = scanner._ensure_windivert_ready_for_scan()
+            error = scanner._ensure_windivert_ready_for_scan()
 
-        self.assertFalse(ready)
+        self.assertIsInstance(error, str)
+        self.assertIn("1058", error)
+        self.assertIn("служба WinDivert отключена", error)
+        self.assertEqual(scanner._fatal_error, error)
         self.assertTrue(scanner.cancelled)
         logged = "\n".join(call.args[0] for call in scanner._cb.on_log.call_args_list)
         self.assertIn("Сканирование остановлено", logged)

@@ -183,6 +183,11 @@ def _valid_hostlist_line(line: str) -> bool:
     if not value or "://" in value or "/" in value or ":" in value:
         return False
     try:
+        ipaddress.ip_address(value)
+        return False
+    except ValueError:
+        pass
+    try:
         ascii_domain = value.encode("idna").decode("ascii")
     except Exception:
         return False
@@ -190,6 +195,10 @@ def _valid_hostlist_line(line: str) -> bool:
         return False
     labels = ascii_domain.rstrip(".").split(".")
     if len(labels) < 2:
+        return False
+    # Числового TLD не существует (RFC 3696): такое значение — IP-подобная
+    # запись, которой место в ipset, а не в hostlist.
+    if labels[-1].isdigit():
         return False
     label_re = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$", re.IGNORECASE)
     return all(label_re.fullmatch(label or "") for label in labels)

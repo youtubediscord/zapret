@@ -38,7 +38,7 @@ class ProfileSetupWorkerArchitectureTests(unittest.TestCase):
             self.assertIn(f"_{factory_name}_fn", page_source)
 
         self.assertNotIn("ProfileSetupController", page_source)
-        self.assertNotIn("_controller", page_source)
+        self.assertNotIn("profile_setup_actions", page_source)
         self.assertNotIn("profile_setup_actions", init_source)
         self.assertNotIn("profile_feature", init_source)
 
@@ -63,9 +63,11 @@ class ProfileSetupWorkerArchitectureTests(unittest.TestCase):
         from ui.navigation_pages import PageName
         from ui.page_deps.presets import build_profile_setup_page_kwargs
 
+        from profile.ui.profile_setup_payload_controller import ProfileSetupPayloadController
+
         init_source = inspect.getsource(ProfileSetupPageBase.__init__)
-        request_source = inspect.getsource(ProfileSetupPageBase._request_profile_setup_payload)
-        start_source = inspect.getsource(ProfileSetupPageBase._start_profile_setup_load_worker)
+        request_source = inspect.getsource(ProfileSetupPayloadController._request_profile_setup_payload)
+        start_source = inspect.getsource(ProfileSetupPayloadController._start_profile_setup_load_worker)
         create_source = inspect.getsource(ProfileSetupPageBase.create_profile_setup_load_worker)
         feature_source = inspect.getsource(ProfileFeature)
         service_init_source = inspect.getsource(ProfilePresetService.__init__)
@@ -207,9 +209,11 @@ class ProfileSetupWorkerArchitectureTests(unittest.TestCase):
         page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
         page._setup_load_runtime = SimpleNamespace(is_running=Mock(return_value=False))
 
+        from profile.ui.profile_setup_payload_controller import ProfileSetupPayloadController
+
         init_source = inspect.getsource(ProfileSetupPageBase.__init__)
-        request_source = inspect.getsource(ProfileSetupPageBase._request_profile_setup_payload)
-        start_source = inspect.getsource(ProfileSetupPageBase._start_profile_setup_load_worker)
+        request_source = inspect.getsource(ProfileSetupPayloadController._request_profile_setup_payload)
+        start_source = inspect.getsource(ProfileSetupPayloadController._start_profile_setup_load_worker)
         finished_source = inspect.getsource(ProfileSetupPageBase._on_profile_setup_worker_finished)
         cleanup_source = inspect.getsource(ProfileSetupPageBase.cleanup)
 
@@ -257,7 +261,6 @@ class ProfileSetupWorkerArchitectureTests(unittest.TestCase):
                 profile_key="profile-1",
                 filter_kind="hostlist",
                 filter_value="lists/youtube.txt",
-                file_name="youtube.txt",
                 state=object(),
             ),
         )
@@ -274,8 +277,10 @@ class ProfileSetupWorkerArchitectureTests(unittest.TestCase):
         page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
         page._list_file_load_runtime = SimpleNamespace(is_running=Mock(return_value=False))
 
+        from profile.ui.profile_list_file_editor_controller import ProfileListFileEditorController
+
         init_source = inspect.getsource(ProfileSetupPageBase.__init__)
-        request_source = inspect.getsource(ProfileSetupPageBase._request_list_file_editor_state)
+        request_source = inspect.getsource(ProfileListFileEditorController._request_list_file_editor_state)
         finished_source = inspect.getsource(ProfileSetupPageBase._on_list_file_worker_finished)
         cleanup_source = inspect.getsource(ProfileSetupPageBase.cleanup)
 
@@ -295,8 +300,10 @@ class ProfileSetupWorkerArchitectureTests(unittest.TestCase):
         page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
         page._list_file_validation_runtime = SimpleNamespace(is_running=Mock(return_value=False))
 
+        from profile.ui.profile_list_file_editor_controller import ProfileListFileEditorController
+
         init_source = inspect.getsource(ProfileSetupPageBase.__init__)
-        request_source = inspect.getsource(ProfileSetupPageBase._request_list_file_validation)
+        request_source = inspect.getsource(ProfileListFileEditorController._request_list_file_validation)
         finished_source = inspect.getsource(ProfileSetupPageBase._on_list_file_validation_worker_finished)
         cleanup_source = inspect.getsource(ProfileSetupPageBase.cleanup)
 
@@ -316,9 +323,11 @@ class ProfileSetupWorkerArchitectureTests(unittest.TestCase):
         page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
         page._list_file_save_runtime = SimpleNamespace(is_running=Mock(return_value=False))
 
+        from profile.ui.profile_list_file_editor_controller import ProfileListFileEditorController
+
         init_source = inspect.getsource(ProfileSetupPageBase.__init__)
-        request_source = inspect.getsource(ProfileSetupPageBase._request_list_file_save)
-        finished_source = inspect.getsource(ProfileSetupPageBase._on_list_file_save_worker_finished)
+        request_source = inspect.getsource(ProfileListFileEditorController._request_list_file_save)
+        finished_source = inspect.getsource(ProfileListFileEditorController._on_list_file_save_worker_finished)
         cleanup_source = inspect.getsource(ProfileSetupPageBase.cleanup)
 
         self.assertTrue(hasattr(ProfileSetupPageBase, "_list_file_save_state_obj"))
@@ -338,9 +347,11 @@ class ProfileSetupWorkerArchitectureTests(unittest.TestCase):
         page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
         page._raw_profile_save_runtime = SimpleNamespace(is_running=Mock(return_value=False))
 
+        from profile.ui.profile_setup_save_controllers import ProfileSetupSaveController
+
         init_source = inspect.getsource(ProfileSetupPageBase.__init__)
-        request_source = inspect.getsource(ProfileSetupPageBase._request_raw_profile_save)
-        finished_source = inspect.getsource(ProfileSetupPageBase._on_raw_profile_save_worker_finished)
+        request_source = inspect.getsource(ProfileSetupSaveController._request_raw_profile_save)
+        finished_source = inspect.getsource(ProfileSetupSaveController._on_raw_profile_save_worker_finished)
         cleanup_source = inspect.getsource(ProfileSetupPageBase.cleanup)
 
         self.assertTrue(hasattr(ProfileSetupPageBase, "_raw_profile_save_state_obj"))
@@ -358,9 +369,11 @@ class ProfileSetupWorkerArchitectureTests(unittest.TestCase):
         page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
         page._settings_save_runtime = SimpleNamespace(is_running=Mock(return_value=False))
 
+        from profile.ui.profile_setup_save_controllers import ProfileSetupSaveController
+
         init_source = inspect.getsource(ProfileSetupPageBase.__init__)
-        request_source = inspect.getsource(ProfileSetupPageBase._request_settings_save)
-        finished_source = inspect.getsource(ProfileSetupPageBase._on_settings_save_worker_finished)
+        request_source = inspect.getsource(ProfileSetupSaveController._request_settings_save)
+        finished_source = inspect.getsource(ProfileSetupSaveController._on_settings_save_worker_finished)
         cleanup_source = inspect.getsource(ProfileSetupPageBase.cleanup)
 
         self.assertTrue(hasattr(ProfileSetupPageBase, "_settings_save_state_obj"))
@@ -379,8 +392,10 @@ class ProfileSetupWorkerArchitectureTests(unittest.TestCase):
         page._enabled_save_runtime = SimpleNamespace(is_running=Mock(return_value=False))
 
         init_source = inspect.getsource(ProfileSetupPageBase.__init__)
+        from profile.ui.profile_setup_save_controllers import ProfileSetupSaveController
+
         request_source = inspect.getsource(ProfileSetupPageBase._on_enabled_changed)
-        finished_source = inspect.getsource(ProfileSetupPageBase._on_enabled_save_worker_finished)
+        finished_source = inspect.getsource(ProfileSetupSaveController._on_enabled_save_worker_finished)
         cleanup_source = inspect.getsource(ProfileSetupPageBase.cleanup)
 
         self.assertTrue(hasattr(ProfileSetupPageBase, "_enabled_save_state_obj"))
@@ -399,9 +414,11 @@ class ProfileSetupWorkerArchitectureTests(unittest.TestCase):
         page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
         page._strategy_feedback_save_runtime = SimpleNamespace(is_running=Mock(return_value=False))
 
+        from profile.ui.profile_strategy_controller import ProfileStrategyController
+
         init_source = inspect.getsource(ProfileSetupPageBase.__init__)
-        request_source = inspect.getsource(ProfileSetupPageBase._request_strategy_feedback_save)
-        finished_source = inspect.getsource(ProfileSetupPageBase._on_strategy_feedback_save_worker_finished)
+        request_source = inspect.getsource(ProfileStrategyController._request_strategy_feedback_save)
+        finished_source = inspect.getsource(ProfileStrategyController._on_strategy_feedback_save_worker_finished)
         cleanup_source = inspect.getsource(ProfileSetupPageBase.cleanup)
 
         self.assertTrue(hasattr(ProfileSetupPageBase, "_strategy_feedback_save_state_obj"))
@@ -420,9 +437,11 @@ class ProfileSetupWorkerArchitectureTests(unittest.TestCase):
         page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
         page._strategy_apply_runtime = SimpleNamespace(is_running=Mock(return_value=False))
 
+        from profile.ui.profile_strategy_controller import ProfileStrategyController
+
         init_source = inspect.getsource(ProfileSetupPageBase.__init__)
-        request_source = inspect.getsource(ProfileSetupPageBase._request_strategy_apply)
-        finished_source = inspect.getsource(ProfileSetupPageBase._on_strategy_apply_worker_finished)
+        request_source = inspect.getsource(ProfileStrategyController._request_strategy_apply)
+        finished_source = inspect.getsource(ProfileStrategyController._on_strategy_apply_worker_finished)
         cleanup_source = inspect.getsource(ProfileSetupPageBase.cleanup)
 
         self.assertTrue(hasattr(ProfileSetupPageBase, "_strategy_apply_state_obj"))
@@ -576,19 +595,23 @@ class ProfileSetupWorkerArchitectureTests(unittest.TestCase):
 
     def test_preset_setup_page_uses_worker_runtime_instead_of_manual_worker_fields(self) -> None:
         from profile.ui.preset_setup_page import PresetSetupPageBase
+        from profile.ui.profile_payload_controller import ProfilePayloadController
 
         init_source = inspect.getsource(PresetSetupPageBase.__init__)
         page_source = inspect.getsource(PresetSetupPageBase)
+        from profile.ui.preset_write_queue import PresetWriteQueue
+        from profile.ui.profile_folder_controller import ProfileFolderController
+
         worker_start_sources = (
-            inspect.getsource(PresetSetupPageBase._request_profiles_payload),
-            inspect.getsource(PresetSetupPageBase._request_profile_context_action)
-            + inspect.getsource(PresetSetupPageBase._start_profile_context_action_worker),
-            inspect.getsource(PresetSetupPageBase._request_user_profile_create),
-            inspect.getsource(PresetSetupPageBase._request_user_profile_update),
-            inspect.getsource(PresetSetupPageBase._request_user_profile_delete),
-            inspect.getsource(PresetSetupPageBase._request_profile_move)
-            + inspect.getsource(PresetSetupPageBase._start_profile_move_worker),
-            inspect.getsource(PresetSetupPageBase._request_profile_folder_action),
+            inspect.getsource(ProfilePayloadController._request_profiles_payload),
+            inspect.getsource(PresetWriteQueue._request_profile_context_action)
+            + inspect.getsource(PresetWriteQueue._start_profile_context_action_worker),
+            inspect.getsource(PresetWriteQueue._request_user_profile_create),
+            inspect.getsource(PresetWriteQueue._request_user_profile_update),
+            inspect.getsource(PresetWriteQueue._request_user_profile_delete),
+            inspect.getsource(PresetWriteQueue._request_profile_move)
+            + inspect.getsource(PresetWriteQueue._start_profile_move_worker),
+            inspect.getsource(ProfileFolderController._request_profile_folder_action),
         )
 
         self.assertIn("OneShotWorkerRuntime", init_source)
@@ -621,16 +644,17 @@ class ProfileSetupWorkerArchitectureTests(unittest.TestCase):
 
     def test_preset_setup_profile_load_refresh_uses_shared_latest_worker_state(self) -> None:
         from profile.ui.preset_setup_page import PresetSetupPageBase
+        from profile.ui.profile_payload_controller import ProfilePayloadController
         from ui.latest_value_worker_state import LatestValueWorkerState
 
         page = PresetSetupPageBase.__new__(PresetSetupPageBase)
         page._profile_load_runtime = SimpleNamespace(is_running=Mock(return_value=False))
 
         init_source = inspect.getsource(PresetSetupPageBase.__init__)
-        request_source = inspect.getsource(PresetSetupPageBase._request_profiles_payload)
-        loaded_source = inspect.getsource(PresetSetupPageBase._on_profile_payload_loaded)
-        failed_source = inspect.getsource(PresetSetupPageBase._on_profile_payload_failed)
-        finished_source = inspect.getsource(PresetSetupPageBase._on_profile_worker_finished)
+        request_source = inspect.getsource(ProfilePayloadController._request_profiles_payload)
+        loaded_source = inspect.getsource(ProfilePayloadController._on_profile_payload_loaded)
+        failed_source = inspect.getsource(ProfilePayloadController._on_profile_payload_failed)
+        finished_source = inspect.getsource(ProfilePayloadController._on_profile_worker_finished)
         cleanup_source = inspect.getsource(PresetSetupPageBase.cleanup)
 
         self.assertTrue(hasattr(PresetSetupPageBase, "_profile_load_refresh_state_obj"))
@@ -650,11 +674,13 @@ class ProfileSetupWorkerArchitectureTests(unittest.TestCase):
         page = PresetSetupPageBase.__new__(PresetSetupPageBase)
         page._profile_context_action_runtime = SimpleNamespace(is_running=Mock(return_value=False))
 
+        from profile.ui.preset_write_queue import PresetWriteQueue
+
         init_source = inspect.getsource(PresetSetupPageBase.__init__)
-        queue_source = inspect.getsource(PresetSetupPageBase._queue_profile_preset_write_operation)
-        pop_source = inspect.getsource(PresetSetupPageBase._pop_next_profile_preset_write_operation)
+        queue_source = inspect.getsource(PresetWriteQueue._queue_profile_preset_write_operation)
+        pop_source = inspect.getsource(PresetWriteQueue._pop_next_profile_preset_write_operation)
         has_pending_source = inspect.getsource(PresetSetupPageBase._has_pending_profile_preset_write_operation)
-        schedule_source = inspect.getsource(PresetSetupPageBase._schedule_next_profile_preset_write_operation_start)
+        schedule_source = inspect.getsource(PresetWriteQueue._schedule_next_profile_preset_write_operation_start)
         cleanup_source = inspect.getsource(PresetSetupPageBase.cleanup)
 
         self.assertIsInstance(page._profile_preset_write_state_obj(), QueuedWorkerState)
@@ -691,9 +717,11 @@ class ProfileSetupWorkerArchitectureTests(unittest.TestCase):
         page = PresetSetupPageBase.__new__(PresetSetupPageBase)
         page._profile_context_action_runtime = SimpleNamespace(is_running=Mock(return_value=False))
 
+        from profile.ui.preset_write_queue import PresetWriteQueue
+
         init_source = inspect.getsource(PresetSetupPageBase.__init__)
-        queue_source = inspect.getsource(PresetSetupPageBase._queue_profile_preset_write_operation)
-        pop_source = inspect.getsource(PresetSetupPageBase._pop_next_profile_preset_write_operation)
+        queue_source = inspect.getsource(PresetWriteQueue._queue_profile_preset_write_operation)
+        pop_source = inspect.getsource(PresetWriteQueue._pop_next_profile_preset_write_operation)
         has_pending_source = inspect.getsource(PresetSetupPageBase._has_pending_profile_preset_write_operation)
         cleanup_source = inspect.getsource(PresetSetupPageBase.cleanup)
 

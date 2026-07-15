@@ -89,6 +89,7 @@ _ICON_ALIASES: dict[str, str] = {
     "com-riotcdn": "riot",
     "com-valorant": "valorant",
     "com-z-library": "z-library",
+    "githubusercontent": "github",
     "10tv": "7tv",
     "rbxcdn": "roblox",
     "epicgames-fortnite": "epicgames",

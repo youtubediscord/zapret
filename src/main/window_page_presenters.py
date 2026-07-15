@@ -65,6 +65,7 @@ def apply_profile_setup_change_for_method(
     profile_key: str,
     change_kind: str,
     profile_item=None,
+    old_profile_key: str | None = None,
 ) -> bool:
     preset_setup_page = resolve_preset_setup_page_for_method(method)
     if preset_setup_page is None:
@@ -73,7 +74,14 @@ def apply_profile_setup_change_for_method(
         window,
         preset_setup_page,
         "profile_setup_changed",
-        {"profile_key": profile_key, "change_kind": change_kind, "profile_item": profile_item},
+        {
+            "profile_key": profile_key,
+            "change_kind": change_kind,
+            "profile_item": profile_item,
+            # Правка имени/match-строк меняет persistent_key: пара old→new
+            # позволяет списку заменить строку точечно, без полной перезагрузки.
+            "old_profile_key": str(old_profile_key or "").strip() or profile_key,
+        },
         ensure=False,
     )
     order_page = resolve_profile_order_page_for_method(method)

@@ -5,7 +5,12 @@ from ctypes import wintypes
 
 
 TH32CS_SNAPPROCESS = 0x00000002
+TH32CS_SNAPMODULE = 0x00000008
+TH32CS_SNAPMODULE32 = 0x00000010
 INVALID_HANDLE_VALUE = ctypes.c_void_p(-1).value
+
+_ERROR_BAD_LENGTH = 24
+_MAX_MODULE_NAME32 = 255
 
 
 class PROCESSENTRY32W(ctypes.Structure):
@@ -20,6 +25,21 @@ class PROCESSENTRY32W(ctypes.Structure):
         ("pcPriClassBase", ctypes.c_long),
         ("dwFlags", wintypes.DWORD),
         ("szExeFile", wintypes.WCHAR * wintypes.MAX_PATH),
+    ]
+
+
+class MODULEENTRY32W(ctypes.Structure):
+    _fields_ = [
+        ("dwSize", wintypes.DWORD),
+        ("th32ModuleID", wintypes.DWORD),
+        ("th32ProcessID", wintypes.DWORD),
+        ("GlblcntUsage", wintypes.DWORD),
+        ("ProccntUsage", wintypes.DWORD),
+        ("modBaseAddr", ctypes.POINTER(ctypes.c_byte)),
+        ("modBaseSize", wintypes.DWORD),
+        ("hModule", ctypes.c_void_p),
+        ("szModule", wintypes.WCHAR * (_MAX_MODULE_NAME32 + 1)),
+        ("szExePath", wintypes.WCHAR * wintypes.MAX_PATH),
     ]
 
 
@@ -43,6 +63,14 @@ if hasattr(ctypes, "WinDLL"):
     _Process32NextW.argtypes = [wintypes.HANDLE, ctypes.POINTER(PROCESSENTRY32W)]
     _Process32NextW.restype = wintypes.BOOL
 
+    _Module32FirstW = _kernel32.Module32FirstW
+    _Module32FirstW.argtypes = [wintypes.HANDLE, ctypes.POINTER(MODULEENTRY32W)]
+    _Module32FirstW.restype = wintypes.BOOL
+
+    _Module32NextW = _kernel32.Module32NextW
+    _Module32NextW.argtypes = [wintypes.HANDLE, ctypes.POINTER(MODULEENTRY32W)]
+    _Module32NextW.restype = wintypes.BOOL
+
     _CloseHandle = _kernel32.CloseHandle
     _CloseHandle.argtypes = [wintypes.HANDLE]
     _CloseHandle.restype = wintypes.BOOL
@@ -50,6 +78,8 @@ else:  # pragma: no cover - import safety for non-Windows environments
     _CreateToolhelp32Snapshot = None
     _Process32FirstW = None
     _Process32NextW = None
+    _Module32FirstW = None
+    _Module32NextW = None
     _CloseHandle = None
 
 
@@ -95,6 +125,52 @@ def iter_process_records_winapi() -> list[tuple[int, str]]:
         _CloseHandle(snapshot)
 
     return records
+
+
+def iter_process_module_paths_winapi(pid: int, *, max_snapshot_attempts: int = 3) -> list[str]:
+    """Перечисляет полные пути модулей процесса через Toolhelp Snapshot.
+
+    Возвращает пустой список, если снимок недоступен (нет прав, процесс
+    завершился, WOW64-несовпадение разрядности). ERROR_BAD_LENGTH — штатная
+    гонка Toolhelp по MSDN, поэтому делаем несколько попыток снимка.
+    """
+    if (
+        _CreateToolhelp32Snapshot is None
+        or _Module32FirstW is None
+        or _Module32NextW is None
+        or _CloseHandle is None
+        or int(pid) <= 0
+    ):
+        return []
+
+    snapshot = None
+    for _ in range(max(1, int(max_snapshot_attempts))):
+        candidate = _CreateToolhelp32Snapshot(TH32CS_SNAPMODULE | TH32CS_SNAPMODULE32, int(pid))
+        if candidate and candidate != INVALID_HANDLE_VALUE:
+            snapshot = candidate
+            break
+        if ctypes.get_last_error() != _ERROR_BAD_LENGTH:
+            return []
+    if snapshot is None:
+        return []
+
+    paths: list[str] = []
+    try:
+        entry = MODULEENTRY32W()
+        entry.dwSize = ctypes.sizeof(MODULEENTRY32W)
+        if not _Module32FirstW(snapshot, ctypes.byref(entry)):
+            return paths
+
+        while True:
+            path = str(entry.szExePath or "").strip()
+            if path:
+                paths.append(path)
+            if not _Module32NextW(snapshot, ctypes.byref(entry)):
+                break
+    finally:
+        _CloseHandle(snapshot)
+
+    return paths
 
 
 def iter_uninstall_display_names() -> list[str]:

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import atexit
 import sys
 import time as _time
 
@@ -38,12 +37,6 @@ def start_qtawesome_warmup() -> None:
             pass
 
     threading.Thread(target=_warm, daemon=True, name="qtawesome-warmup").start()
-
-
-def _create_ipc_manager():
-    from startup.ipc_manager import IPCManager
-
-    return IPCManager()
 
 
 def _build_application_post_startup_deps(**kwargs):
@@ -177,13 +170,17 @@ def _finish_event_loop_bootstrap(*, app, window, application_controller, start_i
         f"{(_time.perf_counter() - t_appearance) * 1000:.0f}ms",
     )
 
-    t_ipc = _time.perf_counter()
-    ipc_manager = _create_ipc_manager()
-    ipc_manager.start_server(window)
-    atexit.register(ipc_manager.stop)
+    t_bridge = _time.perf_counter()
+    from startup.show_window_bridge import ShowWindowBridge
+
+    bridge = ShowWindowBridge(window)
+    bridge.start()
+    # Ссылка удерживается на окне: локальная переменная была бы собрана GC,
+    # и сигнал показа окна перестал бы доставляться.
+    window._show_window_bridge = bridge
     emit_startup_metric(
-        "StartupLateBootstrapIpc",
-        f"{(_time.perf_counter() - t_ipc) * 1000:.0f}ms",
+        "StartupLateBootstrapShowBridge",
+        f"{(_time.perf_counter() - t_bridge) * 1000:.0f}ms",
     )
 
     if start_in_tray:

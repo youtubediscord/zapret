@@ -300,6 +300,10 @@ class WindowGeometryRuntime:
             return
 
         try:
+            # resize-события скрытого окна (layout при отложенном build_ui)
+            # не являются наблюдаемой пользователем геометрией
+            if not self.host.isVisible():
+                return
             if self.host.isMinimized() or self.is_zoomed():
                 return
         except Exception:
@@ -409,6 +413,23 @@ class WindowGeometryRuntime:
         except Exception:
             pass
 
+    def _snapshot_for_persist(self) -> tuple[tuple[int, int, int, int] | None, bool]:
+        """(normal_geometry, maximized) для записи в store.
+
+        Скрытое или минимизированное окно отдаёт наблюдаемую модель
+        (_last_normal_geometry, _last_non_minimized_zoomed) — живая геометрия
+        скрытого окна недостоверна (layout приводит её к минимальной) и
+        затирала сохранённый размер при перезагрузке Windows из трея.
+        """
+        try:
+            visible = bool(self.host.isVisible())
+        except Exception:
+            visible = False
+        if not visible or self._is_window_minimized_state():
+            return self._last_normal_geometry, bool(self._last_non_minimized_zoomed)
+        is_maximized = bool(self.is_zoomed())
+        return self._get_normal_geometry_to_save(is_maximized), is_maximized
+
     def _get_normal_geometry_to_save(self, is_maximized: bool) -> tuple[int, int, int, int] | None:
         if not is_maximized:
             return (int(self.host.x()), int(self.host.y()), int(self.host.width()), int(self.host.height()))
@@ -437,17 +458,10 @@ class WindowGeometryRuntime:
                 return
 
         try:
-            if self.host.isMinimized():
-                return
-        except Exception:
-            pass
-
-        try:
-            is_maximized = bool(self.is_zoomed())
+            geometry, is_maximized = self._snapshot_for_persist()
 
             maximized_changed = self._last_persisted_maximized != is_maximized
 
-            geometry = self._get_normal_geometry_to_save(is_maximized)
             if geometry is None:
                 if maximized_changed:
                     self._request_geometry_save(geometry=None, maximized=is_maximized)
@@ -470,16 +484,9 @@ class WindowGeometryRuntime:
             self._stop_geometry_save_worker_for_sync()
 
         try:
-            if self.host.isMinimized():
-                return
-        except Exception:
-            pass
-
-        try:
-            is_maximized = bool(self.is_zoomed())
+            geometry, is_maximized = self._snapshot_for_persist()
             self.store.save_maximized(is_maximized)
             self._last_persisted_maximized = is_maximized
-            geometry = self._get_normal_geometry_to_save(is_maximized)
             if geometry is None:
                 return
             x, y, width, height = geometry

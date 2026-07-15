@@ -559,34 +559,12 @@ class Winws1StrategyRunner(StrategyRunnerBase):
                 )
         return success
 
-    def _retry_fast_switch_after_failed_spawn_locked(self, artifact: PreparedPresetArtifact, strategy_name: str) -> bool:
-        exit_code = int(self._last_spawn_exit_code or -1)
-        stderr_output = str(self._last_spawn_stderr or "")
-
-        retry_allowed = self._is_windivert_conflict_error(stderr_output, exit_code)
-        retry_allowed = retry_allowed or self._should_retry_transient_windivert_service_error(
-            stderr_output,
-            exit_code,
-            retry_count=0,
-            max_retry_count=1,
-        )
-        if not retry_allowed:
-            return False
-        if self._is_windivert_system_error(stderr_output, exit_code):
-            log("Fast preset switch hit WinDivert system error; retry will not help", "WARNING")
-            return False
-
-        log(
-            "Fast preset switch hit WinDivert conflict, retrying inside switch after cleanup",
-            "WARNING",
-        )
+    def _cleanup_before_fast_switch_retry_locked(self) -> None:
+        """Hook: winws1 исторически чистит через _prepare_cleanup_before_spawn_locked."""
         self._prepare_cleanup_before_spawn_locked(retry_count=1)
-        if not self._ensure_windivert_ready_before_spawn():
-            self._last_spawn_exit_code = 34
-            self._last_spawn_stderr = "windivert: readiness probe failed before fast switch retry"
-            self._set_last_error("WinDivert ещё не готов к открытию фильтра", notify=False)
-            return False
 
+    def _spawn_fast_switch_retry_locked(self, artifact: PreparedPresetArtifact, strategy_name: str) -> bool:
+        """Hook общего fast-switch retry: обычный spawn winws."""
         return bool(self._spawn_process_locked(artifact, strategy_name, notify_failure=False))
 
     def start_from_preset_file(
@@ -639,75 +617,70 @@ class Winws1StrategyRunner(StrategyRunnerBase):
         else:
             self._perform_standard_windivert_cleanup()
 
-    def _maybe_retry_after_failed_spawn_locked(
+    def _relaunch_after_failed_spawn_locked(
         self,
         preset_path: str,
         strategy_name: str,
         *,
         retry_count: int,
+        stable_start_window_seconds: float,
         max_retries: int,
-        stable_start_window_seconds: float = 1.0,
     ) -> bool:
-        exit_code = int(self._last_spawn_exit_code or -1)
-        stderr_output = str(self._last_spawn_stderr or "")
+        """Hook общей retry-оркестрации: повторный запуск winws1."""
+        return self._start_from_preset_file_locked(
+            preset_path,
+            strategy_name,
+            retry_count=retry_count + 1,
+            max_retries=max_retries,
+            stable_start_window_seconds=stable_start_window_seconds,
+        )
 
-        if self._should_retry_transient_windivert_service_error(
-            stderr_output,
-            exit_code,
-            retry_count=retry_count,
-            max_retry_count=1,
-        ):
-            log(
-                "Transient WinDivert service error detected, retrying with aggressive cleanup",
-                "WARNING",
-            )
-            return self._start_from_preset_file_locked(
-                preset_path,
-                strategy_name,
-                retry_count=retry_count + 1,
-                max_retries=max_retries,
-                stable_start_window_seconds=stable_start_window_seconds,
-            )
-
+    def _retry_hook_after_transient_locked(
+        self,
+        preset_path: str,
+        strategy_name: str,
+        *,
+        exit_code: int,
+        stderr_output: str,
+        retry_count: int,
+        stable_start_window_seconds: float,
+        max_retries: int,
+    ):
+        """Hook: winws1 повторяет неклассифицированный код 1 без вывода один раз."""
         if self._should_retry_unclassified_code_one(exit_code, stderr_output, retry_count=retry_count):
             log(
                 "Winws1 exited with code 1 without diagnostic output after dry-run passed; retrying once",
                 "WARNING",
             )
-            return self._start_from_preset_file_locked(
+            return self._relaunch_after_failed_spawn_locked(
                 preset_path,
                 strategy_name,
-                retry_count=retry_count + 1,
-                max_retries=max_retries,
+                retry_count=retry_count,
                 stable_start_window_seconds=stable_start_window_seconds,
-            )
-
-        if self._maybe_run_windivert_auto_fix_after_failed_spawn(
-            stderr_output,
-            exit_code,
-            retry_count=retry_count,
-        ):
-            log("WinDivert auto-fix succeeded, retrying preset start once", "WARNING")
-            return self._start_from_preset_file_locked(
-                preset_path,
-                strategy_name,
-                retry_count=retry_count + 1,
                 max_retries=max_retries,
-                stable_start_window_seconds=stable_start_window_seconds,
             )
+        return None
 
-        if self._is_windivert_system_error(stderr_output, exit_code):
-            log("WinDivert system error — retry will not help", "WARNING")
-            return False
-
+    def _retry_hook_conflict_and_tail_locked(
+        self,
+        preset_path: str,
+        strategy_name: str,
+        *,
+        exit_code: int,
+        stderr_output: str,
+        retry_count: int,
+        stable_start_window_seconds: float,
+        max_retries: int,
+    ) -> bool:
+        """Hook: conflict-ретрай winws1 ограничен max_retries; в конце — подсказки."""
         if self._is_windivert_conflict_error(stderr_output, exit_code) and retry_count < max_retries:
             log(f"Detected WinDivert conflict, automatic retry ({retry_count + 1}/{max_retries})...", "INFO")
-            return self._start_from_preset_file_locked(
+            return self._relaunch_after_failed_spawn_locked(
                 preset_path,
                 strategy_name,
-                retry_count=retry_count + 1,
-                max_retries=max_retries,
+                retry_count=retry_count,
                 stable_start_window_seconds=stable_start_window_seconds,
+                max_retries=max_retries,
             )
 
         causes = check_common_crash_causes()
@@ -754,10 +727,7 @@ class Winws1StrategyRunner(StrategyRunnerBase):
 
         self._prepare_cleanup_before_spawn_locked(retry_count=retry_count)
         if not self._ensure_windivert_ready_before_spawn():
-            self._last_spawn_exit_code = 34
-            self._last_spawn_stderr = "windivert: readiness probe failed before spawn"
-            self._set_last_error("WinDivert ещё не готов к открытию фильтра", notify=False)
-            return False
+            return self._fail_spawn_for_windivert_readiness(context="spawn")
 
         if not os.path.exists(self.winws_exe):
             log(f"{EXE_NAME_WINWS1} disappeared: {self.winws_exe}", "WARNING")

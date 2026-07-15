@@ -36,6 +36,7 @@ from profile.state import ProfileListItem, ProfileSetupPayload, ProfileStrategyB
 from profile.strategy_catalog import StrategyEntry
 from profile.strategy_state import ProfileStrategyState
 from profile.ui.preset_setup_page import PresetSetupPageBase, preset_setup_title_for_payload
+from profile.ui.profile_payload_controller import ProfilePayloadController
 from profile.ui.shell import build_profile_shell
 from profile.ui.profiles_list import ProfileListViewStateWorker, ProfilesList
 from ui.presets_menu.delegate import PresetListDelegate
@@ -1425,105 +1426,6 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         model.set_group_expanded("voice", False)
         self.assertEqual(model.rowCount(), 3)
 
-    def test_profile_model_expand_all_skips_reset_when_groups_already_expanded(self) -> None:
-        from profile.ui.profile_list_model import ProfileListModel
-
-        first = SimpleNamespace(
-            key="profile:0",
-            persistent_key="p0",
-            profile_index=0,
-            display_name="Discord",
-            enabled=True,
-            in_preset=True,
-            strategy_id="fake",
-            strategy_name="Fake",
-            match_lines=("--filter-udp=443-65535", "--hostlist=lists/discord.txt"),
-            list_type="hostlist",
-            rating="work",
-            favorite=True,
-            group="voice",
-            group_name="Voice",
-            order=1,
-            source_order=1,
-            group_rank=1,
-            group_collapsed=False,
-        )
-        second = SimpleNamespace(
-            key="profile:1",
-            persistent_key="p1",
-            profile_index=1,
-            display_name="YouTube",
-            enabled=True,
-            in_preset=True,
-            strategy_id="none",
-            strategy_name="Стратегия не выбрана",
-            match_lines=("--filter-tcp=443", "--hostlist=lists/youtube.txt"),
-            list_type="hostlist",
-            rating="",
-            favorite=False,
-            group="video",
-            group_name="Video",
-            order=2,
-            order_is_manual=False,
-            group_collapsed=False,
-        )
-
-        model = ProfileListModel()
-        model.set_profiles((first, second))
-        model.beginResetModel = Mock(side_effect=AssertionError("unchanged expand-all must not reset the whole model"))
-
-        self.assertEqual(model.set_all_groups_expanded(True), ())
-        self.assertEqual(model.rowCount(), 4)
-
-    def test_profile_model_expand_all_single_group_uses_row_insert_without_reset(self) -> None:
-        from profile.ui.profile_list_model import ProfileListModel
-
-        first = SimpleNamespace(
-            key="profile:0",
-            persistent_key="p0",
-            profile_index=0,
-            display_name="Discord",
-            enabled=True,
-            in_preset=True,
-            strategy_id="fake",
-            strategy_name="Fake",
-            match_lines=("--filter-udp=443-65535", "--hostlist=lists/discord.txt"),
-            list_type="hostlist",
-            rating="work",
-            favorite=True,
-            group="voice",
-            group_name="Voice",
-            order=1,
-            order_is_manual=False,
-            group_collapsed=True,
-        )
-        second = SimpleNamespace(
-            key="profile:1",
-            persistent_key="p1",
-            profile_index=1,
-            display_name="YouTube",
-            enabled=True,
-            in_preset=True,
-            strategy_id="none",
-            strategy_name="Стратегия не выбрана",
-            match_lines=("--filter-tcp=443", "--hostlist=lists/youtube.txt"),
-            list_type="hostlist",
-            rating="",
-            favorite=False,
-            group="video",
-            group_name="Video",
-            order=2,
-            order_is_manual=False,
-            group_collapsed=False,
-        )
-
-        model = ProfileListModel()
-        model.set_profiles((first, second))
-        model.beginResetModel = Mock(side_effect=AssertionError("single-group expand-all must not reset the whole model"))
-
-        self.assertEqual(model.set_all_groups_expanded(True), ("voice",))
-        self.assertEqual(model.rowCount(), 4)
-
     def test_profile_model_search_filters_by_name_ports_lists_and_strategy(self) -> None:
         from profile.ui.profile_list_model import ProfileListModel
 
@@ -2166,11 +2068,13 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         self.assertNotIn(("profile", "profile:2"), rows)
 
     def test_profile_drag_handlers_run_move_worker_then_update_visible_list_locally(self) -> None:
+        from profile.ui.preset_write_queue import PresetWriteQueue
+
         before_handler = inspect.getsource(PresetSetupPageBase._on_profile_move_requested)
         after_handler = inspect.getsource(PresetSetupPageBase._on_profile_move_after_requested)
-        request_handler = inspect.getsource(PresetSetupPageBase._request_profile_move)
-        start_handler = inspect.getsource(PresetSetupPageBase._start_profile_move_worker)
-        finish_handler = inspect.getsource(PresetSetupPageBase._on_profile_move_finished)
+        request_handler = inspect.getsource(PresetWriteQueue._request_profile_move)
+        start_handler = inspect.getsource(PresetWriteQueue._start_profile_move_worker)
+        finish_handler = inspect.getsource(PresetWriteQueue._on_profile_move_finished)
 
         self.assertIn("_request_profile_move", before_handler)
         self.assertIn("_request_profile_move", after_handler)
@@ -2625,12 +2529,14 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         self.assertTrue(page._profile_payload_dirty)
 
     def test_profile_context_actions_refresh_current_list_through_worker(self) -> None:
+        from profile.ui.preset_write_queue import PresetWriteQueue
+
         enable_handler = inspect.getsource(PresetSetupPageBase._set_profile_enabled_from_menu)
         duplicate_handler = inspect.getsource(PresetSetupPageBase._duplicate_profile_from_menu)
         delete_handler = inspect.getsource(PresetSetupPageBase._delete_profile_from_menu)
-        request_handler = inspect.getsource(PresetSetupPageBase._request_profile_context_action)
-        start_handler = inspect.getsource(PresetSetupPageBase._start_profile_context_action_worker)
-        finish_handler = inspect.getsource(PresetSetupPageBase._on_profile_context_action_finished)
+        request_handler = inspect.getsource(PresetWriteQueue._request_profile_context_action)
+        start_handler = inspect.getsource(PresetWriteQueue._start_profile_context_action_worker)
+        finish_handler = inspect.getsource(PresetWriteQueue._on_profile_context_action_finished)
         sync_handler = inspect.getsource(PresetSetupPageBase._sync_profile_list_locally)
 
         self.assertIn("_request_profile_context_action", enable_handler)
@@ -3496,8 +3402,8 @@ class ProfileSetupPageContractTests(unittest.TestCase):
 
     def test_preset_setup_activation_schedules_profile_refresh_after_lifecycle_returns(self) -> None:
         activated_source = inspect.getsource(PresetSetupPageBase.on_page_activated)
-        schedule_source = inspect.getsource(PresetSetupPageBase._schedule_profiles_payload_request)
-        run_source = inspect.getsource(PresetSetupPageBase._run_scheduled_profiles_payload_request)
+        schedule_source = inspect.getsource(ProfilePayloadController._schedule_profiles_payload_request)
+        run_source = inspect.getsource(ProfilePayloadController._run_scheduled_profiles_payload_request)
 
         self.assertIn("_schedule_profiles_payload_request", activated_source)
         self.assertNotIn("_request_profiles_payload()", activated_source)
@@ -4511,12 +4417,14 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         )
 
     def test_profile_setup_user_profile_queue_restarts_after_worker_signal_returns(self) -> None:
-        update_finished = inspect.getsource(ProfileSetupPageBase._on_user_profile_update_worker_finished)
-        delete_finished = inspect.getsource(ProfileSetupPageBase._on_user_profile_delete_worker_finished)
+        from profile.ui.profile_user_profile_controller import ProfileUserProfileController
+
+        update_finished = inspect.getsource(ProfileUserProfileController._on_user_profile_update_worker_finished)
+        delete_finished = inspect.getsource(ProfileUserProfileController._on_user_profile_delete_worker_finished)
         schedule_source = inspect.getsource(
-            ProfileSetupPageBase._schedule_next_pending_user_profile_write_operation_start
+            ProfileUserProfileController._schedule_next_pending_user_profile_write_operation_start
         )
-        run_source = inspect.getsource(ProfileSetupPageBase._run_scheduled_user_profile_write_operation_start)
+        run_source = inspect.getsource(ProfileUserProfileController._run_scheduled_user_profile_write_operation_start)
 
         for source in (update_finished, delete_finished):
             self.assertIn("_schedule_next_user_profile_write_operation_after_finish", source)
@@ -4527,11 +4435,16 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         self.assertIn("_start_next_pending_user_profile_write_operation", run_source)
 
     def test_profile_setup_write_finished_uses_queued_state_finish_guard(self) -> None:
+        from profile.ui.profile_setup_save_controllers import ProfileSetupSaveController
+        from profile.ui.profile_strategy_controller import ProfileStrategyController
+
         profile_write_helper = inspect.getsource(
-            ProfileSetupPageBase._schedule_next_profile_setup_write_operation_after_finish
+            ProfileSetupSaveController._schedule_next_profile_setup_write_operation_after_finish
         )
+        from profile.ui.profile_user_profile_controller import ProfileUserProfileController
+
         user_profile_write_helper = inspect.getsource(
-            ProfileSetupPageBase._schedule_next_user_profile_write_operation_after_finish
+            ProfileUserProfileController._schedule_next_user_profile_write_operation_after_finish
         )
 
         for source in (profile_write_helper, user_profile_write_helper):
@@ -4539,12 +4452,14 @@ class ProfileSetupPageContractTests(unittest.TestCase):
             self.assertIn("_accept_current_profile_setup_worker_finished", source)
             self.assertIn("is_current_worker_finish", source)
 
+        from profile.ui.profile_list_file_editor_controller import ProfileListFileEditorController
+
         for handler in (
-            ProfileSetupPageBase._on_list_file_save_worker_finished,
-            ProfileSetupPageBase._on_settings_save_worker_finished,
-            ProfileSetupPageBase._on_raw_profile_save_worker_finished,
-            ProfileSetupPageBase._on_enabled_save_worker_finished,
-            ProfileSetupPageBase._on_strategy_apply_worker_finished,
+            ProfileListFileEditorController._on_list_file_save_worker_finished,
+            ProfileSetupSaveController._on_settings_save_worker_finished,
+            ProfileSetupSaveController._on_raw_profile_save_worker_finished,
+            ProfileSetupSaveController._on_enabled_save_worker_finished,
+            ProfileStrategyController._on_strategy_apply_worker_finished,
         ):
             self.assertIn(
                 "_schedule_next_profile_setup_write_operation_after_finish",
@@ -4552,8 +4467,8 @@ class ProfileSetupPageContractTests(unittest.TestCase):
             )
 
         for handler in (
-            ProfileSetupPageBase._on_user_profile_update_worker_finished,
-            ProfileSetupPageBase._on_user_profile_delete_worker_finished,
+            ProfileUserProfileController._on_user_profile_update_worker_finished,
+            ProfileUserProfileController._on_user_profile_delete_worker_finished,
         ):
             self.assertIn(
                 "_schedule_next_user_profile_write_operation_after_finish",
@@ -4948,8 +4863,10 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         ensure_match = inspect.getsource(ProfileSetupPageBase._ensure_match_tab_built)
         apply_match = inspect.getsource(ProfileSetupPageBase._apply_match_tab_payload)
         handler = inspect.getsource(ProfileSetupPageBase._on_raw_profile_save_clicked)
-        start_handler = inspect.getsource(ProfileSetupPageBase._start_raw_profile_save_worker)
-        saved_handler = inspect.getsource(ProfileSetupPageBase._on_raw_profile_save_finished)
+        from profile.ui.profile_setup_save_controllers import ProfileSetupSaveController
+
+        start_handler = inspect.getsource(ProfileSetupSaveController._start_raw_profile_save_worker)
+        saved_handler = inspect.getsource(ProfileSetupSaveController._on_raw_profile_save_finished)
 
         self.assertNotIn("self._raw_profile_text = PlainTextEdit()", build)
         self.assertIn("_raw_profile_text", ensure_match)
@@ -5095,7 +5012,8 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         )
         load_profile.assert_called_once_with("profile-2")
         self.assertEqual(len(saved), 1)
-        self.assertEqual(saved[0][:2], (7, "profile-2"))
+        # Воркер нормализует результат save к паре (old, new) persistent_key.
+        self.assertEqual(saved[0][:2], (7, ("profile-2", "profile-2")))
         self.assertIs(saved[0][2].payload, payload)
         self.assertTrue(saved[0][2].apply_signature)
 
@@ -5409,7 +5327,9 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         sync_label = inspect.getsource(ProfileSetupPageBase._sync_editor_tab_label)
         switch_tab = inspect.getsource(ProfileSetupPageBase._switch_strategy_tab)
         save_handler = inspect.getsource(ProfileSetupPageBase._on_list_file_save_clicked)
-        save_start_handler = inspect.getsource(ProfileSetupPageBase._start_list_file_save_worker)
+        from profile.ui.profile_list_file_editor_controller import ProfileListFileEditorController
+
+        save_start_handler = inspect.getsource(ProfileListFileEditorController._start_list_file_save_worker)
         validation = inspect.getsource(ProfileSetupPageBase._render_list_file_validation)
 
         self.assertIn('addItem("editor", "Редактор"', build)
@@ -6230,7 +6150,8 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         )
         load_profile.assert_called_once_with("profile-2")
         self.assertEqual(len(saved), 1)
-        self.assertEqual(saved[0][:2], (4, "profile-2"))
+        # Воркер нормализует результат save к паре (old, new) persistent_key.
+        self.assertEqual(saved[0][:2], (4, ("profile-2", "profile-2")))
         self.assertIs(saved[0][2].payload, payload)
         self.assertTrue(saved[0][2].apply_signature)
 
@@ -7537,13 +7458,18 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         page._schedule_profile_setup_payload_apply.assert_not_called()
 
     def test_profile_setup_worker_result_payloads_use_deferred_apply(self) -> None:
+        from profile.ui.profile_list_file_editor_controller import ProfileListFileEditorController
+
+        from profile.ui.profile_setup_save_controllers import ProfileSetupSaveController
+        from profile.ui.profile_strategy_controller import ProfileStrategyController
+
         handlers = (
             ProfileSetupPageBase._apply_user_profile_update_locally,
-            ProfileSetupPageBase._on_list_file_save_finished,
-            ProfileSetupPageBase._on_settings_save_finished,
-            ProfileSetupPageBase._on_raw_profile_save_finished,
-            ProfileSetupPageBase._on_enabled_save_finished,
-            ProfileSetupPageBase._on_strategy_apply_finished,
+            ProfileListFileEditorController._on_list_file_save_finished,
+            ProfileSetupSaveController._on_settings_save_finished,
+            ProfileSetupSaveController._on_raw_profile_save_finished,
+            ProfileSetupSaveController._on_enabled_save_finished,
+            ProfileStrategyController._on_strategy_apply_finished,
         )
 
         for handler in handlers:

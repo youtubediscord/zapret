@@ -74,14 +74,19 @@ def shell_bootstrap(argv: list[str] | None = None) -> bool:
             )
         sys.exit(0)
 
-    from startup.single_instance import create_mutex, release_mutex
-    from startup.ipc_manager import IPCManager
+    from startup.single_instance import (
+        create_mutex,
+        create_show_event,
+        release_mutex,
+        signal_show_event,
+    )
 
     mutex_handle, already_running = create_mutex("ZapretSingleInstance")
     if already_running:
-        ipc = IPCManager()
-        if ipc.send_show_command():
-            log("Отправлена команда показать окно запущенному экземпляру", "INFO")
+        if signal_show_event():
+            log("Существующему экземпляру послан сигнал показать окно", "INFO")
+        elif start_in_tray:
+            log("Второй экземпляр из автозапуска — выходим молча", "INFO")
         else:
             ctypes.windll.user32.MessageBoxW(
                 None,
@@ -92,4 +97,7 @@ def shell_bootstrap(argv: list[str] | None = None) -> bool:
         sys.exit(0)
 
     atexit.register(lambda: release_mutex(mutex_handle))
+    # Событие создаётся до инициализации Qt: второй экземпляр, запущенный
+    # во время загрузки первого, доставит сигнал без потерь.
+    create_show_event()
     return bool(start_in_tray)

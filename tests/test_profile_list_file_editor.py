@@ -39,6 +39,30 @@ class ProfileListFileEditorTests(unittest.TestCase):
 
         self.assertEqual(invalid, ((2, "bad domain"),))
 
+    def test_hostlist_rejects_ip_addresses(self) -> None:
+        invalid = validate_profile_list_file_text(
+            "hostlist",
+            "chatgpt.com\n1.2.3.4\n012.34.56.78\n2a00:1450::1\n8.8.8.8\n",
+        )
+
+        self.assertEqual(
+            invalid,
+            (
+                (2, "1.2.3.4"),
+                (3, "012.34.56.78"),
+                (4, "2a00:1450::1"),
+                (5, "8.8.8.8"),
+            ),
+        )
+
+    def test_hostlist_accepts_domains_with_digit_labels(self) -> None:
+        invalid = validate_profile_list_file_text(
+            "hostlist",
+            "123movies.example\n4chan.org\nchatgpt.com\n1.fdn.fr\n",
+        )
+
+        self.assertEqual(invalid, ())
+
     def test_validates_ipset_entries(self) -> None:
         invalid = validate_profile_list_file_text(
             "ipset",

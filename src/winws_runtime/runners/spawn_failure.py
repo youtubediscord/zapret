@@ -13,6 +13,15 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Optional
 
+from winws_runtime.health.windivert_diagnostics import (
+    _ERROR_DRIVER_BLOCKED,
+    _ERROR_DRIVER_FAILED_PRIOR_UNLOAD,
+    _ERROR_INVALID_IMAGE_HASH,
+    _ERROR_SERVICE_DEPENDENCY_FAIL,
+    _ERROR_SERVICE_DISABLED,
+    _ERROR_SERVICE_DOES_NOT_EXIST,
+)
+
 
 # STATUS_DLL_INIT_FAILED: Windows killed the process before main() because one
 # of its DLLs failed to initialize. For winws this is a transient race right
@@ -29,8 +38,15 @@ _WINDIVERT_CONFLICT_SIGNATURES = (
 )
 
 # Errors that require user action (Secure Boot, AV, disabled service, ...)
-# and must not be retried.
-_WINDIVERT_SYSTEM_EXIT_CODES = frozenset({577, 1058, 1060, 1068, 1275, 654})
+# and must not be retried. Codes 577, 1058, 1060, 1068, 1275, 654.
+_WINDIVERT_SYSTEM_EXIT_CODES = frozenset({
+    _ERROR_INVALID_IMAGE_HASH,
+    _ERROR_SERVICE_DISABLED,
+    _ERROR_SERVICE_DOES_NOT_EXIST,
+    _ERROR_SERVICE_DEPENDENCY_FAIL,
+    _ERROR_DRIVER_BLOCKED,
+    _ERROR_DRIVER_FAILED_PRIOR_UNLOAD,
+})
 
 _WINDIVERT_SYSTEM_SIGNATURES = (
     "the service cannot be started",
@@ -100,7 +116,7 @@ def _is_soft_windivert_1058(exit_code: int, stderr: str) -> bool:
         diag = None
 
     win32_error = int(getattr(diag, "win32_error", exit_code) or exit_code)
-    if win32_error != 1058:
+    if win32_error != _ERROR_SERVICE_DISABLED:
         return False
 
     cause = str(getattr(diag, "cause", "") or "").strip().lower()

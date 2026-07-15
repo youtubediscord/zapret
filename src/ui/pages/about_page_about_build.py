@@ -35,6 +35,7 @@ class AboutPageAboutWidgets:
     sub_status_label: object
     sub_desc_label: object
     premium_btn: object
+    kvn_btn: object
     course_group: object
     youtube_course_card: object
     youtube_playlist_card: object
@@ -73,6 +74,7 @@ def build_about_page_about_content(
     make_section_label: Callable[[str], object],
     on_open_updates,
     on_open_premium,
+    on_open_kvn_github,
 ) -> AboutPageAboutWidgets:
     about_section_version_label = make_section_label(
         tr_fn("page.about.section.version", "Версия")
@@ -161,6 +163,13 @@ def build_about_page_about_content(
     premium_btn.clicked.connect(on_open_premium)
     sub_btns.addWidget(premium_btn)
     sub_btns.addStretch()
+    kvn_btn = PushButton(
+        tr_fn("page.about.button.zapret_kvn", "Zapret KVN"),
+        icon=FluentIcon.GITHUB,
+    )
+    apply_about_buttons_accessibility(tr_fn=tr_fn, kvn_btn=kvn_btn)
+    kvn_btn.clicked.connect(on_open_kvn_github)
+    sub_btns.addWidget(kvn_btn)
     sub_layout.addLayout(sub_btns)
 
     sub_card.add_layout(sub_layout)
@@ -219,6 +228,7 @@ def build_about_page_about_content(
         sub_status_label=sub_status_label,
         sub_desc_label=sub_desc_label,
         premium_btn=premium_btn,
+        kvn_btn=kvn_btn,
         course_group=course_group,
         youtube_course_card=youtube_course_card,
         youtube_playlist_card=youtube_playlist_card,

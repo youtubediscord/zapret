@@ -37,6 +37,38 @@ ACCEPTED_WIDER_PROFILE_KEYS = {
     "winws2|hostlist=soundcloud.txt|tcp=80,443-65535",
     "winws2|hostlist=twitter.txt|tcp=80,443-65535",
     "winws2|hostlist=whatsapp.txt|tcp=80,443-65535",
+    "winws2|ipset=ipset-telegram.txt|tcp=80,443-65535",
+}
+# Узкие legacy-варианты канонов в замороженных builtin preset-ах: каталог 2026-07
+# расширил канонические порты (443 -> 443-65535, 80,443 -> широкие диапазоны),
+# а старые preset-ы сохраняют прежние фильтры и прежние имена ('Amazon' и т.п.).
+ACCEPTED_NARROWER_PROFILE_KEYS = {
+    "winws1|hostlist=discord-media.txt|tcp=80,443",
+    "winws1|hostlist=discord.txt|tcp=80,443",
+    "winws1|hostlist=other.txt|tcp=80,443",
+    "winws1|hostlist=roblox.txt|tcp=80,443",
+    "winws1|ipset=ipset-amazon.txt|tcp=1024-65535",
+    "winws1|ipset=ipset-amazon.txt|tcp=80,443,8443",
+    "winws1|ipset=ipset-amazon.txt|udp=1024-65535",
+    "winws1|ipset=ipset-amazon.txt|udp=443",
+    "winws1|ipset=ipset-cloudflare.txt|tcp=1024-65535",
+    "winws1|ipset=ipset-cloudflare.txt|tcp=80,443,8443",
+    "winws1|ipset=ipset-cloudflare.txt|udp=1024-65535",
+    "winws1|ipset=ipset-cloudflare.txt|udp=443",
+    "winws1|ipset=ipset-cloudflare1.txt|tcp=1024-65535",
+    "winws1|ipset=ipset-cloudflare1.txt|tcp=80,443,8443",
+    "winws1|ipset=ipset-cloudflare1.txt|udp=1024-65535",
+    "winws1|ipset=ipset-cloudflare1.txt|udp=443",
+    "winws1|ipset=ipset-ovh.txt|tcp=1024-65535",
+    "winws1|ipset=ipset-ovh.txt|tcp=80,443,8443",
+    "winws1|ipset=ipset-ovh.txt|udp=1024-65535",
+    "winws1|ipset=ipset-ovh.txt|udp=443",
+    "winws1|ipset=ipset-timeweb.txt|tcp=1024-65535",
+    "winws1|ipset=ipset-timeweb.txt|tcp=80,443,8443",
+    "winws1|ipset=ipset-timeweb.txt|udp=1024-65535",
+    "winws1|ipset=ipset-timeweb.txt|udp=443",
+    "winws2|hostlist=russia-blacklist.txt|tcp=80,443",
+    "winws2|hostlist=tankix.txt|tcp=80,443,5050,8080",
 }
 RUNTIME_ONLY_PROFILE_KEYS = {
     "winws1|(none)|tcp=100-25565",
@@ -139,6 +171,22 @@ RUNTIME_ONLY_PROFILE_KEYS = {
     "winws1|ipset=ipset-all.txt|udp=443-65535",
     "winws1|ipset-exclude=ipset-dns.txt;ipset-exclude=ipset-exclude.txt;ipset-exclude=ipset-ru.txt|udp=443-65535",
     "winws1|ipset-ip=188.114.96.0/22|udp=8886",
+    # Legacy-блоки, осиротевшие после реструктуризации all_profiles.txt 2026-07
+    # (youtube.txt перешёл на ipset-youtube.txt, ntcparty/porn/tankix выпали из каталога):
+    "winws1|(none)|l7=discord,stun;udp=19294-19344,50000-50100",
+    "winws1|hostlist-domains=discord.media|tcp=2053,2083,2087,2096,8443",
+    "winws1|hostlist=discord-media.txt|udp=443",
+    "winws1|hostlist=discord.txt;hostlist=ntcparty.txt|tcp=443",
+    "winws1|hostlist=discord.txt;hostlist=riot-valorant.txt|udp=443",
+    "winws1|hostlist=ntcparty.txt;hostlist=russia-discord.txt|tcp=443",
+    "winws1|hostlist=youtube.txt|tcp=80,443",
+    "winws1|ipset-exclude=ipset-exclude.txt|tcp=80,443,2053,2083,2087,2096,8443",
+    "winws2|hostlist=ntcparty.txt|tcp=80,443",
+    "winws2|hostlist=porn.txt|tcp=80,443",
+    "winws2|hostlist=riot-valorant.txt|udp=5000-5500,7000-8000",
+    "winws2|hostlist=tankix.txt|udp=443-65535",
+    "winws2|hostlist=youtube.txt|tcp=80,443",
+    "winws2|ipset=russia-youtube-rtmps.txt|tcp=80,443-65535",
 }
 
 
@@ -570,7 +618,7 @@ class BuiltinProfileCatalogTests(unittest.TestCase):
                 clean_name = str(profile.name or "").strip()
                 if clean_name == "Все сайты (айпи)" and any(line.startswith("--filter-tcp=") for line in lines):
                     has_tcp_exclusion = True
-                if clean_name != "Все сайты UDP (исключение)":
+                if clean_name != "Все сайты UDP (айпи)":
                     continue
                 udp_exclusions.append(profile)
                 udp_filters = sorted(line for line in lines if line.startswith("--filter-udp="))
@@ -818,6 +866,8 @@ class BuiltinProfileCatalogTests(unittest.TestCase):
                         if _filter_ports_are_subset(filter_key, _profile_filter_key(candidate))
                     )
                     if narrower_than_catalog is not None:
+                        if profile_key in ACCEPTED_NARROWER_PROFILE_KEYS:
+                            continue
                         offenders.append(
                             f"{engine}/{path.name} profile {profile.index}: заменить на канон "
                             f"{narrower_than_catalog.name!r} "

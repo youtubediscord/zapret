@@ -61,6 +61,7 @@ def default_program() -> dict[str, Any]:
         "remove_github_api": True,
         "discord_auto_restart": True,
         "max_blocked": False,
+        "russian_state_media_blocked": False,
         "defender_disabled": False,
     }
 

@@ -879,8 +879,8 @@ class HostsCatalogJsonTests(unittest.TestCase):
     def test_split_catalog_signature_tracks_same_size_content_change(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / "hosts_catalog"
-            root.mkdir()
-            item = root / "001.json"
+            (root / "dns").mkdir(parents=True)
+            item = root / "dns" / "001.json"
             item.write_text('{"a":1}\n', encoding="utf-8")
             first_stat = item.stat()
             first_sig = self.proxy_domains._get_path_sig(root)
@@ -889,6 +889,34 @@ class HostsCatalogJsonTests(unittest.TestCase):
             os.utime(item, ns=(int(first_stat.st_atime_ns), int(first_stat.st_mtime_ns)))
 
             second_sig = self.proxy_domains._get_path_sig(root)
+
+        self.assertNotEqual(first_sig, second_sig)
+
+    def test_split_catalog_signature_matches_between_loader_and_watcher(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            catalog_dir = self._write_split_catalog(Path(tmp))
+            _data, loader_sig = self.proxy_domains._load_split_catalog_data_with_sig(catalog_dir)
+            watcher_sig = self.proxy_domains._get_split_catalog_content_sig(catalog_dir)
+            watcher_sig_repeat = self.proxy_domains._get_split_catalog_content_sig(catalog_dir)
+
+        self.assertEqual(loader_sig, watcher_sig)
+        self.assertEqual(watcher_sig, watcher_sig_repeat)
+
+    def test_split_catalog_signature_ignores_json_outside_catalog_set(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            catalog_dir = self._write_split_catalog(Path(tmp))
+            first_sig = self.proxy_domains._get_split_catalog_content_sig(catalog_dir)
+            (catalog_dir / "readme.json").write_text('{"note": 1}\n', encoding="utf-8")
+            second_sig = self.proxy_domains._get_split_catalog_content_sig(catalog_dir)
+
+        self.assertEqual(first_sig, second_sig)
+
+    def test_split_catalog_signature_tracks_added_service_file(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            catalog_dir = self._write_split_catalog(Path(tmp))
+            first_sig = self.proxy_domains._get_split_catalog_content_sig(catalog_dir)
+            (catalog_dir / "dns" / "new_service.json").write_text('{"name": "New"}\n', encoding="utf-8")
+            second_sig = self.proxy_domains._get_split_catalog_content_sig(catalog_dir)
 
         self.assertNotEqual(first_sig, second_sig)
 

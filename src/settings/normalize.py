@@ -282,6 +282,10 @@ def normalize_program(data: object) -> dict[str, Any]:
         "remove_github_api": as_bool(raw.get("remove_github_api"), defaults["remove_github_api"]),
         "discord_auto_restart": as_bool(raw.get("discord_auto_restart"), defaults["discord_auto_restart"]),
         "max_blocked": as_bool(raw.get("max_blocked"), defaults["max_blocked"]),
+        "russian_state_media_blocked": as_bool(
+            raw.get("russian_state_media_blocked"),
+            defaults["russian_state_media_blocked"],
+        ),
         "defender_disabled": as_bool(raw.get("defender_disabled"), defaults["defender_disabled"]),
     }
 

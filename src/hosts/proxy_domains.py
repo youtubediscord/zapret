@@ -306,20 +306,23 @@ def _decode_json_bytes(raw: bytes) -> object:
     return json.loads(raw.decode("utf-8", errors="replace") or "{}")
 
 
-def _update_split_content_sig(
-    *,
-    root: Path,
-    path: Path,
-    raw: bytes,
-    checksum: int,
-    total_size: int,
-) -> tuple[int, int]:
-    rel = path.relative_to(root).as_posix().encode("utf-8", errors="replace")
-    checksum = zlib.crc32(rel, checksum)
-    checksum = zlib.crc32(b"\0", checksum)
-    checksum = zlib.crc32(raw, checksum)
-    total_size += len(raw)
-    return checksum, total_size
+def _content_sig_entry(*, root: Path, path: Path, raw: bytes) -> tuple[str, int, int]:
+    rel = path.relative_to(root).as_posix()
+    return (rel, int(zlib.crc32(raw)), len(raw))
+
+
+def _combine_content_sig(entries: list[tuple[str, int, int]]) -> tuple[int, int]:
+    """Сворачивает записи (rel, crc32, size) в подпись каталога.
+
+    Записи сортируются перед свёрткой, поэтому результат не зависит от порядка
+    чтения файлов — загрузчик и watcher обязаны получать одно и то же значение.
+    """
+    checksum = 0
+    total_size = 0
+    for rel, raw_crc, size in sorted(entries):
+        checksum = zlib.crc32(f"{rel}\0{raw_crc}\0{size}\0".encode("utf-8", errors="replace"), checksum)
+        total_size += size
+    return (int(checksum), int(total_size))
 
 
 def _iter_json_files(path: Path) -> list[Path]:
@@ -330,6 +333,21 @@ def _iter_json_files(path: Path) -> list[Path]:
         for child in path.iterdir()
         if child.is_file() and child.suffix.lower() == ".json"
     )
+
+
+def _split_catalog_files(root: Path) -> list[Path]:
+    """Канонический список файлов split-каталога.
+
+    Единственный источник истины и для загрузчика, и для подписи watcher'а:
+    расхождение набора файлов давало ложные «изменения» каталога.
+    """
+    files: list[Path] = []
+    profiles_path = root / "dns_sources.json"
+    if profiles_path.is_file():
+        files.append(profiles_path)
+    files.extend(_iter_json_files(root / "dns"))
+    files.extend(_iter_json_files(root / "hosts"))
+    return files
 
 
 def _normalize_split_profiles(raw: object) -> list[dict[str, str]]:
@@ -378,23 +396,15 @@ def _load_split_catalog_data(path: Path) -> dict:
 
 
 def _load_split_catalog_data_with_sig(path: Path) -> tuple[dict, tuple[int, int]]:
-    checksum = 0
-    total_size = 0
+    sig_entries: list[tuple[str, int, int]] = []
 
     def read_json(service_path: Path) -> object:
-        nonlocal checksum, total_size
         raw = service_path.read_bytes()
-        checksum, total_size = _update_split_content_sig(
-            root=path,
-            path=service_path,
-            raw=raw,
-            checksum=checksum,
-            total_size=total_size,
-        )
+        sig_entries.append(_content_sig_entry(root=path, path=service_path, raw=raw))
         return _decode_json_bytes(raw)
 
     profiles_path = path / "dns_sources.json"
-    profiles = _normalize_split_profiles(read_json(profiles_path) if profiles_path.exists() else [])
+    profiles = _normalize_split_profiles(read_json(profiles_path) if profiles_path.is_file() else [])
 
     services: list[dict] = []
     for service_path in _iter_json_files(path / "dns"):
@@ -413,7 +423,7 @@ def _load_split_catalog_data_with_sig(path: Path) -> tuple[dict, tuple[int, int]
         "version": 1,
         "profiles": profiles,
         "services": services,
-    }, (int(checksum), int(total_size))
+    }, _combine_content_sig(sig_entries)
 
 
 def _remember_recent_path_sig(path: Path, sig: tuple[int, int] | None) -> None:
@@ -434,20 +444,14 @@ def _get_recent_path_sig(path: Path) -> tuple[int, int] | None:
 
 
 def _get_split_catalog_content_sig(path: Path) -> tuple[int, int]:
-    checksum = 0
-    total_size = 0
-    for child in sorted(path.rglob("*.json")):
-        if not child.is_file():
+    sig_entries: list[tuple[str, int, int]] = []
+    for child in _split_catalog_files(path):
+        try:
+            raw = child.read_bytes()
+        except OSError:
             continue
-        raw = child.read_bytes()
-        checksum, total_size = _update_split_content_sig(
-            root=path,
-            path=child,
-            raw=raw,
-            checksum=checksum,
-            total_size=total_size,
-        )
-    return (int(checksum), int(total_size))
+        sig_entries.append(_content_sig_entry(root=path, path=child, raw=raw))
+    return _combine_content_sig(sig_entries)
 
 
 def _get_file_content_sig_from_raw(raw: bytes) -> tuple[int, int]:

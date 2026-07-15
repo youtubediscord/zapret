@@ -1,6 +1,6 @@
 import unittest
 import inspect
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, call, patch
 
 
 class WinDivertServiceRecoveryTests(unittest.TestCase):
@@ -231,7 +231,7 @@ class WinDivertServiceRecoveryTests(unittest.TestCase):
         with (
             patch.object(runner_base.os.path, "exists", return_value=True),
             patch(
-                "winws_runtime.health.process_health_check._probe_service_disabled_cause",
+                "winws_runtime.health.winws_exit_diagnosis._probe_service_disabled_cause",
                 return_value=(
                     "WinDivert ещё не готов после предыдущего запуска или очистки",
                     "Повторите запуск после очистки",
@@ -250,7 +250,7 @@ class WinDivertServiceRecoveryTests(unittest.TestCase):
         self.assertTrue(retry)
 
     def test_windivert_error_after_lua_header_is_reported_as_service_problem(self) -> None:
-        from winws_runtime.health import process_health_check
+        from winws_runtime.health import process_health_check, winws_exit_diagnosis
 
         stderr = "\n".join(
             (
@@ -261,7 +261,7 @@ class WinDivertServiceRecoveryTests(unittest.TestCase):
         )
 
         with patch.object(
-            process_health_check,
+            winws_exit_diagnosis,
             "_probe_service_disabled_cause",
             return_value=("WinDivert service disabled", "Restore service", None),
         ):
@@ -415,7 +415,7 @@ class WinDivertServiceRecoveryTests(unittest.TestCase):
         )
 
     def test_generic_service_disabled_does_not_blame_secure_boot_without_signature_error(self) -> None:
-        from winws_runtime.health import process_health_check
+        from winws_runtime.health import process_health_check, winws_exit_diagnosis
 
         stderr = (
             "windivert: error opening filter: The service cannot be started, "
@@ -423,12 +423,12 @@ class WinDivertServiceRecoveryTests(unittest.TestCase):
         )
 
         with (
-            patch.object(process_health_check, "_check_windivert_files", return_value=[]),
-            patch.object(process_health_check, "_check_bfe_service", return_value=True),
-            patch.object(process_health_check, "_check_secure_boot", return_value=True),
-            patch.object(process_health_check, "_find_disabled_windivert_driver_service", return_value=None),
-            patch.object(process_health_check, "_detect_active_antivirus", return_value=None),
-            patch.object(process_health_check, "_check_network_adapters", return_value=True),
+            patch.object(winws_exit_diagnosis, "_check_windivert_files", return_value=[]),
+            patch.object(winws_exit_diagnosis, "_check_bfe_service", return_value=True),
+            patch.object(winws_exit_diagnosis, "_check_secure_boot", return_value=True),
+            patch.object(winws_exit_diagnosis, "_find_disabled_windivert_driver_service", return_value=None),
+            patch.object(winws_exit_diagnosis, "_detect_active_antivirus", return_value=None),
+            patch.object(winws_exit_diagnosis, "_check_network_adapters", return_value=True),
         ):
             diagnosis = process_health_check.diagnose_winws_exit(34, stderr)
 
@@ -504,6 +504,7 @@ class WinDivertServiceRecoveryTests(unittest.TestCase):
         from winws_runtime.runtime import system_ops
 
         with (
+            patch.object(system_ops, "_is_kaspersky_present_safe", return_value=False),
             patch.object(system_ops, "force_kill_all_winws_processes", return_value=True),
             patch.object(system_ops, "unload_known_windivert_drivers_runtime", return_value=True),
             patch.object(system_ops, "stop_and_delete_runtime_services", return_value=False),
@@ -522,6 +523,7 @@ class WinDivertServiceRecoveryTests(unittest.TestCase):
         from winws_runtime.runtime import system_ops
 
         with (
+            patch.object(system_ops, "_is_kaspersky_present_safe", return_value=False),
             patch.object(system_ops, "force_kill_all_winws_processes", return_value=True),
             patch.object(system_ops, "unload_known_windivert_drivers_runtime", return_value=True),
             patch.object(
@@ -541,10 +543,13 @@ class WinDivertServiceRecoveryTests(unittest.TestCase):
         self.assertEqual(stop_and_delete.call_count, 2)
         stop_and_delete.assert_any_call(retry_count=3)
         stop_and_delete.assert_any_call(retry_count=2)
-        wait_cleanup.assert_called_once_with(
-            max_wait_seconds=5.0,
-            poll_interval=0.25,
-            retry_cleanup=True,
+        # Pre-unload settle (retry_cleanup=False) + финальный settle (retry_cleanup=True)
+        self.assertEqual(
+            wait_cleanup.call_args_list,
+            [
+                call(max_wait_seconds=5.0, poll_interval=0.25, retry_cleanup=False),
+                call(max_wait_seconds=5.0, poll_interval=0.25, retry_cleanup=True),
+            ],
         )
 
     def test_clear_stopped_windivert_delete_flags_skips_running_services(self) -> None:
@@ -932,7 +937,9 @@ class WinDivertServiceRecoveryTests(unittest.TestCase):
         sleep.assert_not_called()
 
     def test_runner_treats_access_denied_readiness_as_transient_cleanup_case(self) -> None:
+        from winws_runtime.health import windivert_diagnostics
         from winws_runtime.runners import runner_base
+        from winws_runtime.runtime import system_ops
         from winws_runtime.runtime.system_ops import WinDivertRuntimeProbeResult
 
         class DummyRunner(runner_base.StrategyRunnerBase):
@@ -957,20 +964,26 @@ class WinDivertServiceRecoveryTests(unittest.TestCase):
 
         with (
             patch.object(runner_base.os.path, "exists", return_value=True),
-            patch.object(runner_base, "wait_for_windivert_spawn_ready_runtime", return_value=ready_probe)
+            patch.object(system_ops, "wait_for_windivert_spawn_ready_runtime", return_value=ready_probe)
             as wait_ready,
             patch.object(DummyRunner, "_aggressive_windivert_cleanup") as cleanup,
             patch.object(DummyRunner, "_wait_after_aggressive_windivert_cleanup"),
         ):
             runner = DummyRunner(r"C:\Zapret\Dev\exe\winws2.exe")
-            result = runner._retry_windivert_spawn_readiness_after_recovery(blocked_probe)
+            result = windivert_diagnostics.retry_windivert_spawn_readiness_after_recovery(
+                blocked_probe,
+                aggressive_cleanup=runner._aggressive_windivert_cleanup,
+                wait_after_cleanup=runner._wait_after_aggressive_windivert_cleanup,
+            )
 
         self.assertTrue(result.ready)
         cleanup.assert_called_once_with()
         wait_ready.assert_called_once()
 
     def test_runner_treats_delete_pending_monkey_readiness_as_transient_cleanup_case(self) -> None:
+        from winws_runtime.health import windivert_diagnostics
         from winws_runtime.runners import runner_base
+        from winws_runtime.runtime import system_ops
         from winws_runtime.runtime.system_ops import WinDivertRuntimeProbeResult
 
         class DummyRunner(runner_base.StrategyRunnerBase):
@@ -995,13 +1008,17 @@ class WinDivertServiceRecoveryTests(unittest.TestCase):
 
         with (
             patch.object(runner_base.os.path, "exists", return_value=True),
-            patch.object(runner_base, "wait_for_windivert_spawn_ready_runtime", return_value=ready_probe)
+            patch.object(system_ops, "wait_for_windivert_spawn_ready_runtime", return_value=ready_probe)
             as wait_ready,
             patch.object(DummyRunner, "_aggressive_windivert_cleanup") as cleanup,
             patch.object(DummyRunner, "_wait_after_aggressive_windivert_cleanup"),
         ):
             runner = DummyRunner(r"C:\Zapret\Dev\exe\winws2.exe")
-            result = runner._retry_windivert_spawn_readiness_after_recovery(blocked_probe)
+            result = windivert_diagnostics.retry_windivert_spawn_readiness_after_recovery(
+                blocked_probe,
+                aggressive_cleanup=runner._aggressive_windivert_cleanup,
+                wait_after_cleanup=runner._wait_after_aggressive_windivert_cleanup,
+            )
 
         self.assertTrue(result.ready)
         cleanup.assert_called_once_with()

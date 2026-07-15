@@ -178,10 +178,14 @@ def rename_profile_user_list_file(lists_root: Path, old_file_name: str, new_file
         if old_paths is not None and old_paths.user_path.exists() and old_paths.user_path != new_paths.user_path:
             if new_paths.user_path.exists():
                 raise ValueError(f"Файл списка уже существует: {new_paths.file_name}")
+            # Владение старым итогом фиксируется ДО переноса user-слоя: после
+            # rename снимок уже не отличит слоёный итог от внешнего файла.
+            old_was_external = _load_snapshot(old_paths).ownership is ListOwnership.EXTERNAL
             old_paths.user_path.rename(new_paths.user_path)
             # Старый итоговый файл был собран из унесённого user-слоя —
             # он обязан пересобраться/удалиться, а не остаться протухшим.
-            _reconcile_list_file(lists_root, old_paths.file_name, authoritative=True)
+            # EXTERNAL-итог слоям не принадлежал — его не трогаем.
+            _reconcile_list_file(lists_root, old_paths.file_name, authoritative=not old_was_external)
         elif not new_paths.user_path.exists():
             write_text_file(str(new_paths.user_path), "")
         # Новое имя сверяется фоново: перенесённый пустой user-слой не даёт
@@ -192,11 +196,16 @@ def rename_profile_user_list_file(lists_root: Path, old_file_name: str, new_file
 def delete_profile_user_list_file(lists_root: Path, file_name: str) -> None:
     with _LAYERED_LIST_FILE_LOCK:
         paths = layered_list_file(lists_root, file_name)
+        # Владение определяется ДО удаления user-слоя: после unlink итог из
+        # слоёв неотличим от внешнего (снимок видит только «файл с записями»).
+        was_external = _load_snapshot(paths).ownership is ListOwnership.EXTERNAL
         try:
             paths.user_path.unlink()
         except FileNotFoundError:
             pass
-        _reconcile_list_file(lists_root, paths.file_name, authoritative=True)
+        # EXTERNAL-итог (например, поставленный установщиком одноимённый список)
+        # не принадлежал удаляемому user-слою — сверяем недеструктивно.
+        _reconcile_list_file(lists_root, paths.file_name, authoritative=not was_external)
 
 
 def _reconcile_list_file(lists_root: Path, file_name: str, *, authoritative: bool) -> None:

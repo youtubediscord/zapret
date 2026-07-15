@@ -276,6 +276,13 @@ class AboutPage(BasePage):
                 tr_fn=lambda key, default: tr_catalog(key, language=self._ui_language, default=default),
                 premium_btn=self.premium_btn,
             )
+            self.kvn_btn.setText(
+                tr_catalog("page.about.button.zapret_kvn", language=self._ui_language, default="Zapret KVN")
+            )
+            apply_about_buttons_accessibility(
+                tr_fn=lambda key, default: tr_catalog(key, language=self._ui_language, default=default),
+                kvn_btn=self.kvn_btn,
+            )
         except Exception:
             pass
 
@@ -313,6 +320,7 @@ class AboutPage(BasePage):
             make_section_label=lambda text: _make_section_label(text),
             on_open_updates=self._open_updates_callback,
             on_open_premium=self._open_premium_callback,
+            on_open_kvn_github=self._open_kvn_github,
         )
         self.about_section_version_label = widgets.about_section_version_label
         self.about_app_name_label = widgets.about_app_name_label
@@ -323,6 +331,7 @@ class AboutPage(BasePage):
         self.sub_status_label = widgets.sub_status_label
         self.sub_desc_label = widgets.sub_desc_label
         self.premium_btn = widgets.premium_btn
+        self.kvn_btn = widgets.kvn_btn
         layout.addSpacing(16)
         self._build_support_content(layout)
 

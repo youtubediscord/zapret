@@ -38,6 +38,14 @@ class ProfileFilterKindSwitchTests(unittest.TestCase):
         )
         return ProfilePresetService(feature, launch_method), store
 
+    def _assert_saved_pair(self, result, store, *, engine: str = "winws2") -> None:
+        """Edit-операции service возвращают пару (old, new) persistent_key;
+        new обязан соответствовать profile:0 сохранённого текста preset."""
+        self.assertIsNotNone(result)
+        _old_key, new_key = result
+        preset = parse_preset_text(store.text, engine=engine)
+        self.assertEqual(new_key, preset.profiles[0].persistent_key)
+
     def test_switch_hostlist_profile_to_ipset_rewrites_same_profile_line(self) -> None:
         from tempfile import TemporaryDirectory
 
@@ -63,7 +71,7 @@ class ProfileFilterKindSwitchTests(unittest.TestCase):
 
             new_key = service.set_profile_filter_kind("profile:0", "ipset")
 
-            self.assertEqual(new_key, "profile:0")
+            self._assert_saved_pair(new_key, store)
             self.assertIn("--ipset=lists/ipset-youtube.txt", store.text)
             self.assertNotIn("--hostlist=lists/youtube.txt", store.text)
             self.assertIn("--out-range=-d8", store.text)
@@ -95,7 +103,7 @@ class ProfileFilterKindSwitchTests(unittest.TestCase):
 
             new_key = service.set_profile_filter_kind("profile:0", "hostlist")
 
-            self.assertEqual(new_key, "profile:0")
+            self._assert_saved_pair(new_key, store)
             self.assertIn("--hostlist=lists/youtube.txt", store.text)
             self.assertNotIn("--ipset=lists/ipset-youtube.txt", store.text)
             self.assertIn("--out-range=-d8", store.text)
@@ -125,7 +133,7 @@ class ProfileFilterKindSwitchTests(unittest.TestCase):
 
             new_key = service.set_profile_filter_kind("profile:0", "ipset")
 
-            self.assertEqual(new_key, "profile:0")
+            self._assert_saved_pair(new_key, store)
             self.assertIn("--ipset=lists/ipset-all.txt", store.text)
             self.assertNotIn("--hostlist=lists/other.txt", store.text)
 
@@ -152,7 +160,7 @@ class ProfileFilterKindSwitchTests(unittest.TestCase):
 
             new_key = service.set_profile_filter_kind("profile:0", "hostlist")
 
-            self.assertEqual(new_key, "profile:0")
+            self._assert_saved_pair(new_key, store)
             self.assertIn("--hostlist=lists/other.txt", store.text)
             self.assertNotIn("--ipset=lists/ipset-all.txt", store.text)
 
@@ -217,7 +225,7 @@ class ProfileFilterKindSwitchTests(unittest.TestCase):
 
             new_key = service.set_profile_filter_kind("profile:0", "ipset")
 
-        self.assertEqual(new_key, "profile:0")
+        self._assert_saved_pair(new_key, store, engine="winws1")
         self.assertIn("--ipset=lists/ipset-youtube.txt", store.text)
         self.assertNotIn("--hostlist=lists/youtube.txt", store.text)
         self.assertIn("--dpi-desync=fake,split2", store.text)
@@ -249,7 +257,7 @@ class ProfileFilterKindSwitchTests(unittest.TestCase):
 
             new_key = service.set_profile_filter_kind("profile:0", "hostlist")
 
-        self.assertEqual(new_key, "profile:0")
+        self._assert_saved_pair(new_key, store, engine="winws1")
         self.assertIn("--hostlist=lists/other.txt", store.text)
         self.assertNotIn("--ipset=lists/ipset-all.txt", store.text)
 
@@ -396,7 +404,8 @@ class ProfileFilterKindSwitchTests(unittest.TestCase):
                 out_range="-d8",
             )
 
-        self.assertEqual(new_key, "profile:0")
+        self._assert_saved_pair(new_key, store)
+        self.assertEqual(new_key[0], new_key[1])
         self.assertEqual(store.text, text_before)
         self.assertIn("--hostlist-exclude=lists/netrogat.txt", store.text)
         self.assertNotIn("--ipset-exclude=lists/ipset-ru.txt", store.text)
@@ -455,7 +464,8 @@ class ProfileFilterKindSwitchTests(unittest.TestCase):
         self.assertIsNone(hostlist_switch)
         self.assertIsNone(ipset_switch)
         # Автосейв настроек не молча меняет тип: профиль остаётся hostlist.
-        self.assertEqual(settings_switch, "profile:0")
+        self._assert_saved_pair(settings_switch, store)
+        self.assertEqual(settings_switch[0], settings_switch[1])
         self.assertEqual(store.text, text_before)
 
     def test_switch_blocked_even_when_counterpart_is_disabled(self) -> None:
@@ -591,7 +601,8 @@ class ProfileFilterKindSwitchTests(unittest.TestCase):
                 out_range="a",
             )
 
-        self.assertEqual(new_key, "profile:0")
+        self._assert_saved_pair(new_key, store)
+        self.assertEqual(new_key[0], new_key[1])
         self.assertIn("--ipset=lists/cloudflare-ipset.txt", store.text)
         self.assertNotIn("--hostlist=lists/cloudflare-ipset.txt", store.text)
         self.assertNotIn("ipset-cloudflare-ipset.txt", store.text)
@@ -666,7 +677,7 @@ class ProfileFilterKindSwitchTests(unittest.TestCase):
         self.assertTrue(list_editor.editable)
         self.assertIn("hostlist", setup.match_summary)
         self.assertEqual(payload.items[0].list_type, "hostlist")
-        self.assertEqual(new_key, "profile:0")
+        self._assert_saved_pair(new_key, store)
         self.assertIn("--ipset=lists/ipset-discord.txt", store.text)
 
     def test_update_settings_rejects_domain_as_ipset_file_value(self) -> None:
@@ -697,7 +708,8 @@ class ProfileFilterKindSwitchTests(unittest.TestCase):
                 out_range="a",
             )
 
-        self.assertEqual(new_key, "profile:0")
+        self._assert_saved_pair(new_key, store)
+        self.assertEqual(new_key[0], new_key[1])
         self.assertIn("--ipset=lists/ipset-discord.txt", store.text)
         self.assertNotIn("--ipset=discord.com", store.text)
 

@@ -37,3 +37,6 @@ class StrategyScanReport:
     cancelled: bool = False
     baseline_accessible: bool = False
     scan_protocol: str = "tcp_https"
+    # Причина аварийной остановки скана (например, WinDivert недоступен);
+    # пустая строка — скан завершился или отменён пользователем.
+    fatal_error: str = ""

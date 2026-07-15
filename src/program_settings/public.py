@@ -10,6 +10,7 @@ from program_settings.commands import (
     set_gui_autostart_enabled,
     set_tray_close_mode,
     set_max_block_enabled,
+    set_state_media_block_enabled,
     save_ui_state_settings,
 )
 from program_settings.runtime import (
@@ -37,5 +38,6 @@ __all__ = [
     "set_gui_autostart_enabled",
     "set_tray_close_mode",
     "set_max_block_enabled",
+    "set_state_media_block_enabled",
     "save_ui_state_settings",
 ]

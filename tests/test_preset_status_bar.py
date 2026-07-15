@@ -163,6 +163,9 @@ class _BreadcrumbWidget:
     def addItem(self, key: str, text: str) -> None:  # noqa: N802
         self.items.append((str(key), str(text)))
 
+    def count(self) -> int:
+        return len(self.items)
+
     def accessibleName(self) -> str:  # noqa: N802
         return self._accessible_name
 

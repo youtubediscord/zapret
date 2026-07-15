@@ -495,6 +495,14 @@ def set_max_blocked(value: bool) -> bool:
     return _set_bool(("program", "max_blocked"), value)
 
 
+def get_russian_state_media_blocked() -> bool:
+    return _get_bool(("program", "russian_state_media_blocked"), False)
+
+
+def set_russian_state_media_blocked(value: bool) -> bool:
+    return _set_bool(("program", "russian_state_media_blocked"), value)
+
+
 def set_defender_disabled_memory(value: bool) -> bool:
     return _set_bool(("program", "defender_disabled"), value)
 
@@ -1400,6 +1408,7 @@ __all__ = [
     "get_profile_strategy_state_settings",
     "get_remove_github_api",
     "get_rkn_background",
+    "get_russian_state_media_blocked",
     "get_selected_theme",
     "get_selected_source_preset_file_name",
     "get_sidebar_icon_style",
@@ -1499,6 +1508,7 @@ __all__ = [
     "set_profile_strategy_state_settings",
     "set_remove_github_api",
     "set_rkn_background",
+    "set_russian_state_media_blocked",
     "set_selected_theme",
     "set_selected_source_preset_file_name",
     "set_sidebar_icon_style",

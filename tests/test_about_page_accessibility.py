@@ -32,6 +32,7 @@ class AboutPageAccessibilityTests(unittest.TestCase):
             make_section_label=lambda text: QWidget(),
             on_open_updates=lambda: None,
             on_open_premium=lambda: None,
+            on_open_kvn_github=lambda: None,
         )
 
         self.assertEqual(widgets.update_btn.accessibleName(), "Открыть настройки обновлений")
@@ -63,6 +64,10 @@ class AboutPageAccessibilityTests(unittest.TestCase):
         self.assertEqual(widgets.premium_btn.accessibleName(), "Открыть Premium и VPN")
         self.assertEqual(widgets.premium_btn.property("screenReaderStateText"), "Открыть Premium и VPN")
         self.assertIn("Premium", widgets.premium_btn.accessibleDescription())
+        self.assertEqual(widgets.kvn_btn.text(), "Zapret KVN")
+        self.assertEqual(widgets.kvn_btn.accessibleName(), "Открыть Zapret KVN на GitHub")
+        self.assertEqual(widgets.kvn_btn.property("screenReaderStateText"), "Открыть Zapret KVN на GitHub")
+        self.assertIn("GitHub", widgets.kvn_btn.accessibleDescription())
 
         self.assertEqual(widgets.course_group.accessibleName(), "Раздел о программе: Обучение")
         self.assertEqual(
@@ -138,6 +143,7 @@ class AboutPageAccessibilityTests(unittest.TestCase):
         page.about_section_subscription_label = _TextWidget()
         page.sub_desc_label = _TextWidget()
         page.premium_btn = _TextWidget()
+        page.kvn_btn = _TextWidget()
         page._current_subscription_state = lambda: (False, None)
         page.update_subscription_status = lambda *_args: None
 
@@ -164,6 +170,10 @@ class AboutPageAccessibilityTests(unittest.TestCase):
         self.assertEqual(page.premium_btn.accessible_name, "Открыть Premium и VPN")
         self.assertEqual(page.premium_btn.property("screenReaderStateText"), "Открыть Premium и VPN")
         self.assertIn("Premium", page.premium_btn.accessible_description)
+        self.assertEqual(page.kvn_btn.text(), "Zapret KVN")
+        self.assertEqual(page.kvn_btn.accessible_name, "Открыть Zapret KVN на GitHub")
+        self.assertEqual(page.kvn_btn.property("screenReaderStateText"), "Открыть Zapret KVN на GitHub")
+        self.assertIn("GitHub", page.kvn_btn.accessible_description)
 
     def test_about_page_shows_support_blocks_on_about_tab(self) -> None:
         page = AboutPage(

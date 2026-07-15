@@ -24,6 +24,7 @@ from ui.page_deps.system import (
     build_servers_page_kwargs,
     build_support_page_kwargs,
     build_telegram_proxy_page_kwargs,
+    build_winws_log_analyzer_page_kwargs,
 )
 from ui.page_deps.types import DnsPageDeps, HostsPageDeps, PremiumPageDeps
 
@@ -145,6 +146,7 @@ PAGE_DEPS_BUILDERS: dict[PageName, PageDepsSpec] = {
         build_blockcheck_page_kwargs,
         features=("blockcheck", "diagnostics", "dns", "runtime"),
     ),
+    PageName.WINWS_LOG_ANALYZER: PageDepsSpec(build_winws_log_analyzer_page_kwargs),
     PageName.LOGS: PageDepsSpec(
         build_logs_page_kwargs,
         features=("logs", "orchestra"),

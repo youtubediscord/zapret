@@ -511,7 +511,7 @@ class ProfileFeature:
         filter_value: str,
         in_range: str,
         out_range: str,
-    ) -> str | None:
+    ) -> tuple[str, str] | None:
         return self._commands().update_winws2_profile_settings(
             self,
             launch_method,
@@ -527,7 +527,7 @@ class ProfileFeature:
         launch_method: str,
         profile_key: str,
         raw_text: str,
-    ) -> str | None:
+    ) -> tuple[str, str] | None:
         return self._commands().update_profile_raw_text(
             self,
             launch_method,
@@ -566,7 +566,7 @@ class ProfileFeature:
             filter_value=filter_value,
         )
 
-    def set_profile_filter_kind(self, launch_method: str, profile_key: str, filter_kind: str) -> str | None:
+    def set_profile_filter_kind(self, launch_method: str, profile_key: str, filter_kind: str) -> tuple[str, str] | None:
         return self._commands().set_profile_filter_kind(self, launch_method, profile_key, filter_kind)
 
     def set_current_strategy_state(

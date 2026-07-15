@@ -17,6 +17,9 @@ from profile.ui.profile_list_model import ProfileListModel as ProfileSetupListMo
 from profile.ui.profiles_list import ProfilesList
 from profile.ui.profile_setup_page import ProfileSetupPageBase
 from profile.ui.preset_setup_page import PresetSetupPageBase
+from profile.ui.profile_payload_controller import ProfilePayloadController
+from profile.ui.preset_write_queue import PresetWriteQueue
+from profile.ui.profile_folder_controller import ProfileFolderController
 from presets import display_state
 from presets import commands as preset_commands
 from presets.ui.common.preset_subpage_base import PresetRawEditorPage
@@ -118,9 +121,9 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         refresh_source = inspect.getsource(PresetSetupPageBase.refresh_from_preset_switch)
         activated_source = inspect.getsource(PresetSetupPageBase.on_page_activated)
         init_source = inspect.getsource(PresetSetupPageBase.__init__)
-        request_source = inspect.getsource(PresetSetupPageBase._request_profiles_payload)
-        run_source = inspect.getsource(PresetSetupPageBase._run_scheduled_profiles_payload_request)
-        finished_source = inspect.getsource(PresetSetupPageBase._on_profile_worker_finished)
+        request_source = inspect.getsource(ProfilePayloadController._request_profiles_payload)
+        run_source = inspect.getsource(ProfilePayloadController._run_scheduled_profiles_payload_request)
+        finished_source = inspect.getsource(ProfilePayloadController._on_profile_worker_finished)
         cleanup_source = inspect.getsource(PresetSetupPageBase.cleanup)
 
         self.assertNotIn(".list_profiles(", refresh_source)
@@ -128,7 +131,7 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertNotIn("_request_profiles_payload(force=True)", refresh_source)
         self.assertIn("_schedule_profiles_payload_request", activated_source)
         self.assertNotIn("QTimer.singleShot(0, self._request_profiles_payload)", init_source)
-        self.assertIn("_run_scheduled_profiles_payload_request", inspect.getsource(PresetSetupPageBase._schedule_profiles_payload_request))
+        self.assertIn("_run_scheduled_profiles_payload_request", inspect.getsource(ProfilePayloadController._schedule_profiles_payload_request))
         self.assertIn("_request_profiles_payload", run_source)
         self.assertIn("_profile_payload_dirty", request_source)
         self.assertIn("_profile_payload_loaded_once", request_source)
@@ -195,9 +198,9 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertIn("_ui_state_unsubscribe", cleanup_source)
 
     def test_preset_setup_page_ignores_stale_profile_worker_after_preset_switch(self) -> None:
-        request_source = inspect.getsource(PresetSetupPageBase._request_profiles_payload)
-        finished_source = inspect.getsource(PresetSetupPageBase._on_profile_worker_finished)
-        scheduled_source = inspect.getsource(PresetSetupPageBase._run_scheduled_profile_load_refresh_start)
+        request_source = inspect.getsource(ProfilePayloadController._request_profiles_payload)
+        finished_source = inspect.getsource(ProfilePayloadController._on_profile_worker_finished)
+        scheduled_source = inspect.getsource(ProfilePayloadController._run_scheduled_profile_load_refresh_start)
 
         self.assertIn("_profile_load_refresh_state_obj()", request_source)
         self.assertIn("runtime.is_running() or refresh_state.start_scheduled", request_source)
@@ -238,8 +241,7 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
             side_effect=AssertionError("folder action must not reload the whole profile list")
         )
 
-        PresetSetupPageBase._on_profile_folder_action_finished(
-            page,
+        page._folder_controller_obj()._on_profile_folder_action_finished(
             7,
             "rename",
             True,
@@ -271,8 +273,7 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         page.refresh_from_preset_switch = Mock()
         page._profile_payload_dirty = False
 
-        PresetSetupPageBase._on_profile_folder_action_finished(
-            page,
+        page._folder_controller_obj()._on_profile_folder_action_finished(
             8,
             "rename",
             True,
@@ -1764,9 +1765,9 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
 
         self.assertTrue(hasattr(profile_setup_loader, "ProfileFolderActionWorker"))
         worker_source = inspect.getsource(profile_setup_loader.ProfileFolderActionWorker.run)
-        request_source = inspect.getsource(PresetSetupPageBase._request_profile_folder_action)
-        action_finished_source = inspect.getsource(PresetSetupPageBase._on_profile_folder_action_finished)
-        finished_source = inspect.getsource(PresetSetupPageBase._on_profile_folder_action_worker_finished)
+        request_source = inspect.getsource(ProfileFolderController._request_profile_folder_action)
+        action_finished_source = inspect.getsource(ProfileFolderController._on_profile_folder_action_finished)
+        finished_source = inspect.getsource(ProfileFolderController._on_profile_folder_action_worker_finished)
         show_source = inspect.getsource(PresetSetupPageBase._on_folder_context_requested)
 
         for source in (toggle_source, menu_source):
@@ -1802,7 +1803,7 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertIn("_queue_profile_folder_action", request_source)
         self.assertIn(
             "_profile_folder_action_state_obj()",
-            inspect.getsource(PresetSetupPageBase._queue_profile_folder_action),
+            inspect.getsource(ProfileFolderController._queue_profile_folder_action),
         )
         self.assertIn("_profile_folder_action_state_obj().pop_next()", finished_source)
         self.assertIn("show_menu", action_finished_source)
@@ -1812,14 +1813,14 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertIn("_create_profile_folder_action_worker_fn", create_source)
 
     def test_profile_preset_write_queue_restarts_after_worker_signal_returns(self) -> None:
-        context_finished = inspect.getsource(PresetSetupPageBase._on_profile_context_action_worker_finished)
-        move_finished = inspect.getsource(PresetSetupPageBase._on_profile_move_worker_finished)
-        create_finished = inspect.getsource(PresetSetupPageBase._on_user_profile_create_worker_finished)
-        update_finished = inspect.getsource(PresetSetupPageBase._on_user_profile_update_worker_finished)
-        delete_finished = inspect.getsource(PresetSetupPageBase._on_user_profile_delete_worker_finished)
-        helper_source = inspect.getsource(PresetSetupPageBase._schedule_next_profile_preset_write_operation_after_finish)
-        schedule_source = inspect.getsource(PresetSetupPageBase._schedule_next_profile_preset_write_operation_start)
-        run_source = inspect.getsource(PresetSetupPageBase._run_scheduled_profile_preset_write_operation_start)
+        context_finished = inspect.getsource(PresetWriteQueue._on_profile_context_action_worker_finished)
+        move_finished = inspect.getsource(PresetWriteQueue._on_profile_move_worker_finished)
+        create_finished = inspect.getsource(PresetWriteQueue._on_user_profile_create_worker_finished)
+        update_finished = inspect.getsource(PresetWriteQueue._on_user_profile_update_worker_finished)
+        delete_finished = inspect.getsource(PresetWriteQueue._on_user_profile_delete_worker_finished)
+        helper_source = inspect.getsource(PresetWriteQueue._schedule_next_profile_preset_write_operation_after_finish)
+        schedule_source = inspect.getsource(PresetWriteQueue._schedule_next_profile_preset_write_operation_start)
+        run_source = inspect.getsource(PresetWriteQueue._run_scheduled_profile_preset_write_operation_start)
 
         for source in (context_finished, move_finished, create_finished, update_finished, delete_finished):
             self.assertIn("_schedule_next_profile_preset_write_operation_after_finish", source)
@@ -1832,9 +1833,9 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertIn("_start_next_profile_preset_write_operation", run_source)
 
     def test_profile_folder_action_queue_restarts_after_worker_signal_returns(self) -> None:
-        finished_source = inspect.getsource(PresetSetupPageBase._on_profile_folder_action_worker_finished)
-        schedule_source = inspect.getsource(PresetSetupPageBase._schedule_profile_folder_action_start)
-        run_source = inspect.getsource(PresetSetupPageBase._run_scheduled_profile_folder_action_start)
+        finished_source = inspect.getsource(ProfileFolderController._on_profile_folder_action_worker_finished)
+        schedule_source = inspect.getsource(ProfileFolderController._schedule_profile_folder_action_start)
+        run_source = inspect.getsource(ProfileFolderController._run_scheduled_profile_folder_action_start)
 
         self.assertIn("_profile_folder_action_state_obj().pop_next()", finished_source)
         self.assertIn("_schedule_profile_folder_action_start", finished_source)
@@ -1852,7 +1853,7 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         page._profile_folder_action_runtime = SimpleNamespace(is_running=lambda: False)
 
         init_source = inspect.getsource(PresetSetupPageBase.__init__)
-        queue_source = inspect.getsource(PresetSetupPageBase._queue_profile_folder_action)
+        queue_source = inspect.getsource(ProfileFolderController._queue_profile_folder_action)
         cleanup_source = inspect.getsource(PresetSetupPageBase.cleanup)
 
         self.assertTrue(hasattr(PresetSetupPageBase, "_profile_folder_action_state_obj"))
@@ -1864,7 +1865,7 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertNotIn("self._profile_folder_action_start_scheduled = False", init_source)
 
     def test_profile_move_updates_visible_list_locally_after_worker(self) -> None:
-        finished_source = inspect.getsource(PresetSetupPageBase._on_profile_move_finished)
+        finished_source = inspect.getsource(PresetWriteQueue._on_profile_move_finished)
         local_source = inspect.getsource(PresetSetupPageBase._apply_profile_move_locally)
         list_source = inspect.getsource(ProfilesList)
 
@@ -1898,7 +1899,7 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertIn("get_cached_profile_list", command_source)
 
     def test_preset_setup_page_always_uses_worker_for_profile_payload(self) -> None:
-        source = inspect.getsource(PresetSetupPageBase._request_profiles_payload)
+        source = inspect.getsource(ProfilePayloadController._request_profiles_payload)
 
         self.assertNotIn("get_cached_profile_list", source)
         self.assertNotIn("_apply_cached_profile_payload", source)
@@ -1906,7 +1907,7 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertNotIn("_show_loading_skeleton", source)
 
     def test_preset_setup_force_refresh_still_uses_worker_path(self) -> None:
-        source = inspect.getsource(PresetSetupPageBase._request_profiles_payload)
+        source = inspect.getsource(ProfilePayloadController._request_profiles_payload)
 
         before_worker = source.split("worker =", 1)[0]
 

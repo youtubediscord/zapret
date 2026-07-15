@@ -2,17 +2,9 @@ from __future__ import annotations
 
 from dataclasses import replace
 
-from PyQt6.QtCore import QEvent, QModelIndex, QPoint, QRect, QSize, Qt, QTimer, pyqtSignal
-from PyQt6.QtGui import QAction, QFontMetrics, QKeySequence, QPainter, QShortcut
+from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtWidgets import (
-    QAbstractItemView,
-    QAbstractScrollArea,
     QHBoxLayout,
-    QListWidget,
-    QListWidgetItem,
-    QStyle,
-    QStyledItemDelegate,
-    QStyleOptionViewItem,
     QSizePolicy,
     QStackedWidget,
     QVBoxLayout,
@@ -23,16 +15,39 @@ from log.log import log
 from profile.match_filters import filter_values
 from profile.editable_settings import normalize_filter_value
 from profile.key_resolution import profile_reference_key
+from profile.profile_setup_loader import profile_save_result_keys
 from profile.setup_match_text import build_profile_setup_match_tab_text
-from profile.strategy_list_filter import ProfileStrategyListFilterWorker, ProfileStrategyListPlan
 from profile.ui.profile_setup_controls import (
     range_expression_from_controls,
     set_combo_by_data,
     set_range_controls,
     sync_range_value_enabled,
 )
-from profile.strategy_visuals import describe_strategy_visual
 from profile.strategy_state import ProfileStrategyState
+from profile.ui.profile_list_file_editor_controller import ProfileListFileEditorController
+from profile.ui.profile_setup_save_controllers import ProfileSetupSaveController
+from profile.ui.profile_setup_payload_controller import ProfileSetupPayloadController
+from profile.ui.profile_strategy_controller import ProfileStrategyController
+from profile.ui.profile_user_profile_controller import ProfileUserProfileController
+from profile.ui.profile_strategy_list_widget import (
+    CompactDisplayComboBox,
+    ProfileStrategyListDelegate,
+    ProfileStrategyListView,
+    ProfileStrategyListWidget,
+    ProfileStrategySearchLineEdit,
+    _current_strategy_branch_id,
+    _current_strategy_id,
+    _join_accessible_options,
+    _payload_with_strategy_branch,
+    _set_strategy_clear_feedback_button_state,
+    _set_strategy_favorite_button_state,
+    _set_strategy_feedback_button_state,
+    _strategy_branch_label,
+    _strategy_branch_summary_name,
+    _sync_combo_items_accessibility,
+    _sync_strategy_branch_combo_items_accessibility,
+    _update_strategy_branch_combo_in_place,
+)
 from profile.ui.user_profile_dialog import CreateUserProfileDialog
 from qfluentwidgets import (
     BodyLabel,
@@ -42,14 +57,11 @@ from qfluentwidgets import (
     ComboBox,
     InfoBar,
     LineEdit,
-    MenuAnimationType,
     MessageBox,
     PlainTextEdit,
     FluentIcon,
-    SearchLineEdit,
     SegmentedWidget,
     PushButton,
-    TransparentToolButton,
 )
 from settings.mode import ZAPRET1_MODE, ZAPRET2_MODE, is_preset_launch_method, is_zapret2_launch_method
 from ui.pages.base_page import BasePage
@@ -66,10 +78,7 @@ from ui.one_shot_worker_runtime import OneShotWorkerRuntime
 from ui.queued_worker_state import QueuedWorkerState
 from ui.segmented_accessibility import set_segmented_items_accessibility
 from app.ui_texts import tr as tr_catalog
-from ui.theme import get_cached_qta_pixmap, get_theme_tokens, to_qcolor
-from ui.widgets.fluent_item_tooltip import FluentItemToolTipController
-from ui.widgets.fluent_scrollbar import install_fluent_scrollbars
-from ui.widgets.hover_row import paint_profile_hover_row, profile_hover_row_rect
+from ui.theme import get_theme_tokens
 
 
 _PROFILE_SETUP_CLEANUP_RUNTIMES = (
@@ -223,1352 +232,6 @@ def set_tab_item_text_if_changed(widget, item_key: str, text: str) -> bool:
     return True
 
 
-class ProfileStrategyListDelegate(QStyledItemDelegate):
-    """Рисует готовые стратегии как единый текстовый список."""
-
-    def __init__(self, view: QListWidget):
-        super().__init__(view)
-        self._tooltip = FluentItemToolTipController(view.viewport())
-
-    def paint(self, painter: QPainter, option: QStyleOptionViewItem, index: QModelIndex) -> None:
-        painter.save()
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-
-        tokens = get_theme_tokens()
-        rect = profile_hover_row_rect(option.rect)
-        is_active = bool(index.data(ProfileStrategyListWidget._ROLE_IS_ACTIVE))
-        hovered = bool(option.state & QStyle.StateFlag.State_MouseOver)
-        selected = bool(option.state & QStyle.StateFlag.State_Selected) or bool(
-            option.state & QStyle.StateFlag.State_HasFocus
-        )
-
-        paint_profile_hover_row(
-            painter,
-            rect,
-            active=is_active,
-            hovered=hovered,
-            selected=selected,
-        )
-
-        left = rect.left() + (24 if is_active else 18)
-        right = rect.right() - 16
-        status = str(index.data(ProfileStrategyListWidget._ROLE_STATUS_TEXT) or "")
-        icon_name = str(index.data(ProfileStrategyListWidget._ROLE_VISUAL_ICON_NAME) or "")
-        visual_color = str(index.data(ProfileStrategyListWidget._ROLE_VISUAL_COLOR) or "")
-        visual_label = str(index.data(ProfileStrategyListWidget._ROLE_VISUAL_LABEL_TEXT) or "")
-        status_rect = QRect()
-
-        font = painter.font()
-        font.setBold(False)
-        painter.setFont(font)
-        metrics = QFontMetrics(font)
-
-        if status:
-            status_width = min(metrics.horizontalAdvance(status) + 18, max(0, rect.width() // 2))
-            status_rect = QRect(right - status_width, rect.center().y() - 10, status_width, 20)
-            right = status_rect.left() - 12
-
-        icon_size = 14
-        if icon_name:
-            icon_rect = QRect(left, rect.center().y() - icon_size // 2, icon_size, icon_size)
-            pixmap = get_cached_qta_pixmap(icon_name, color=visual_color or tokens.fg_faint, size=icon_size)
-            if not pixmap.isNull():
-                painter.drawPixmap(icon_rect, pixmap)
-            else:
-                painter.setPen(Qt.PenStyle.NoPen)
-                painter.setBrush(to_qcolor(visual_color or tokens.fg_faint, "#aeb5c1"))
-                painter.drawEllipse(icon_rect)
-            left = icon_rect.right() + 10
-
-        visual_rect = QRect()
-        if visual_label:
-            visual_width = min(metrics.horizontalAdvance(visual_label) + 4, max(0, rect.width() // 3))
-            visual_rect = QRect(max(left, right - visual_width), rect.top(), visual_width, rect.height())
-            right = visual_rect.left() - 12
-
-        name = str(index.data(ProfileStrategyListWidget._ROLE_NAME_TEXT) or "")
-        name_rect = QRect(left, rect.top(), max(0, right - left), rect.height())
-        painter.setPen(to_qcolor(tokens.fg, "#f5f5f5"))
-        painter.drawText(
-            name_rect,
-            int(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter),
-            metrics.elidedText(name, Qt.TextElideMode.ElideRight, name_rect.width()),
-        )
-
-        if visual_rect.width() > 0:
-            painter.setPen(to_qcolor(visual_color or tokens.fg_faint, "#aeb5c1"))
-            painter.drawText(
-                visual_rect,
-                int(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter),
-                metrics.elidedText(visual_label, Qt.TextElideMode.ElideRight, visual_rect.width()),
-            )
-
-        if status_rect.width() > 0:
-            if is_active:
-                badge_bg = to_qcolor(tokens.accent_soft_bg_hover, tokens.accent_hex)
-                badge_fg = to_qcolor(tokens.accent_hex, "#5caee8")
-                painter.setPen(Qt.PenStyle.NoPen)
-                painter.setBrush(badge_bg)
-                painter.drawRoundedRect(status_rect, 9, 9)
-                painter.setPen(badge_fg)
-            else:
-                painter.setPen(to_qcolor(tokens.fg_faint, "#aeb5c1"))
-            painter.drawText(
-                status_rect,
-                int(Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter),
-                metrics.elidedText(status, Qt.TextElideMode.ElideRight, max(0, status_rect.width() - 10)),
-            )
-
-        painter.restore()
-
-    def sizeHint(self, option: QStyleOptionViewItem, index: QModelIndex) -> QSize:
-        _ = (option, index)
-        return QSize(0, 31)
-
-    def helpEvent(self, event, view, option, index: QModelIndex) -> bool:  # noqa: N802
-        _ = (view, option)
-        text = str(index.data(ProfileStrategyListWidget._ROLE_TOOLTIP_TEXT) or "").strip()
-        if not text:
-            self._tooltip.hide()
-            return True
-        self._tooltip.show_text(text, event.globalPos())
-        return True
-
-
-class CompactDisplayComboBox(ComboBox):
-    """ComboBox с подробным меню и коротким выбранным значением."""
-
-    def __init__(self, parent=None) -> None:
-        super().__init__(parent)
-        self._compact_text_by_data: dict[str, str] = {}
-
-    def addItem(self, text: str, icon=None, userData=None, compactText: str | None = None):  # noqa: N802
-        super().addItem(text, icon=icon, userData=userData)
-        if compactText is not None:
-            self._compact_text_by_data[str(userData)] = str(compactText)
-            self._sync_compact_text()
-
-    def setCurrentIndex(self, index: int):  # noqa: N802
-        super().setCurrentIndex(index)
-        self._sync_compact_text()
-
-    def setItemAccessibleText(self, index: int, text: str) -> None:  # noqa: N802
-        if 0 <= int(index) < len(self.items):
-            setattr(self.items[int(index)], "accessibleText", str(text or "").strip())
-
-    def _create_accessible_combo_menu(self):
-        menu = self._createComboMenu()
-        for index, item in enumerate(self.items):
-            action = QAction(item.icon, item.text, triggered=lambda _checked=False, row=index: self._onItemClicked(row))
-            action.setEnabled(item.isEnabled)
-            menu.addAction(action)
-            accessible_text = str(getattr(item, "accessibleText", "") or "").strip()
-            menu_item = action.property("item")
-            if accessible_text and menu_item is not None:
-                menu_item.setData(Qt.ItemDataRole.AccessibleTextRole, accessible_text)
-                menu_item.setData(Qt.ItemDataRole.AccessibleDescriptionRole, accessible_text)
-        return menu
-
-    def _showComboMenu(self) -> None:
-        if not self.items:
-            return
-
-        menu = self._create_accessible_combo_menu()
-        if menu.view.width() < self.width():
-            menu.view.setMinimumWidth(self.width())
-            menu.adjustSize()
-
-        menu.setMaxVisibleItems(self.maxVisibleItems())
-        menu.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
-        menu.closedSignal.connect(self._onDropMenuClosed)
-        self.dropMenu = menu
-
-        if self.currentIndex() >= 0 and self.items:
-            menu.setDefaultAction(menu.actions()[self.currentIndex()])
-
-        x = -menu.width() // 2 + menu.layout().contentsMargins().left() + self.width() // 2
-        down_pos = self.mapToGlobal(QPoint(x, self.height()))
-        down_height = menu.view.heightForAnimation(down_pos, MenuAnimationType.DROP_DOWN)
-
-        up_pos = self.mapToGlobal(QPoint(x, 0))
-        up_height = menu.view.heightForAnimation(up_pos, MenuAnimationType.PULL_UP)
-
-        if down_height >= up_height:
-            menu.view.adjustSize(down_pos, MenuAnimationType.DROP_DOWN)
-            menu.exec(down_pos, aniType=MenuAnimationType.DROP_DOWN)
-        else:
-            menu.view.adjustSize(up_pos, MenuAnimationType.PULL_UP)
-            menu.exec(up_pos, aniType=MenuAnimationType.PULL_UP)
-
-    def _sync_compact_text(self) -> None:
-        index = self.currentIndex()
-        if index < 0:
-            return
-        data = str(self.itemData(index))
-        compact = self._compact_text_by_data.get(data)
-        if compact:
-            set_widget_text_if_changed(self, compact)
-
-
-class ProfileStrategyListView(QListWidget):
-    """Список стратегий, который выбирается клавиатурой так же, как DNS."""
-
-    def keyPressEvent(self, event):  # noqa: N802
-        if self._move_current_row_from_keyboard(event.key()):
-            event.accept()
-            return
-        navigation_keys = (
-            Qt.Key.Key_Down,
-            Qt.Key.Key_Up,
-            Qt.Key.Key_Home,
-            Qt.Key.Key_End,
-            Qt.Key.Key_PageDown,
-            Qt.Key.Key_PageUp,
-        )
-        if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Space):
-            item = self.currentItem()
-            if item is None:
-                item = self._first_selectable_item()
-                if item is not None:
-                    self.setCurrentItem(item)
-            if item is not None:
-                self.itemActivated.emit(item)
-                event.accept()
-                return
-        super().keyPressEvent(event)
-        if event.key() in navigation_keys:
-            self.setFocus(Qt.FocusReason.OtherFocusReason)
-
-    def focusInEvent(self, event):  # noqa: N802
-        super().focusInEvent(event)
-        if self.currentItem() is None:
-            item = self._first_selectable_item()
-            if item is not None:
-                self.setCurrentItem(item)
-
-    def _first_selectable_item(self):
-        for row in range(self.count()):
-            item = self.item(row)
-            if item is not None and item.flags() & Qt.ItemFlag.ItemIsSelectable:
-                return item
-        return None
-
-    def _move_current_row_from_keyboard(self, key: int) -> bool:
-        if key not in (
-            Qt.Key.Key_Down,
-            Qt.Key.Key_Up,
-            Qt.Key.Key_Home,
-            Qt.Key.Key_End,
-            Qt.Key.Key_PageDown,
-            Qt.Key.Key_PageUp,
-        ):
-            return False
-        count = self.count()
-        if count <= 0:
-            return False
-
-        row = self.currentRow()
-        if key == Qt.Key.Key_Home or row < 0:
-            row = 0
-        elif key == Qt.Key.Key_End:
-            row = count - 1
-        elif key == Qt.Key.Key_Down:
-            row = min(count - 1, row + 1)
-        elif key == Qt.Key.Key_Up:
-            row = max(0, row - 1)
-        elif key == Qt.Key.Key_PageDown:
-            row = min(count - 1, row + 10)
-        else:
-            row = max(0, row - 10)
-
-        self.setCurrentRow(row)
-        item = self.currentItem()
-        if item is not None:
-            self.scrollToItem(item)
-        return True
-
-
-class ProfileStrategySearchLineEdit(SearchLineEdit):
-    """Поиск стратегий, где Enter выбирает текущий результат."""
-
-    activate_current_result = pyqtSignal()
-    navigate_results = pyqtSignal(int)
-    close_requested = pyqtSignal()
-
-    def keyPressEvent(self, event):  # noqa: N802
-        if event.key() == Qt.Key.Key_Escape:
-            self.close_requested.emit()
-            event.accept()
-            return
-        if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
-            self.activate_current_result.emit()
-            event.accept()
-            return
-        if event.key() in (
-            Qt.Key.Key_Down,
-            Qt.Key.Key_Up,
-            Qt.Key.Key_Home,
-            Qt.Key.Key_End,
-            Qt.Key.Key_PageDown,
-            Qt.Key.Key_PageUp,
-        ):
-            self.navigate_results.emit(int(event.key()))
-            event.accept()
-            return
-        super().keyPressEvent(event)
-
-
-class ProfileStrategyListWidget(QWidget):
-    """Большой список готовых стратегий для profile."""
-
-    strategy_activated = pyqtSignal(str)
-
-    _ROLE_STRATEGY_ID = int(Qt.ItemDataRole.UserRole) + 1
-    _ROLE_NAME_TEXT = int(Qt.ItemDataRole.UserRole) + 2
-    _ROLE_STATUS_TEXT = int(Qt.ItemDataRole.UserRole) + 3
-    _ROLE_IS_ACTIVE = int(Qt.ItemDataRole.UserRole) + 4
-    _ROLE_VISUAL_ICON_NAME = int(Qt.ItemDataRole.UserRole) + 5
-    _ROLE_VISUAL_COLOR = int(Qt.ItemDataRole.UserRole) + 6
-    _ROLE_VISUAL_LABEL_TEXT = int(Qt.ItemDataRole.UserRole) + 7
-    _ROLE_VISUAL_DESCRIPTION = int(Qt.ItemDataRole.UserRole) + 8
-    _ROLE_TOOLTIP_TEXT = int(Qt.ItemDataRole.UserRole) + 9
-
-    def __init__(self, parent=None) -> None:
-        super().__init__(parent)
-        self._current_strategy_id = "none"
-        self._entries = {}
-        self._states = {}
-        self._item_by_strategy_id = {}
-        self._rows_signature = None
-        self._strategy_filter_runtime = OneShotWorkerRuntime()
-        self._strategy_filter_state = LatestValueWorkerState(
-            self._strategy_filter_runtime,
-            empty_value=None,
-        )
-        self._strategy_filter_timer = QTimer(self)
-        self._strategy_filter_timer.setSingleShot(True)
-        self._strategy_filter_timer.timeout.connect(self._run_debounced_tree_rebuild)
-        self.destroyed.connect(self._cleanup_strategy_filter_worker)
-
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(10)
-
-        top_row = QWidget(self)
-        top_layout = QHBoxLayout(top_row)
-        top_layout.setContentsMargins(0, 0, 0, 0)
-        top_layout.setSpacing(10)
-
-        self._search = ProfileStrategySearchLineEdit(self)
-        self._search.setPlaceholderText("Поиск по готовым стратегиям")
-        set_control_accessibility(self._search, name="Поиск готовых стратегий")
-        set_tooltip(
-            self._search,
-            "Поиск по названию, параметрам --lua-desync и описанию готовой стратегии. "
-            "Ctrl+F — открыть или закрыть поиск, Esc — закрыть.",
-        )
-        set_control_accessibility(
-            self._search,
-            name="Поиск готовых стратегий",
-            description=(
-                "Поиск по названию, параметрам --lua-desync и описанию готовой стратегии. "
-                "После ввода перейдите в список клавишей Tab или нажмите Стрелка вниз, "
-                "выберите стратегию стрелками вверх и вниз, "
-                "затем нажмите Enter или Пробел. "
-                "Esc закрывает поиск и сбрасывает фильтр."
-            ),
-        )
-        remove_line_edit_buttons_from_tab_order(self._search)
-        self._search.textChanged.connect(self._apply_filter)
-        self._search.close_requested.connect(self.hide_search)
-        top_layout.addWidget(self._search, 1)
-
-        self._summary = BodyLabel("")
-        set_tooltip(
-            self._summary,
-            "Сколько готовых стратегий сейчас показано после фильтра поиска.",
-        )
-        top_layout.addWidget(self._summary)
-
-        self._search_close = TransparentToolButton(FluentIcon.CLOSE, top_row)
-        set_tooltip(
-            self._search_close,
-            "Закрыть поиск и показать все стратегии (Esc).",
-        )
-        set_control_accessibility(
-            self._search_close,
-            name="Закрыть поиск стратегий",
-            description="Скрывает строку поиска и сбрасывает фильтр списка стратегий.",
-        )
-        self._search_close.clicked.connect(self.hide_search)
-        top_layout.addWidget(self._search_close)
-
-        # Строка поиска скрыта по умолчанию и не занимает место: открывается по Ctrl+F.
-        self._search_row = top_row
-        self._search_row.hide()
-        layout.addWidget(top_row)
-
-        self._search_shortcut = QShortcut(QKeySequence(QKeySequence.StandardKey.Find), self)
-        # WindowShortcut: Ctrl+F работает с любым фокусом в окне; защита от
-        # срабатывания на других страницах — проверка isVisible() в обработчике.
-        self._search_shortcut.setContext(Qt.ShortcutContext.WindowShortcut)
-        self._search_shortcut.activated.connect(self._on_search_shortcut)
-        self._search_shortcut.activatedAmbiguously.connect(self._on_search_shortcut)
-
-        self._list = ProfileStrategyListView(self)
-        self._list.setItemDelegate(ProfileStrategyListDelegate(self._list))
-        self._list.setUniformItemSizes(True)
-        self._list.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
-        self._list.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        self._list.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-        self.setFocusProxy(self._list)
-        set_control_accessibility(
-            self._list,
-            name="Список готовых стратегий",
-            description="Выберите готовую стратегию стрелками вверх и вниз, затем нажмите Enter или Пробел. Ctrl+F открывает поиск по стратегиям.",
-        )
-        set_state_text(self._list, "Список готовых стратегий: список пока загружается")
-        self._list.setMouseTracking(True)
-        self._list.setSizeAdjustPolicy(QAbstractScrollArea.SizeAdjustPolicy.AdjustIgnored)
-        self._list.setMinimumHeight(520)
-        self._list.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        self._list.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        self._list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self._list.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
-        self._list.currentItemChanged.connect(self._update_current_strategy_accessibility)
-        self._list.itemActivated.connect(self._on_item_activated)
-        self._list.itemClicked.connect(self._on_item_clicked)
-        self._search.activate_current_result.connect(self._activate_current_search_result)
-        self._search.navigate_results.connect(self._navigate_strategy_results_from_search)
-        self._list.installEventFilter(self)
-        self._list.setStyleSheet(
-            "QListWidget { background: rgba(255, 255, 255, 0.035); border: none; border-radius: 6px; outline: none; padding: 4px 0; }"
-            "QListWidget::viewport { background: transparent; }"
-            "QListWidget::item { border: none; padding: 0; }"
-            "QListWidget::item:selected { background: transparent; }"
-            "QListWidget::item:hover { background: transparent; }"
-        )
-        self._scrollbars = install_fluent_scrollbars(self._list, vertical=True, horizontal=False)
-        layout.addWidget(self._list, 1)
-        QWidget.setTabOrder(self._search, self._list)
-
-    def eventFilter(self, watched, event):  # noqa: N802
-        if watched is self._list and event.type() == QEvent.Type.FocusIn:
-            self._focus_first_strategy_row()
-            self._update_current_strategy_accessibility(self._list.currentItem())
-            return False
-        if watched is self._list and event.type() == QEvent.Type.KeyPress:
-            if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Space):
-                item = self._list.currentItem()
-                if item is not None:
-                    self._on_item_activated(item)
-                    event.accept()
-                    return True
-        return super().eventFilter(watched, event)
-
-    def _on_search_shortcut(self) -> None:
-        if not self.isVisible() or not self.isEnabled():
-            return
-        # Ctrl+F работает как переключатель: повторное нажатие закрывает
-        # поиск и сбрасывает фильтр, как Esc или кнопка закрытия.
-        if self._search_row.isVisible():
-            self.hide_search()
-        else:
-            self.show_search()
-
-    def show_search(self) -> None:
-        self._search_row.show()
-        self._search.setFocus(Qt.FocusReason.ShortcutFocusReason)
-        self._search.selectAll()
-
-    def hide_search(self) -> None:
-        if self._search.text():
-            self._search.clear()
-        self._search_row.hide()
-        self._list.setFocus(Qt.FocusReason.OtherFocusReason)
-
-    def _activate_current_search_result(self) -> None:
-        item = self._list.currentItem()
-        if item is None:
-            self._focus_first_strategy_row()
-            item = self._list.currentItem()
-        if item is None:
-            return
-        self._list.setFocus(Qt.FocusReason.OtherFocusReason)
-        self._on_item_activated(item)
-
-    def keyPressEvent(self, event):  # noqa: N802
-        if self._handle_strategy_keyboard_event(event):
-            return
-        super().keyPressEvent(event)
-
-    def _navigate_strategy_results_from_search(self, key: int) -> None:
-        self._move_strategy_current_row(int(key))
-
-    def _handle_strategy_keyboard_event(self, event) -> bool:
-        key = event.key()
-        if key in (Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Space):
-            item = self._list.currentItem()
-            if item is None:
-                self._focus_first_strategy_row()
-                item = self._list.currentItem()
-            if item is not None:
-                self._list.setFocus(Qt.FocusReason.OtherFocusReason)
-                self._on_item_activated(item)
-                event.accept()
-                return True
-            return False
-
-        if int(key) not in {
-            int(Qt.Key.Key_Down),
-            int(Qt.Key.Key_Up),
-            int(Qt.Key.Key_Home),
-            int(Qt.Key.Key_End),
-            int(Qt.Key.Key_PageDown),
-            int(Qt.Key.Key_PageUp),
-        }:
-            return False
-
-        if self._move_strategy_current_row(int(key)):
-            event.accept()
-            return True
-        return False
-
-    def _move_strategy_current_row(self, key: int) -> bool:
-        if int(key) not in {
-            int(Qt.Key.Key_Down),
-            int(Qt.Key.Key_Up),
-            int(Qt.Key.Key_Home),
-            int(Qt.Key.Key_End),
-            int(Qt.Key.Key_PageDown),
-            int(Qt.Key.Key_PageUp),
-        }:
-            return False
-
-        count = self._list.count()
-        if count <= 0:
-            return False
-
-        row = self._list.currentRow()
-        if row < 0:
-            row = 0
-        elif int(key) == int(Qt.Key.Key_Down):
-            row = min(count - 1, row + 1)
-        elif int(key) == int(Qt.Key.Key_Up):
-            row = max(0, row - 1)
-        elif int(key) == int(Qt.Key.Key_Home):
-            row = 0
-        elif int(key) == int(Qt.Key.Key_End):
-            row = count - 1
-        elif int(key) == int(Qt.Key.Key_PageDown):
-            row = min(count - 1, row + 10)
-        elif int(key) == int(Qt.Key.Key_PageUp):
-            row = max(0, row - 10)
-
-        self._list.setFocus(Qt.FocusReason.OtherFocusReason)
-        self._list.setCurrentRow(row)
-        item = self._list.currentItem()
-        if item is not None:
-            self._update_current_strategy_accessibility(item)
-        return True
-
-    def _focus_first_strategy_row(self) -> None:
-        if self._list.currentItem() is not None:
-            return
-        for row in range(self._list.count()):
-            item = self._list.item(row)
-            if item is None:
-                continue
-            self._list.setCurrentItem(item)
-            return
-
-    def set_rows(self, *, entries, states, current_strategy_id: str) -> None:
-        next_entries = dict(entries or {})
-        next_states = dict(states or {})
-        next_current_id = str(current_strategy_id or "none").strip() or "none"
-        next_signature = _strategy_rows_signature(next_entries, next_states)
-        if self.__dict__.get("_rows_signature") == next_signature:
-            self._entries = next_entries
-            self._states = next_states
-            if next_current_id != self._current_strategy_id:
-                self.set_current_strategy_id(next_current_id)
-            return
-        if self._can_update_strategy_rows_in_place(next_entries, next_states):
-            changed_strategy_ids = [
-                strategy_id
-                for strategy_id in next_entries
-                if self._states.get(strategy_id) != next_states.get(strategy_id)
-            ]
-            self._entries = next_entries
-            self._states = next_states
-            self._current_strategy_id = next_current_id
-            self._rows_signature = next_signature
-            for strategy_id in changed_strategy_ids:
-                item = self._item_by_strategy_id.get(strategy_id)
-                self._refresh_strategy_item(item, strategy_id, is_current=strategy_id == self._current_strategy_id)
-            return
-        single_move = self._move_strategy_row_in_place(next_entries, next_states)
-        if single_move is not None:
-            changed_strategy_ids = [
-                strategy_id
-                for strategy_id in next_entries
-                if self._states.get(strategy_id) != next_states.get(strategy_id)
-            ]
-            self._entries = next_entries
-            self._states = next_states
-            self._current_strategy_id = next_current_id
-            self._rows_signature = next_signature
-            item = self._item_by_strategy_id.get(single_move)
-            self._refresh_strategy_item(item, single_move, is_current=single_move == self._current_strategy_id)
-            for strategy_id in changed_strategy_ids:
-                if strategy_id == single_move:
-                    continue
-                item = self._item_by_strategy_id.get(strategy_id)
-                self._refresh_strategy_item(item, strategy_id, is_current=strategy_id == self._current_strategy_id)
-            return
-        self._entries = next_entries
-        self._states = next_states
-        self._current_strategy_id = next_current_id
-        self._rows_signature = next_signature
-        self._request_tree_rebuild(immediate=True)
-
-    def _can_update_strategy_rows_in_place(self, next_entries: dict, next_states: dict) -> bool:
-        if set(self._entries.keys()) != set(next_entries.keys()):
-            return False
-        if not self._item_by_strategy_id:
-            return False
-        return _strategy_visible_order(self._entries, self._states) == _strategy_visible_order(next_entries, next_states)
-
-    def _move_strategy_row_in_place(self, next_entries: dict, next_states: dict) -> str | None:
-        if set(self._entries.keys()) != set(next_entries.keys()):
-            return None
-        if set(self._item_by_strategy_id.keys()) != set(self._entries.keys()):
-            return None
-        if _strategy_entry_signature(self._entries) != _strategy_entry_signature(next_entries):
-            return None
-        current_order = _strategy_visible_order(self._entries, self._states)
-        next_order = _strategy_visible_order(next_entries, next_states)
-        changed_strategy_ids = {
-            strategy_id
-            for strategy_id in next_entries
-            if self._states.get(strategy_id) != next_states.get(strategy_id)
-        }
-        move = _single_strategy_order_move(current_order, next_order, preferred_strategy_ids=changed_strategy_ids)
-        if move is None:
-            return None
-        source_index, insert_index = move
-        strategy_id = current_order[source_index]
-        item = self._item_by_strategy_id.get(strategy_id)
-        if item is None:
-            return None
-        list_row = self._list.row(item)
-        if list_row != source_index:
-            return None
-        moved_item = self._list.takeItem(list_row)
-        self._list.insertItem(insert_index, moved_item)
-        return strategy_id
-
-    def set_current_strategy_id(self, strategy_id: str) -> None:
-        next_id = str(strategy_id or "none").strip() or "none"
-        if next_id == self._current_strategy_id:
-            return
-        previous_id = self._current_strategy_id
-        self._current_strategy_id = next_id
-        previous_item = self._item_by_strategy_id.get(previous_id)
-        next_item = self._item_by_strategy_id.get(next_id)
-        self._refresh_strategy_item(previous_item, previous_id, is_current=False)
-        if next_item is not previous_item:
-            self._refresh_strategy_item(next_item, next_id, is_current=True)
-
-    def _rebuild_tree(self) -> None:
-        search_text = self._search.text().strip().lower()
-        self._item_by_strategy_id.clear()
-        self._list.clear()
-        visible = 0
-        current_item = None
-        first_item = None
-
-        rows = list(self._entries.items())
-        rows.sort(key=lambda pair: (
-            not bool(getattr(self._states.get(pair[0]), "favorite", False)),
-            str(getattr(pair[1], "name", "") or "").lower(),
-        ))
-
-        for strategy_id, entry in rows:
-            name = str(getattr(entry, "name", "") or strategy_id)
-            args = str(getattr(entry, "args", "") or "")
-            visual = getattr(entry, "visual", None) or describe_strategy_visual(args)
-            visual_label = str(visual.label or "")
-            visual_description = str(visual.description or "")
-            visual_search = f"{visual_label} {visual_description}".lower()
-            if search_text and search_text not in name.lower() and search_text not in args.lower() and search_text not in visual_search:
-                continue
-
-            item = QListWidgetItem()
-            state = self._states.get(strategy_id)
-            is_current = strategy_id == self._current_strategy_id
-            status_parts = _strategy_status_parts(state, is_current=is_current, include_unselected=False)
-            accessible_status_parts = _strategy_status_parts(state, is_current=is_current, include_unselected=True)
-            status_text = " • ".join(status_parts)
-
-            accessible_text = _strategy_screen_reader_text(
-                name=name,
-                status_parts=accessible_status_parts,
-                visual_label=visual_label,
-                visual_description=visual_description,
-            )
-            item.setText(accessible_text)
-            item.setData(self._ROLE_STRATEGY_ID, strategy_id)
-            item.setData(self._ROLE_NAME_TEXT, name)
-            item.setData(self._ROLE_STATUS_TEXT, status_text)
-            item.setData(self._ROLE_IS_ACTIVE, is_current)
-            item.setData(self._ROLE_VISUAL_ICON_NAME, str(visual.icon_name or ""))
-            item.setData(self._ROLE_VISUAL_COLOR, str(visual.color or ""))
-            item.setData(self._ROLE_VISUAL_LABEL_TEXT, visual_label)
-            item.setData(self._ROLE_VISUAL_DESCRIPTION, visual_description)
-            item.setData(
-                Qt.ItemDataRole.AccessibleTextRole,
-                accessible_text,
-            )
-            tooltip_parts = [visual_description.strip(), args]
-            item.setData(self._ROLE_TOOLTIP_TEXT, "\n\n".join(part for part in tooltip_parts if part))
-            item.setSizeHint(QSize(0, 31))
-            if is_current:
-                current_item = item
-            if first_item is None:
-                first_item = item
-            self._item_by_strategy_id[strategy_id] = item
-            self._list.addItem(item)
-            visible += 1
-
-        summary_text = f"{visible} из {len(self._entries)}"
-        set_widget_text_if_changed(self._summary, summary_text)
-        set_state_text(self._summary, f"Показано готовых стратегий: {summary_text}")
-        focus_item = current_item or first_item
-        if focus_item is not None:
-            self._list.setCurrentItem(focus_item)
-        self._update_current_strategy_accessibility(self._list.currentItem())
-
-    def _refresh_strategy_item(self, item, strategy_id: str, *, is_current: bool) -> None:
-        if item is None:
-            return
-        state = self._states.get(strategy_id)
-        status_parts = _strategy_status_parts(state, is_current=is_current, include_unselected=False)
-        accessible_status_parts = _strategy_status_parts(state, is_current=is_current, include_unselected=True)
-        changed = False
-        status_text = " • ".join(status_parts)
-        if str(item.data(self._ROLE_STATUS_TEXT) or "") != status_text:
-            item.setData(self._ROLE_STATUS_TEXT, status_text)
-            changed = True
-        if bool(item.data(self._ROLE_IS_ACTIVE)) != bool(is_current):
-            item.setData(self._ROLE_IS_ACTIVE, is_current)
-            changed = True
-        if is_current:
-            try:
-                if self._list.currentItem() is not item:
-                    self._list.setCurrentItem(item)
-                    changed = True
-            except Exception:
-                self._list.setCurrentItem(item)
-                changed = True
-        name = str(item.data(self._ROLE_NAME_TEXT) or "")
-        if name:
-            accessible_text = _strategy_screen_reader_text(
-                name=name,
-                status_parts=accessible_status_parts,
-                visual_label=str(item.data(self._ROLE_VISUAL_LABEL_TEXT) or ""),
-                visual_description=str(item.data(self._ROLE_VISUAL_DESCRIPTION) or ""),
-            )
-            if str(item.data(Qt.ItemDataRole.AccessibleTextRole) or "") != accessible_text:
-                item.setData(Qt.ItemDataRole.AccessibleTextRole, accessible_text)
-                changed = True
-            try:
-                if str(item.text() or "") != accessible_text:
-                    item.setText(accessible_text)
-                    changed = True
-            except Exception:
-                pass
-        if changed:
-            self._list.viewport().update(self._list.visualItemRect(item))
-            if self._list.currentItem() is item:
-                self._update_current_strategy_accessibility(item)
-
-    def _update_current_strategy_accessibility(self, item=None, _previous=None) -> None:
-        accessible_text = ""
-        if item is not None:
-            accessible_text = str(item.data(Qt.ItemDataRole.AccessibleTextRole) or "").strip()
-        if accessible_text:
-            set_state_text(self._list, f"Готовая стратегия: {accessible_text}")
-        else:
-            set_state_text(self._list, self._empty_strategy_list_state_text())
-
-    def _empty_strategy_list_state_text(self) -> str:
-        search_text = ""
-        try:
-            search_text = str(self._search.text() or "").strip()
-        except Exception:
-            search_text = ""
-        if search_text:
-            return "Список готовых стратегий: по фильтру ничего не найдено"
-        if not self._entries:
-            return "Список готовых стратегий: список пуст"
-        return "Список готовых стратегий"
-
-    def _apply_filter(self) -> None:
-        self._request_tree_rebuild()
-
-    def _request_tree_rebuild(self, *, immediate: bool = False) -> None:
-        runtime = self.__dict__.get("_strategy_filter_runtime")
-        if runtime is None:
-            self._rebuild_tree()
-            return
-        search = ""
-        try:
-            search = self._search.text().strip().lower()
-        except Exception:
-            search = ""
-        self._strategy_filter_state_obj().pending = (
-            dict(self._entries),
-            dict(self._states),
-            str(self._current_strategy_id or "none").strip() or "none",
-            search,
-        )
-        if immediate:
-            try:
-                self._strategy_filter_timer.stop()
-            except Exception:
-                pass
-            self._run_debounced_tree_rebuild()
-            return
-        try:
-            self._strategy_filter_timer.start(120)
-        except Exception:
-            self._run_debounced_tree_rebuild()
-
-    def _run_debounced_tree_rebuild(self) -> None:
-        state = self._strategy_filter_state_obj()
-        pending = state.pending
-        if pending is None:
-            return
-        if state.is_busy():
-            return
-        state.pending = None
-        entries, states, current_strategy_id, search_text = pending
-        self._start_strategy_filter_worker(entries, states, current_strategy_id, search_text)
-
-    def _start_strategy_filter_worker(self, entries, states, current_strategy_id: str, search_text: str) -> None:
-        self._strategy_filter_runtime.start_qthread_worker(
-            worker_factory=lambda request_id: self.create_strategy_filter_worker(
-                request_id,
-                entries=entries,
-                states=states,
-                current_strategy_id=current_strategy_id,
-                search_text=search_text,
-            ),
-            on_loaded=self._on_strategy_filter_loaded,
-            on_failed=self._on_strategy_filter_failed,
-            on_finished=self._on_strategy_filter_worker_finished,
-        )
-
-    def create_strategy_filter_worker(
-        self,
-        request_id: int,
-        *,
-        entries,
-        states,
-        current_strategy_id: str,
-        search_text: str,
-    ) -> ProfileStrategyListFilterWorker:
-        return ProfileStrategyListFilterWorker(
-            request_id,
-            entries=entries,
-            states=states,
-            current_strategy_id=current_strategy_id,
-            search_text=search_text,
-            parent=self,
-        )
-
-    def _on_strategy_filter_loaded(self, request_id: int, plan: ProfileStrategyListPlan) -> None:
-        runtime = self.__dict__.get("_strategy_filter_runtime")
-        if runtime is None or not runtime.is_current(request_id):
-            return
-        if self._strategy_filter_state_obj().has_pending():
-            return
-        if str(getattr(plan, "current_strategy_id", "") or "") != str(self._current_strategy_id or ""):
-            self._request_tree_rebuild()
-            return
-        self._apply_strategy_list_plan(plan)
-
-    def _on_strategy_filter_failed(self, request_id: int, error: str) -> None:
-        runtime = self.__dict__.get("_strategy_filter_runtime")
-        if runtime is None or not runtime.is_current(request_id):
-            return
-        if self._strategy_filter_state_obj().has_pending():
-            return
-        log(f"Ошибка подготовки списка готовых стратегий profile: {error}", "DEBUG")
-
-    def _on_strategy_filter_worker_finished(self, worker) -> None:
-        self._strategy_filter_state_obj().schedule_pending_after_finish(
-            worker,
-            is_current_worker_finish=lambda _runtime, current_worker: self._is_current_strategy_filter_worker_finish(
-                current_worker,
-            ),
-            single_shot=QTimer.singleShot,
-            run_scheduled=self._run_scheduled_strategy_filter_worker_start,
-            cleanup_in_progress=bool(getattr(self, "_cleanup_in_progress", False)),
-        )
-
-    def _schedule_strategy_filter_worker_start(self) -> None:
-        self._strategy_filter_state_obj().schedule_start(
-            QTimer.singleShot,
-            self._run_scheduled_strategy_filter_worker_start,
-            pending_when_already_scheduled=self._strategy_filter_state_obj().pending,
-        )
-
-    def _run_scheduled_strategy_filter_worker_start(self) -> None:
-        pending = self._strategy_filter_state_obj().take_pending_for_scheduled_start()
-        if pending is None:
-            return
-        entries, states, current_strategy_id, search_text = pending
-        self._start_strategy_filter_worker(entries, states, current_strategy_id, search_text)
-
-    def _is_current_strategy_filter_worker_finish(self, worker) -> bool:
-        runtime = self.__dict__.get("_strategy_filter_runtime")
-        if runtime is None:
-            return False
-        if getattr(runtime, "worker", None) is worker:
-            return True
-        request_id = getattr(worker, "_request_id", None)
-        if request_id is None:
-            return False
-        return int(request_id) == int(getattr(runtime, "request_id", 0) or 0)
-
-    def _strategy_filter_state_obj(self) -> LatestValueWorkerState:
-        state = self.__dict__.get("_strategy_filter_state")
-        runtime = self.__dict__.get("_strategy_filter_runtime")
-        if state is None:
-            pending = self.__dict__.pop("_strategy_filter_pending", None)
-            start_scheduled = bool(self.__dict__.pop("_strategy_filter_start_scheduled", False))
-            state = LatestValueWorkerState(
-                runtime,
-                empty_value=None,
-                pending=pending,
-                start_scheduled=start_scheduled,
-            )
-            self.__dict__["_strategy_filter_state"] = state
-        elif getattr(state, "runtime", None) is None and runtime is not None:
-            state.runtime = runtime
-        return state
-
-    def _apply_strategy_list_plan(self, plan: ProfileStrategyListPlan) -> None:
-        self._item_by_strategy_id.clear()
-        self._list.clear()
-        current_item = None
-        first_item = None
-
-        for row in tuple(getattr(plan, "rows", ()) or ()):
-            item = QListWidgetItem()
-            item.setText(row.accessible_text or row.name)
-            item.setData(self._ROLE_STRATEGY_ID, row.strategy_id)
-            item.setData(self._ROLE_NAME_TEXT, row.name)
-            item.setData(self._ROLE_STATUS_TEXT, row.status_text)
-            item.setData(self._ROLE_IS_ACTIVE, row.is_current)
-            item.setData(self._ROLE_VISUAL_ICON_NAME, row.visual_icon_name)
-            item.setData(self._ROLE_VISUAL_COLOR, row.visual_color)
-            item.setData(self._ROLE_VISUAL_LABEL_TEXT, row.visual_label)
-            item.setData(self._ROLE_VISUAL_DESCRIPTION, row.visual_description)
-            item.setData(Qt.ItemDataRole.AccessibleTextRole, row.accessible_text)
-            item.setData(self._ROLE_TOOLTIP_TEXT, row.tooltip_text)
-            item.setSizeHint(QSize(0, 31))
-            if row.is_current:
-                current_item = item
-            if first_item is None:
-                first_item = item
-            self._item_by_strategy_id[row.strategy_id] = item
-            self._list.addItem(item)
-
-        summary_text = f"{int(getattr(plan, 'visible_count', 0) or 0)} из {int(getattr(plan, 'total_count', 0) or 0)}"
-        set_widget_text_if_changed(self._summary, summary_text)
-        set_state_text(self._summary, f"Показано готовых стратегий: {summary_text}")
-        focus_item = current_item or first_item
-        if focus_item is not None:
-            self._list.setCurrentItem(focus_item)
-        self._update_current_strategy_accessibility(self._list.currentItem())
-
-    def _cleanup_strategy_filter_worker(self, *_args) -> None:
-        try:
-            self._strategy_filter_timer.stop()
-        except Exception:
-            pass
-        try:
-            self._strategy_filter_state_obj().reset()
-        except Exception:
-            pass
-        runtime = self.__dict__.get("_strategy_filter_runtime")
-        if runtime is not None:
-            runtime.stop(
-                blocking=False,
-                log_fn=log,
-                warning_prefix="Profile strategy filter worker",
-            )
-            runtime.cancel()
-
-    def _strategy_id_for_item(self, item) -> str:
-        return str(item.data(self._ROLE_STRATEGY_ID) or "").strip() if item is not None else ""
-
-    def _on_item_clicked(self, item) -> None:
-        strategy_id = self._strategy_id_for_item(item)
-        if strategy_id == self._current_strategy_id:
-            return
-        if strategy_id:
-            self.strategy_activated.emit(strategy_id)
-
-    def _on_item_activated(self, item) -> None:
-        strategy_id = self._strategy_id_for_item(item)
-        if strategy_id == self._current_strategy_id:
-            return
-        if strategy_id:
-            self.strategy_activated.emit(strategy_id)
-
-
-def _strategy_rows_signature(entries, states) -> tuple[tuple, tuple]:
-    entry_rows = []
-    for strategy_id, entry in dict(entries or {}).items():
-        visual = getattr(entry, "visual", None)
-        entry_rows.append((
-            str(strategy_id),
-            str(getattr(entry, "name", "") or ""),
-            str(getattr(entry, "args", "") or ""),
-            str(getattr(visual, "icon_name", "") or ""),
-            str(getattr(visual, "color", "") or ""),
-            str(getattr(visual, "label", "") or ""),
-            str(getattr(visual, "description", "") or ""),
-        ))
-    state_rows = []
-    for strategy_id, state in dict(states or {}).items():
-        state_rows.append((
-            str(strategy_id),
-            str(getattr(state, "rating", "") or ""),
-            bool(getattr(state, "favorite", False)),
-        ))
-    return tuple(sorted(entry_rows)), tuple(sorted(state_rows))
-
-
-def _strategy_status_parts(state, *, is_current: bool, include_unselected: bool) -> list[str]:
-    status_parts = []
-    if is_current:
-        status_parts.append("Выбрана")
-    elif include_unselected:
-        status_parts.append("Не выбрана")
-    if bool(getattr(state, "favorite", False)):
-        status_parts.append("В избранном")
-    rating = str(getattr(state, "rating", "") or "")
-    if rating == "work":
-        status_parts.append("Работает")
-    elif rating == "notwork":
-        status_parts.append("Не работает")
-    return status_parts
-
-
-def _set_strategy_feedback_button_state(button, *, action_name: str, selected: bool) -> None:
-    state_text = "выбрана" if selected else "не выбрана"
-    set_state_text(button, f"{action_name}. Оценка стратегии: {state_text}.")
-
-
-def _set_strategy_favorite_button_state(button, *, action_name: str, favorite: bool) -> None:
-    state_text = "включено" if favorite else "не включено"
-    set_state_text(button, f"{action_name}. Избранное: {state_text}.")
-
-
-def _set_strategy_clear_feedback_button_state(button, *, rating: str) -> None:
-    rating_value = str(rating or "").strip()
-    if rating_value == "work":
-        rating_text = "работает"
-    elif rating_value == "notwork":
-        rating_text = "не работает"
-    else:
-        rating_text = "не задана"
-    set_state_text(button, f"Убрать оценку стратегии. Текущая оценка: {rating_text}.")
-
-
-def _strategy_screen_reader_text(
-    *,
-    name: str,
-    status_parts: list[str],
-    visual_label: str,
-    visual_description: str,
-) -> str:
-    parts = [str(name or "").strip()]
-    parts.extend(_lower_first(part) for part in status_parts if str(part or "").strip())
-    parts.extend(
-        str(part or "").strip()
-        for part in (visual_label, visual_description)
-        if str(part or "").strip()
-    )
-    text = ", ".join(part for part in parts if part)
-    return f"{text}. Нажмите Enter или Пробел, чтобы выбрать стратегию." if text else ""
-
-
-def _lower_first(text: str) -> str:
-    value = str(text or "").strip()
-    if not value:
-        return ""
-    return value[:1].lower() + value[1:]
-
-
-def _strategy_entry_signature(entries) -> tuple:
-    return _strategy_rows_signature(entries, {})[0]
-
-
-def _strategy_visible_order(entries, states) -> tuple[str, ...]:
-    return tuple(
-        strategy_id
-        for strategy_id, _entry in sorted(
-            dict(entries or {}).items(),
-            key=lambda pair: (
-                not bool(getattr(dict(states or {}).get(pair[0]), "favorite", False)),
-                str(getattr(pair[1], "name", "") or "").lower(),
-            ),
-        )
-    )
-
-
-def _single_strategy_order_move(
-    current_order: tuple[str, ...],
-    next_order: tuple[str, ...],
-    *,
-    preferred_strategy_ids: set[str] | None = None,
-) -> tuple[int, int] | None:
-    if len(current_order) != len(next_order):
-        return None
-    if current_order == next_order:
-        return None
-    if len(set(current_order)) != len(current_order):
-        return None
-    if set(current_order) != set(next_order):
-        return None
-
-    current_positions = {strategy_id: index for index, strategy_id in enumerate(current_order)}
-    first_changed = next(
-        (
-            index
-            for index, strategy_id in enumerate(next_order)
-            if current_positions.get(strategy_id) != index
-        ),
-        -1,
-    )
-    if first_changed < 0:
-        return None
-
-    last_changed = len(next_order) - 1
-    while last_changed > first_changed and current_order[last_changed] == next_order[last_changed]:
-        last_changed -= 1
-
-    candidates = []
-    if current_order[first_changed] == next_order[last_changed]:
-        candidates.append((first_changed, last_changed))
-    if current_order[last_changed] == next_order[first_changed]:
-        candidates.append((last_changed, first_changed))
-    if not candidates:
-        return None
-
-    preferred = set(preferred_strategy_ids or ())
-    for source_index, insert_index in candidates:
-        if current_order[source_index] in preferred:
-            return source_index, insert_index
-    return candidates[0]
-
-
-def _current_strategy_branch(payload):
-    branches = tuple(getattr(payload, "strategy_branches", ()) or ())
-    if not branches:
-        return None
-    current_id = str(getattr(payload, "current_strategy_branch_id", "") or "").strip()
-    for branch in branches:
-        if str(getattr(branch, "branch_id", "") or "").strip() == current_id:
-            return branch
-    return branches[0]
-
-
-def _current_strategy_id(payload) -> str:
-    branch = _current_strategy_branch(payload)
-    if branch is not None:
-        return str(getattr(branch, "strategy_id", "") or "").strip()
-    item = getattr(payload, "item", None)
-    return str(getattr(item, "strategy_id", "") or "").strip()
-
-
-def _current_strategy_branch_id(payload) -> str:
-    branch = _current_strategy_branch(payload)
-    return str(getattr(branch, "branch_id", "") or "").strip() if branch is not None else ""
-
-
-def _payload_with_strategy_branch(payload, branch_id: str):
-    clean_branch_id = str(branch_id or "").strip()
-    branches = tuple(getattr(payload, "strategy_branches", ()) or ())
-    branch = next(
-        (
-            item
-            for item in branches
-            if str(getattr(item, "branch_id", "") or "").strip() == clean_branch_id
-        ),
-        None,
-    )
-    if branch is None:
-        return payload
-    states = getattr(payload, "strategy_states", {}) or {}
-    strategy_id = str(getattr(branch, "strategy_id", "") or "").strip()
-    in_range = str(getattr(branch, "in_range", "") or "x").strip() or "x"
-    out_range = str(getattr(branch, "out_range", "") or "a").strip() or "a"
-    return replace(
-        payload,
-        current_strategy_branch_id=clean_branch_id,
-        in_range=in_range,
-        out_range=out_range,
-        raw_strategy_text=str(getattr(branch, "raw_strategy_text", "") or ""),
-        match_tab_text=str(getattr(branch, "match_tab_text", "") or ""),
-        current_strategy_state=states.get(strategy_id, ProfileStrategyState()),
-    )
-
-
-def _strategy_branch_label(branch) -> str:
-    payload = str(getattr(branch, "payload", "") or "all").strip() or "all"
-    in_range = str(getattr(branch, "in_range", "") or "x").strip() or "x"
-    out_range = str(getattr(branch, "out_range", "") or "a").strip() or "a"
-    strategy_name = str(getattr(branch, "strategy_name", "") or "Своя стратегия").strip()
-    parts = [f"payload: {payload}"]
-    if in_range != "x":
-        parts.append(f"in: {in_range}")
-    if out_range != "a":
-        parts.append(f"out: {out_range}")
-    return f"{' · '.join(parts)} — {strategy_name}"
-
-
-def _strategy_branch_summary_name(branches) -> str:
-    branch_items = tuple(branches or ())
-    names = [
-        str(getattr(branch, "strategy_name", "") or "").strip()
-        for branch in branch_items
-        if str(getattr(branch, "strategy_name", "") or "").strip()
-    ]
-    visible = names[:2]
-    suffix = f" +{len(names) - len(visible)}" if len(names) > len(visible) else ""
-    label = ", ".join(visible)
-    if label:
-        return f"{len(branch_items)} стратегии: {label}{suffix}"
-    return f"{len(branch_items)} стратегии"
-
-
-def _combo_item_accessible_text(
-    *,
-    name: str,
-    label: str,
-    selected: bool,
-    selected_word: str = "выбран",
-    unselected_word: str = "не выбран",
-) -> str:
-    state = selected_word if selected else unselected_word
-    return f"{str(name or '').strip()}: {str(label or '').strip()}, {state}"
-
-
-def _sync_combo_items_accessibility(
-    combo,
-    *,
-    name: str,
-    selected_word: str = "выбран",
-    unselected_word: str = "не выбран",
-) -> None:
-    if combo is None:
-        return
-    try:
-        current_index = int(combo.currentIndex())
-        count = int(combo.count())
-    except Exception:
-        return
-    set_item_accessible_text = getattr(combo, "setItemAccessibleText", None)
-    if not callable(set_item_accessible_text):
-        return
-    for index in range(count):
-        try:
-            label = str(combo.itemText(index) or "").strip()
-        except Exception:
-            label = ""
-        if not label:
-            continue
-        set_item_accessible_text(
-            index,
-            _combo_item_accessible_text(
-                name=name,
-                label=label,
-                selected=index == current_index,
-                selected_word=selected_word,
-                unselected_word=unselected_word,
-            ),
-        )
-
-
-def _strategy_branch_accessible_text(label: str, *, selected: bool) -> str:
-    return _combo_item_accessible_text(
-        name="Ветка готовой стратегии",
-        label=label,
-        selected=selected,
-        selected_word="выбрана",
-        unselected_word="не выбрана",
-    )
-
-
-def _sync_strategy_branch_combo_items_accessibility(combo) -> None:
-    if combo is None:
-        return
-    try:
-        current_index = int(combo.currentIndex())
-        count = int(combo.count())
-    except Exception:
-        return
-    set_item_accessible_text = getattr(combo, "setItemAccessibleText", None)
-    if not callable(set_item_accessible_text):
-        return
-    for index in range(count):
-        try:
-            label = str(combo.itemText(index) or "").strip()
-        except Exception:
-            label = ""
-        if not label:
-            continue
-        set_item_accessible_text(index, _strategy_branch_accessible_text(label, selected=index == current_index))
-
-
-def _join_accessible_options(labels: list[str]) -> str:
-    clean_labels = [str(label or "").strip() for label in labels if str(label or "").strip()]
-    if not clean_labels:
-        return ""
-    if len(clean_labels) == 1:
-        return clean_labels[0]
-    return f"{', '.join(clean_labels[:-1])} или {clean_labels[-1]}"
-
-
-def _update_strategy_branch_combo_in_place(
-    combo,
-    rows: tuple[tuple[str, str], ...] | list[tuple[str, str]],
-    selected_index: int,
-) -> bool:
-    try:
-        if int(combo.count()) != len(rows):
-            return False
-        for index, (branch_id, _label) in enumerate(rows):
-            if str(combo.itemData(index) or "").strip() != str(branch_id or "").strip():
-                return False
-        for index, (_branch_id, label) in enumerate(rows):
-            if str(combo.itemText(index) or "") != str(label or ""):
-                combo.setItemText(index, str(label or ""))
-        if int(combo.currentIndex()) != int(selected_index):
-            combo.setCurrentIndex(int(selected_index))
-        return True
-    except Exception:
-        return False
-
-
 def _branch_raw_strategy_text(branch, strategy_args: str) -> str:
     lines = []
     in_range = str(getattr(branch, "in_range", "") or "x").strip() or "x"
@@ -1676,6 +339,34 @@ def _normalized_list_file_save_request(value) -> dict[str, str]:
             filter_value=str(parts[3] if len(parts) > 3 else ""),
         )
     return _list_file_save_request("", "")
+
+
+def _worker_pending_property(state_obj_name: str, *, cast=None):
+    """Thin-property поверх pending state-объекта подсистемы.
+
+    Имена и get/set-семантика сохранены для BEH-тестов (стабы присваивают
+    эти атрибуты напрямую); компактизация по образцу фазы A (DRY, AC1)."""
+
+    def _get(self):
+        value = getattr(self, state_obj_name)().pending
+        return cast(value) if cast is not None else value
+
+    def _set(self, value) -> None:
+        getattr(self, state_obj_name)().pending = cast(value) if cast is not None else value
+
+    return property(_get, _set)
+
+
+def _worker_start_scheduled_property(state_obj_name: str):
+    """Thin-property поверх start_scheduled state-объекта подсистемы."""
+
+    def _get(self) -> bool:
+        return bool(getattr(self, state_obj_name)().start_scheduled)
+
+    def _set(self, value) -> None:
+        getattr(self, state_obj_name)().start_scheduled = bool(value)
+
+    return property(_get, _set)
 
 
 class ProfileSetupPageBase(BasePage):
@@ -1849,6 +540,11 @@ class ProfileSetupPageBase(BasePage):
         self._settings_save_timer.setSingleShot(True)
         self._settings_save_timer.setInterval(350)
         self._settings_save_timer.timeout.connect(self._autosave_editable_settings)
+        self._list_file_editor_controller = ProfileListFileEditorController(self)
+        self._save_controller = ProfileSetupSaveController(self)
+        self._payload_controller = ProfileSetupPayloadController(self)
+        self._strategy_controller = ProfileStrategyController(self)
+        self._user_profile_controller = ProfileUserProfileController(self)
         self._build_content()
 
     def _worker_runtime(self, attr: str) -> OneShotWorkerRuntime:
@@ -1857,6 +553,51 @@ class ProfileSetupPageBase(BasePage):
             runtime = OneShotWorkerRuntime()
             setattr(self, attr, runtime)
         return runtime
+
+    def _list_file_editor_controller_obj(self) -> ProfileListFileEditorController:
+        # Контроллер создаётся эагерно в __init__; ленивая ветка нужна только
+        # duck-typed стабам из тестов (__new__ без __init__).
+        controller = self.__dict__.get("_list_file_editor_controller")
+        if controller is None:
+            controller = ProfileListFileEditorController(self)
+            self.__dict__["_list_file_editor_controller"] = controller
+        return controller
+
+    def _save_controller_obj(self) -> ProfileSetupSaveController:
+        # Контроллер создаётся эагерно в __init__; ленивая ветка нужна только
+        # duck-typed стабам из тестов (__new__ без __init__).
+        controller = self.__dict__.get("_save_controller")
+        if controller is None:
+            controller = ProfileSetupSaveController(self)
+            self.__dict__["_save_controller"] = controller
+        return controller
+
+    def _payload_controller_obj(self) -> ProfileSetupPayloadController:
+        # Контроллер создаётся эагерно в __init__; ленивая ветка нужна только
+        # duck-typed стабам из тестов (__new__ без __init__).
+        controller = self.__dict__.get("_payload_controller")
+        if controller is None:
+            controller = ProfileSetupPayloadController(self)
+            self.__dict__["_payload_controller"] = controller
+        return controller
+
+    def _strategy_controller_obj(self) -> ProfileStrategyController:
+        # Контроллер создаётся эагерно в __init__; ленивая ветка нужна только
+        # duck-typed стабам из тестов (__new__ без __init__).
+        controller = self.__dict__.get("_strategy_controller")
+        if controller is None:
+            controller = ProfileStrategyController(self)
+            self.__dict__["_strategy_controller"] = controller
+        return controller
+
+    def _user_profile_controller_obj(self) -> ProfileUserProfileController:
+        # Контроллер создаётся эагерно в __init__; ленивая ветка нужна только
+        # duck-typed стабам из тестов (__new__ без __init__).
+        controller = self.__dict__.get("_user_profile_controller")
+        if controller is None:
+            controller = ProfileUserProfileController(self)
+            self.__dict__["_user_profile_controller"] = controller
+        return controller
 
     def _accept_current_profile_setup_worker_finished(self, request_attr: str, worker) -> bool:
         request_id = getattr(worker, "_request_id", None)
@@ -1885,178 +626,33 @@ class ProfileSetupPageBase(BasePage):
         return True
 
     def _profile_setup_write_is_running(self) -> bool:
-        if self._profile_setup_write_state_obj().start_scheduled:
-            return True
-        for attr in (
-            "_list_file_save_runtime",
-            "_settings_save_runtime",
-            "_raw_profile_save_runtime",
-            "_enabled_save_runtime",
-            "_strategy_apply_runtime",
-        ):
-            runtime = self.__dict__.get(attr)
-            if runtime is not None and runtime.is_running():
-                return True
-        if self._enabled_save_state_obj().start_scheduled:
-            return True
-        if self._list_file_save_state_obj().start_scheduled:
-            return True
-        return False
+        return self._save_controller_obj()._profile_setup_write_is_running()
 
     @staticmethod
     def _profile_setup_write_operations_collide(previous: dict, queued: dict) -> bool:
-        """Замещать в очереди можно только операцию над ТЕМ ЖЕ объектом.
-
-        list_file_save-операции с разными (profile_key, filter_kind,
-        filter_value) пишут в разные файлы: замещение по одному только kind
-        молча теряло флаш прежнего профиля/типа фильтра."""
-        if previous.get("kind") != queued.get("kind"):
-            return False
-        if str(queued.get("kind") or "") != "list_file_save":
-            return True
-        return all(
-            str(previous.get(field) or "") == str(queued.get(field) or "")
-            for field in ("profile_key", "filter_kind", "filter_value")
-        )
+        return ProfileSetupSaveController._profile_setup_write_operations_collide(previous, queued)
 
     def _queue_profile_setup_write_operation(self, operation: dict[str, object]) -> None:
-        queued = dict(operation)
-        scheduled = self.__dict__.get("_scheduled_profile_setup_write_operation")
-        if (
-            self._profile_setup_write_state_obj().start_scheduled
-            and isinstance(scheduled, dict)
-            and self._profile_setup_write_operations_collide(scheduled, queued)
-        ):
-            self._scheduled_profile_setup_write_operation = queued
-            return
-        pending = self._profile_setup_write_state_obj().pending
-        if pending and pending[-1] == queued:
-            return
-        if pending and self._profile_setup_write_operations_collide(pending[-1], queued):
-            pending[-1] = queued
-            return
-        pending.append(queued)
+        return self._save_controller_obj()._queue_profile_setup_write_operation(operation)
 
     def _start_next_profile_setup_write_operation(self) -> bool:
-        if self.__dict__.get("_cleanup_in_progress"):
-            return False
-        if self._profile_setup_write_is_running():
-            return False
-        state = self._profile_setup_write_state_obj()
-        operation = state.pop_next()
-        if not operation:
-            return False
-        self._schedule_profile_setup_write_operation_start(dict(operation))
-        return True
+        return self._save_controller_obj()._start_next_profile_setup_write_operation()
 
     def _schedule_next_profile_setup_write_operation_after_finish(
         self,
         request_attr: str,
         worker,
     ) -> tuple[bool, bool]:
-        accepted = False
-
-        def _is_current_worker_finish(_runtime, finished_worker) -> bool:
-            nonlocal accepted
-            accepted = self._accept_current_profile_setup_worker_finished(request_attr, finished_worker)
-            return accepted
-
-        def _single_shot(delay: int, callback) -> None:
-            try:
-                QTimer.singleShot(delay, callback)
-            except Exception:
-                callback()
-
-        operation = self._profile_setup_write_state_obj().schedule_next_after_finish(
-            worker,
-            is_current_worker_finish=_is_current_worker_finish,
-            single_shot=_single_shot,
-            start=lambda pending: self._run_profile_setup_write_operation(dict(pending or {})),
-            queue_item=self._queue_profile_setup_write_operation,
-            is_cleanup_in_progress=lambda: bool(self.__dict__.get("_cleanup_in_progress", False)),
-        )
-        return accepted, operation is not None
+        return self._save_controller_obj()._schedule_next_profile_setup_write_operation_after_finish(request_attr, worker)
 
     def _schedule_profile_setup_write_operation_start(self, operation: dict[str, object]) -> None:
-        queued = dict(operation or {})
-        if self.__dict__.get("_cleanup_in_progress"):
-            return
-        state = self._profile_setup_write_state_obj()
-        if state.start_scheduled:
-            self._queue_profile_setup_write_operation(queued)
-            return
-        self._scheduled_profile_setup_write_operation = queued
-        state.start_scheduled = True
-        try:
-            QTimer.singleShot(0, self._run_profile_setup_write_operation)
-        except Exception:
-            self._run_profile_setup_write_operation()
+        return self._save_controller_obj()._schedule_profile_setup_write_operation_start(operation)
 
     def _run_profile_setup_write_operation(self, operation: dict[str, object] | None = None) -> bool:
-        self._profile_setup_write_state_obj().start_scheduled = False
-        if operation is None:
-            operation = self.__dict__.get("_scheduled_profile_setup_write_operation")
-        self._scheduled_profile_setup_write_operation = None
-        operation = dict(operation or {})
-        if self.__dict__.get("_cleanup_in_progress"):
-            return False
-        if self._profile_setup_write_is_running():
-            self._queue_profile_setup_write_operation(operation)
-            return False
-        kind = str(operation.get("kind") or "")
-        if kind == "list_file_save":
-            self._pending_list_file_save = None
-            request = _normalized_list_file_save_request(operation)
-            self._start_list_file_save_worker(
-                request["profile_key"],
-                request["text"],
-                filter_kind=request["filter_kind"],
-                filter_value=request["filter_value"],
-            )
-            return True
-        if kind == "settings_save":
-            self._pending_settings_save = None
-            request = operation.get("request")
-            self._start_settings_save_worker(dict(request if isinstance(request, dict) else {}))
-            return True
-        if kind == "raw_profile_save":
-            self._pending_raw_profile_save = None
-            self._start_raw_profile_save_worker(
-                str(operation.get("profile_key") or ""),
-                operation.get("text"),
-            )
-            return True
-        if kind == "enabled_save":
-            self._pending_enabled_save = None
-            self._start_enabled_save_worker(bool(operation.get("enabled")))
-            return True
-        if kind == "strategy_apply":
-            self._pending_strategy_apply = None
-            self._start_strategy_apply_worker(
-                str(operation.get("strategy_id") or ""),
-                strategy_branch_id=str(operation.get("branch_id") or ""),
-            )
-            return True
-        return False
+        return self._save_controller_obj()._run_profile_setup_write_operation(operation)
 
     def _profile_setup_write_state_obj(self) -> QueuedWorkerState[dict[str, object]]:
-        state = self.__dict__.get("_profile_setup_write_state")
-        runtime = self.__dict__.get("_settings_save_runtime")
-        if state is None:
-            pending = [
-                dict(operation or {})
-                for operation in list(self.__dict__.pop("_pending_profile_setup_write_operations", []) or [])
-            ]
-            start_scheduled = bool(self.__dict__.pop("_profile_setup_write_operation_start_scheduled", False))
-            state = QueuedWorkerState(
-                runtime,
-                pending=pending,
-                start_scheduled=start_scheduled,
-            )
-            self.__dict__["_profile_setup_write_state"] = state
-        elif getattr(state, "runtime", None) is None and runtime is not None:
-            state.runtime = runtime
-        return state
+        return self._save_controller_obj()._profile_setup_write_state_obj()
 
     @property
     def _pending_profile_setup_write_operations(self) -> list[dict[str, object]]:
@@ -2069,13 +665,7 @@ class ProfileSetupPageBase(BasePage):
             for operation in list(value or [])
         ]
 
-    @property
-    def _profile_setup_write_operation_start_scheduled(self) -> bool:
-        return bool(self._profile_setup_write_state_obj().start_scheduled)
-
-    @_profile_setup_write_operation_start_scheduled.setter
-    def _profile_setup_write_operation_start_scheduled(self, value: bool) -> None:
-        self._profile_setup_write_state_obj().start_scheduled = bool(value)
+    _profile_setup_write_operation_start_scheduled = _worker_start_scheduled_property("_profile_setup_write_state_obj")
 
     def _build_content(self) -> None:
         if self.title_label is not None:
@@ -2585,53 +1175,10 @@ class ProfileSetupPageBase(BasePage):
         return text
 
     def _request_list_file_editor_state(self) -> None:
-        if not self._editor_tab_built or not self._profile_key:
-            return
-        runtime = self._worker_runtime("_list_file_load_runtime")
-        state = self._list_file_load_state_obj()
-        if state.is_busy():
-            state.pending = True
-            return
-        if self._list_file_status_label is not None:
-            set_profile_list_status_text(self._list_file_status_label, "Загрузка файла списка...")
-        self._list_file_load_request_id = int(self.__dict__.get("_list_file_load_request_id", 0) or 0) + 1
-        request_id = self._list_file_load_request_id
-        # Пара фильтра, под которую загружается редактор. Автосохранение пишет
-        # ТОЛЬКО в этот файл: текущее значение поля могло уже указывать на
-        # другой файл, и сохранение по нему пересадило бы текст в чужой список.
-        self._list_file_editor_filter = (self._current_filter_kind(), self._current_filter_value())
-        runtime.start_qthread_worker(
-            worker_factory=lambda _runtime_request_id: self.create_profile_list_file_load_worker(
-                request_id,
-                self._profile_key,
-                filter_kind=self._list_file_editor_filter[0],
-                filter_value=self._list_file_editor_filter[1],
-                parent=self,
-            ),
-            on_loaded=self._on_list_file_editor_state_loaded,
-            on_failed=self._on_list_file_editor_state_failed,
-            on_finished=self._on_list_file_worker_finished,
-        )
+        return self._list_file_editor_controller_obj()._request_list_file_editor_state()
 
     def _on_list_file_editor_state_loaded(self, request_id: int, result) -> None:
-        if request_id != self._list_file_load_request_id:
-            return
-        if self._list_file_load_state_obj().has_pending():
-            return
-        if not self._list_file_load_result_is_current(result):
-            return
-        state = getattr(result, "state", None)
-        if state is None:
-            # Профиль не разрешился (удалён/переименован во время загрузки):
-            # молчание оставляло бы «Загрузка файла списка...» навсегда.
-            if self._list_file_status_label is not None:
-                set_profile_list_status_text(
-                    self._list_file_status_label,
-                    "Ошибка загрузки файла списка: profile не найден.",
-                )
-            return
-        self._list_file_dirty = False
-        self._schedule_list_file_editor_state_apply(state)
+        return self._list_file_editor_controller_obj()._on_list_file_editor_state_loaded(request_id, result)
 
     def _list_file_load_result_is_current(self, result) -> bool:
         # Результат — эхо ПОСЛЕДНЕГО запроса (контекст редактирования меняется
@@ -2640,53 +1187,16 @@ class ProfileSetupPageBase(BasePage):
         # текущими виджетами по именам файлов нельзя: сервис легитимно ремапит
         # пару при kind-switch превью (netrogat.txt → ipset-ru/dns/exclude),
         # и сравнение имён не сходилось бы никогда — вечная «Загрузка...».
-        result_profile_key = str(getattr(result, "profile_key", "") or "").strip()
-        if result_profile_key != str(self.__dict__.get("_profile_key", "") or "").strip():
-            return False
-        captured_kind, captured_value = self._list_file_target_filter()
-        result_filter_kind = str(getattr(result, "filter_kind", "") or "").strip().lower()
-        result_filter_value = str(getattr(result, "filter_value", "") or "").strip()
-        return (
-            result_filter_kind == str(captured_kind or "").strip().lower()
-            and result_filter_value == str(captured_value or "").strip()
-        )
+        return self._list_file_editor_controller_obj()._list_file_load_result_is_current(result)
 
     def _schedule_list_file_editor_state_apply(self, state) -> None:
-        self._pending_list_file_state_apply = state
-        if self.__dict__.get("_list_file_state_apply_scheduled", False):
-            return
-        self._list_file_state_apply_scheduled = True
-        try:
-            QTimer.singleShot(0, self._run_scheduled_list_file_editor_state_apply)
-        except Exception:
-            self._run_scheduled_list_file_editor_state_apply()
+        return self._list_file_editor_controller_obj()._schedule_list_file_editor_state_apply(state)
 
     def _run_scheduled_list_file_editor_state_apply(self) -> None:
-        state = self.__dict__.get("_pending_list_file_state_apply")
-        self._pending_list_file_state_apply = None
-        self._list_file_state_apply_scheduled = False
-        if state is None or self.__dict__.get("_cleanup_in_progress"):
-            return
-        if (
-            self._list_file_load_state_obj().has_pending()
-            or self._list_file_load_state_obj().start_scheduled
-        ):
-            return
-        self._apply_list_file_editor_state(state)
+        return self._list_file_editor_controller_obj()._run_scheduled_list_file_editor_state_apply()
 
     def _on_list_file_editor_state_failed(self, request_id: int, error: str) -> None:
-        if request_id != self._list_file_load_request_id:
-            return
-        if (
-            self._list_file_load_state_obj().has_pending()
-            or self._list_file_load_state_obj().start_scheduled
-        ):
-            return
-        if self._list_file_status_label is not None:
-            set_profile_list_status_text(
-                self._list_file_status_label,
-                f"Ошибка загрузки файла списка: {error}",
-            )
+        return self._list_file_editor_controller_obj()._on_list_file_editor_state_failed(request_id, error)
 
     def _on_list_file_worker_finished(self, _worker) -> None:
         self._list_file_load_state_obj().schedule_pending_after_finish(
@@ -2701,61 +1211,17 @@ class ProfileSetupPageBase(BasePage):
         )
 
     def _schedule_pending_list_file_load_start(self) -> None:
-        state = self._list_file_load_state_obj()
-        state.pending = True
-
-        def _single_shot(delay: int, callback) -> None:
-            try:
-                QTimer.singleShot(delay, callback)
-            except Exception:
-                callback()
-
-        state.schedule_start(
-            _single_shot,
-            self._run_scheduled_list_file_load_start,
-            pending_when_already_scheduled=True,
-        )
+        return self._list_file_editor_controller_obj()._schedule_pending_list_file_load_start()
 
     def _run_scheduled_list_file_load_start(self) -> None:
-        pending = self._list_file_load_state_obj().take_pending_for_scheduled_start(
-            cleanup_in_progress=self.__dict__.get("_cleanup_in_progress", False),
-        )
-        if not pending:
-            return
-        self._request_list_file_editor_state()
+        return self._list_file_editor_controller_obj()._run_scheduled_list_file_load_start()
 
     def _list_file_load_state_obj(self) -> LatestValueWorkerState:
-        state = self.__dict__.get("_list_file_load_state")
-        runtime = self.__dict__.get("_list_file_load_runtime")
-        if state is None:
-            pending = bool(self.__dict__.pop("_pending_list_file_load", False))
-            start_scheduled = bool(self.__dict__.pop("_list_file_load_start_scheduled", False))
-            state = LatestValueWorkerState(
-                runtime,
-                empty_value=False,
-                pending=pending,
-                start_scheduled=start_scheduled,
-            )
-            self.__dict__["_list_file_load_state"] = state
-        elif getattr(state, "runtime", None) is None and runtime is not None:
-            state.runtime = runtime
-        return state
+        return self._list_file_editor_controller_obj()._list_file_load_state_obj()
 
-    @property
-    def _pending_list_file_load(self) -> bool:
-        return bool(self._list_file_load_state_obj().pending)
+    _pending_list_file_load = _worker_pending_property("_list_file_load_state_obj", cast=bool)
 
-    @_pending_list_file_load.setter
-    def _pending_list_file_load(self, value: bool) -> None:
-        self._list_file_load_state_obj().pending = bool(value)
-
-    @property
-    def _list_file_load_start_scheduled(self) -> bool:
-        return bool(self._list_file_load_state_obj().start_scheduled)
-
-    @_list_file_load_start_scheduled.setter
-    def _list_file_load_start_scheduled(self, value: bool) -> None:
-        self._list_file_load_state_obj().start_scheduled = bool(value)
+    _list_file_load_start_scheduled = _worker_start_scheduled_property("_list_file_load_state_obj")
 
     def _fill_range_combo(self, combo: CompactDisplayComboBox) -> None:
         combo.addItem("a — всегда", userData="a", compactText="a")
@@ -2948,31 +1414,10 @@ class ProfileSetupPageBase(BasePage):
         return _user_profile_id_from_payload(self._profile_key, self._payload)
 
     def _request_user_profile_update(self, profile_id: str, *, name: str, protocol: str, ports: str) -> None:
-        profile_id = str(profile_id or "").strip()
-        if not profile_id:
-            return
-        if self._user_profile_write_operation_running():
-            self._queue_user_profile_write_operation(
-                "update",
-                profile_id=profile_id,
-                name=name,
-                protocol=protocol,
-                ports=ports,
-            )
-            return
-        self._start_user_profile_update_worker(
-            profile_id,
-            name=name,
-            protocol=protocol,
-            ports=ports,
-        )
+        return self._user_profile_controller_obj()._request_user_profile_update(profile_id, name=name, protocol=protocol, ports=ports)
 
     def _user_profile_write_operation_running(self) -> bool:
-        if self._user_profile_write_state_obj().start_scheduled:
-            return True
-        return self._worker_runtime("_user_profile_update_runtime").is_running() or self._worker_runtime(
-            "_user_profile_delete_runtime"
-        ).is_running()
+        return self._user_profile_controller_obj()._user_profile_write_operation_running()
 
     def _queue_user_profile_write_operation(
         self,
@@ -2983,86 +1428,22 @@ class ProfileSetupPageBase(BasePage):
         protocol: str = "",
         ports: str = "",
     ) -> None:
-        operation = {
-            "action": str(action or ""),
-            "profile_id": str(profile_id or ""),
-            "name": str(name or ""),
-            "protocol": str(protocol or ""),
-            "ports": str(ports or ""),
-        }
-        state = self._user_profile_write_state_obj()
-        if operation["action"] == "update":
-            profile_id_to_replace = str(operation["profile_id"] or "")
-            pending_operations = state.pending
-            pending_operations[:] = [
-                pending
-                for pending in pending_operations
-                if not (
-                    str(pending.get("action") or "") == "update"
-                    and str(pending.get("profile_id") or "") == profile_id_to_replace
-                )
-            ]
-        state.append(operation)
+        return self._user_profile_controller_obj()._queue_user_profile_write_operation(action, profile_id=profile_id, name=name, protocol=protocol, ports=ports)
 
     def _pop_next_pending_user_profile_write_operation(self) -> dict[str, str] | None:
-        state = self._user_profile_write_state_obj()
-        pending = state.pop_next()
-        if pending:
-            return dict(pending)
-        return None
+        return self._user_profile_controller_obj()._pop_next_pending_user_profile_write_operation()
 
     def _has_pending_user_profile_write_operation(self) -> bool:
-        return self._user_profile_write_state_obj().has_pending()
+        return self._user_profile_controller_obj()._has_pending_user_profile_write_operation()
 
     def _schedule_next_pending_user_profile_write_operation_start(self) -> bool:
-        if self._user_profile_write_operation_running():
-            return True
-        if not self._has_pending_user_profile_write_operation():
-            return False
-        state = self._user_profile_write_state_obj()
-        if state.start_scheduled:
-            return True
-        state.start_scheduled = True
-        try:
-            QTimer.singleShot(0, self._run_scheduled_user_profile_write_operation_start)
-        except Exception:
-            self._run_scheduled_user_profile_write_operation_start()
-        return True
+        return self._user_profile_controller_obj()._schedule_next_pending_user_profile_write_operation_start()
 
     def _run_scheduled_user_profile_write_operation_start(self) -> None:
-        self._user_profile_write_state_obj().start_scheduled = False
-        self._start_next_pending_user_profile_write_operation()
+        return self._user_profile_controller_obj()._run_scheduled_user_profile_write_operation_start()
 
     def _user_profile_write_state_obj(self) -> QueuedWorkerState[dict[str, str]]:
-        state = self.__dict__.get("_user_profile_write_state")
-        runtime = self.__dict__.get("_user_profile_update_runtime")
-        if state is None:
-            pending = [
-                self._user_profile_write_operation_from_pending_operation(operation)
-                for operation in list(self.__dict__.pop("_pending_user_profile_operations", []) or [])
-            ]
-            if not pending:
-                pending.extend(
-                    self._user_profile_write_operation_from_update(update)
-                    for update in list(self.__dict__.pop("_pending_user_profile_updates", []) or [])
-                )
-                pending.extend(
-                    self._user_profile_write_operation_from_delete(profile_id)
-                    for profile_id in list(self.__dict__.pop("_pending_user_profile_deletes", []) or [])
-                )
-            else:
-                self.__dict__.pop("_pending_user_profile_updates", None)
-                self.__dict__.pop("_pending_user_profile_deletes", None)
-            start_scheduled = bool(self.__dict__.pop("_user_profile_write_operation_start_scheduled", False))
-            state = QueuedWorkerState(
-                runtime,
-                pending=pending,
-                start_scheduled=start_scheduled,
-            )
-            self.__dict__["_user_profile_write_state"] = state
-        elif getattr(state, "runtime", None) is None and runtime is not None:
-            state.runtime = runtime
-        return state
+        return self._user_profile_controller_obj()._user_profile_write_state_obj()
 
     @property
     def _pending_user_profile_operations(self) -> list[dict[str, str]]:
@@ -3118,135 +1499,38 @@ class ProfileSetupPageBase(BasePage):
             for profile_id in list(value or [])
         )
 
-    @property
-    def _user_profile_write_operation_start_scheduled(self) -> bool:
-        return bool(self._user_profile_write_state_obj().start_scheduled)
-
-    @_user_profile_write_operation_start_scheduled.setter
-    def _user_profile_write_operation_start_scheduled(self, value: bool) -> None:
-        self._user_profile_write_state_obj().start_scheduled = bool(value)
+    _user_profile_write_operation_start_scheduled = _worker_start_scheduled_property("_user_profile_write_state_obj")
 
     @staticmethod
     def _user_profile_write_operation_from_pending_operation(operation) -> dict[str, str]:
-        pending = dict(operation or {})
-        action = str(pending.get("action") or "")
-        if action == "delete":
-            return ProfileSetupPageBase._user_profile_write_operation_from_delete(pending.get("profile_id"))
-        return {
-            "action": action,
-            "profile_id": str(pending.get("profile_id") or ""),
-            "name": str(pending.get("name") or ""),
-            "protocol": str(pending.get("protocol") or ""),
-            "ports": str(pending.get("ports") or ""),
-        }
+        return ProfileUserProfileController._user_profile_write_operation_from_pending_operation(operation)
 
     @staticmethod
     def _user_profile_write_operation_from_update(update) -> dict[str, str]:
-        pending = dict(update or {})
-        return {
-            "action": "update",
-            "profile_id": str(pending.get("profile_id") or ""),
-            "name": str(pending.get("name") or ""),
-            "protocol": str(pending.get("protocol") or ""),
-            "ports": str(pending.get("ports") or ""),
-        }
+        return ProfileUserProfileController._user_profile_write_operation_from_update(update)
 
     @staticmethod
     def _user_profile_write_operation_from_delete(profile_id) -> dict[str, str]:
-        return {
-            "action": "delete",
-            "profile_id": str(profile_id or ""),
-            "name": "",
-            "protocol": "",
-            "ports": "",
-        }
+        return ProfileUserProfileController._user_profile_write_operation_from_delete(profile_id)
 
     def _start_next_pending_user_profile_write_operation(self) -> bool:
-        if self._user_profile_write_operation_running():
-            return True
-        pending = self._pop_next_pending_user_profile_write_operation()
-        if not pending:
-            return False
-        return self._run_user_profile_write_operation(pending)
+        return self._user_profile_controller_obj()._start_next_pending_user_profile_write_operation()
 
     def _run_user_profile_write_operation(self, pending: dict[str, str] | None) -> bool:
-        pending = self._user_profile_write_operation_from_pending_operation(pending or {})
-        if self.__dict__.get("_cleanup_in_progress", False):
-            return False
-        if self._user_profile_write_operation_running():
-            self._queue_user_profile_write_operation_from_dict(pending)
-            return False
-        if pending.get("action") == "update":
-            self._start_user_profile_update_worker(
-                str(pending.get("profile_id") or ""),
-                name=str(pending.get("name") or ""),
-                protocol=str(pending.get("protocol") or ""),
-                ports=str(pending.get("ports") or ""),
-            )
-            return True
-        if pending.get("action") == "delete":
-            self._start_user_profile_delete_worker(str(pending.get("profile_id") or ""))
-            return True
-        return self._start_next_pending_user_profile_write_operation()
+        return self._user_profile_controller_obj()._run_user_profile_write_operation(pending)
 
     def _queue_user_profile_write_operation_from_dict(self, operation: dict[str, str]) -> bool:
-        pending = self._user_profile_write_operation_from_pending_operation(operation)
-        self._queue_user_profile_write_operation(
-            str(pending.get("action") or ""),
-            profile_id=str(pending.get("profile_id") or ""),
-            name=str(pending.get("name") or ""),
-            protocol=str(pending.get("protocol") or ""),
-            ports=str(pending.get("ports") or ""),
-        )
-        return True
+        return self._user_profile_controller_obj()._queue_user_profile_write_operation_from_dict(operation)
 
     def _schedule_next_user_profile_write_operation_after_finish(
         self,
         request_attr: str,
         worker,
     ) -> tuple[bool, bool]:
-        accepted = False
-
-        def _is_current_worker_finish(_runtime, finished_worker) -> bool:
-            nonlocal accepted
-            accepted = self._accept_current_profile_setup_worker_finished(request_attr, finished_worker)
-            return accepted
-
-        def _single_shot(delay: int, callback) -> None:
-            try:
-                QTimer.singleShot(delay, callback)
-            except Exception:
-                callback()
-
-        operation = self._user_profile_write_state_obj().schedule_next_after_finish(
-            worker,
-            is_current_worker_finish=_is_current_worker_finish,
-            single_shot=_single_shot,
-            start=self._run_user_profile_write_operation,
-            queue_item=self._queue_user_profile_write_operation_from_dict,
-            is_cleanup_in_progress=lambda: bool(self.__dict__.get("_cleanup_in_progress", False)),
-        )
-        return accepted, operation is not None
+        return self._user_profile_controller_obj()._schedule_next_user_profile_write_operation_after_finish(request_attr, worker)
 
     def _start_user_profile_update_worker(self, profile_id: str, *, name: str, protocol: str, ports: str) -> None:
-        runtime = self._worker_runtime("_user_profile_update_runtime")
-        self._user_profile_update_request_id = int(getattr(self, "_user_profile_update_request_id", 0) or 0) + 1
-        request_id = self._user_profile_update_request_id
-        self._set_user_profile_buttons_enabled(False)
-        runtime.start_qthread_worker(
-            worker_factory=lambda _runtime_request_id: self.create_profile_user_update_worker(
-                request_id,
-                profile_id=profile_id,
-                name=name,
-                protocol=protocol,
-                ports=ports,
-                parent=self,
-            ),
-            on_loaded=self._on_user_profile_update_finished,
-            on_failed=self._on_user_profile_update_failed,
-            on_finished=self._on_user_profile_update_worker_finished,
-            loaded_signal_name="updated",
-        )
+        return self._user_profile_controller_obj()._start_user_profile_update_worker(profile_id, name=name, protocol=protocol, ports=ports)
 
     def _on_user_profile_update_finished(
         self,
@@ -3255,53 +1539,13 @@ class ProfileSetupPageBase(BasePage):
         changed: int,
         _profile_items=(),
     ) -> None:
-        if request_id != int(getattr(self, "_user_profile_update_request_id", 0) or 0):
-            return
-        if self._has_pending_user_profile_write_operation():
-            return
-        if str(profile_id or "").strip() != self._current_user_profile_id():
-            return
-        InfoBar.success(
-            title="Profile изменён",
-            content=f"Обновлено profile-ов в preset-ах: {int(changed or 0)}.",
-            parent=self.window(),
-        )
-        updated_item = _updated_user_profile_item(profile_id, self._profile_key, _profile_items)
-        if updated_item is not None:
-            current_item = getattr(self.__dict__.get("_payload"), "item", None)
-            if current_item == updated_item:
-                return
-            if not self._apply_user_profile_update_locally(updated_item):
-                self.reload_current_profile()
-                self._on_profile_changed_callback(self._profile_key, "user_profile_updated")
-                return
-            self._on_profile_changed_callback(self._profile_key, "user_profile_updated", updated_item)
-            return
-        self.reload_current_profile()
-        self._on_profile_changed_callback(self._profile_key, "user_profile_updated")
+        return self._user_profile_controller_obj()._on_user_profile_update_finished(request_id, profile_id, changed, _profile_items)
 
     def _on_user_profile_update_failed(self, request_id: int, error: str) -> None:
-        if request_id != int(getattr(self, "_user_profile_update_request_id", 0) or 0):
-            return
-        if not self._has_pending_user_profile_write_operation():
-            self._set_user_profile_buttons_enabled(True)
-        log(f"{self.__class__.__name__}: не удалось изменить пользовательский profile: {error}", "ERROR")
-        InfoBar.error(
-            title="Ошибка",
-            content=str(error),
-            parent=self.window(),
-        )
+        return self._user_profile_controller_obj()._on_user_profile_update_failed(request_id, error)
 
     def _on_user_profile_update_worker_finished(self, _worker) -> None:
-        accepted, scheduled = self._schedule_next_user_profile_write_operation_after_finish(
-            "_user_profile_update_request_id",
-            _worker,
-        )
-        if not accepted:
-            return
-        if scheduled:
-            return
-        self._set_user_profile_buttons_enabled(True)
+        return self._user_profile_controller_obj()._on_user_profile_update_worker_finished(_worker)
 
     def _apply_user_profile_update_locally(self, updated_item) -> bool:
         payload = self._payload
@@ -3315,69 +1559,19 @@ class ProfileSetupPageBase(BasePage):
         return True
 
     def _request_user_profile_delete(self, profile_id: str) -> None:
-        profile_id = str(profile_id or "").strip()
-        if not profile_id:
-            return
-        runtime = self._worker_runtime("_user_profile_delete_runtime")
-        if self._user_profile_write_operation_running():
-            self._queue_user_profile_write_operation("delete", profile_id=profile_id)
-            return
-        self._start_user_profile_delete_worker(profile_id)
+        return self._user_profile_controller_obj()._request_user_profile_delete(profile_id)
 
     def _start_user_profile_delete_worker(self, profile_id: str) -> None:
-        runtime = self._worker_runtime("_user_profile_delete_runtime")
-        self._user_profile_delete_request_id = int(getattr(self, "_user_profile_delete_request_id", 0) or 0) + 1
-        request_id = self._user_profile_delete_request_id
-        self._set_user_profile_buttons_enabled(False)
-        runtime.start_qthread_worker(
-            worker_factory=lambda _runtime_request_id: self.create_profile_user_delete_worker(
-                request_id,
-                profile_id=profile_id,
-                parent=self,
-            ),
-            on_loaded=self._on_user_profile_delete_finished,
-            on_failed=self._on_user_profile_delete_failed,
-            on_finished=self._on_user_profile_delete_worker_finished,
-            loaded_signal_name="deleted",
-        )
+        return self._user_profile_controller_obj()._start_user_profile_delete_worker(profile_id)
 
     def _on_user_profile_delete_finished(self, request_id: int, profile_id: str, changed: int) -> None:
-        if request_id != int(getattr(self, "_user_profile_delete_request_id", 0) or 0):
-            return
-        if self._has_pending_user_profile_write_operation():
-            return
-        if str(profile_id or "").strip() != self._current_user_profile_id():
-            return
-        InfoBar.success(
-            title="Profile удалён",
-            content=f"Удалено profile-ов из preset-ов: {int(changed or 0)}.",
-            parent=self.window(),
-        )
-        self._on_profile_changed_callback(self._profile_key, "user_profile_deleted")
-        self._open_profiles()
+        return self._user_profile_controller_obj()._on_user_profile_delete_finished(request_id, profile_id, changed)
 
     def _on_user_profile_delete_failed(self, request_id: int, error: str) -> None:
-        if request_id != int(getattr(self, "_user_profile_delete_request_id", 0) or 0):
-            return
-        if not self._has_pending_user_profile_write_operation():
-            self._set_user_profile_buttons_enabled(True)
-        log(f"{self.__class__.__name__}: не удалось удалить пользовательский profile: {error}", "ERROR")
-        InfoBar.error(
-            title="Ошибка",
-            content=str(error),
-            parent=self.window(),
-        )
+        return self._user_profile_controller_obj()._on_user_profile_delete_failed(request_id, error)
 
     def _on_user_profile_delete_worker_finished(self, _worker) -> None:
-        accepted, scheduled = self._schedule_next_user_profile_write_operation_after_finish(
-            "_user_profile_delete_request_id",
-            _worker,
-        )
-        if not accepted:
-            return
-        if scheduled:
-            return
-        self._set_user_profile_buttons_enabled(True)
+        return self._user_profile_controller_obj()._on_user_profile_delete_worker_finished(_worker)
 
     def show_profile(self, profile_key: str) -> None:
         next_key = str(profile_key or "").strip()
@@ -3417,13 +1611,29 @@ class ProfileSetupPageBase(BasePage):
         reference = profile_reference_key(item) if item is not None else ""
         return reference or str(profile_key or "").strip()
 
+    def _emit_profile_changed(
+        self,
+        profile_key: str,
+        change_kind: str,
+        profile_item=None,
+        *,
+        old_profile_key: str = "",
+    ) -> None:
+        """Уведомляет страницу preset о правке profile. Пара old→new нужна
+        списку для точечной замены строки, когда правка имени/match-строк
+        сменила persistent_key; при old == new ведём себя как раньше."""
+        clean_key = str(profile_key or "").strip()
+        old_key = str(old_profile_key or "").strip()
+        if old_key and old_key != clean_key:
+            self._on_profile_changed_callback(clean_key, change_kind, profile_item, old_profile_key=old_key)
+            return
+        if profile_item is not None:
+            self._on_profile_changed_callback(clean_key, change_kind, profile_item)
+            return
+        self._on_profile_changed_callback(clean_key, change_kind)
+
     def create_profile_setup_load_worker(self, request_id: int, profile_key: str, parent=None):
-        return self._create_profile_setup_load_worker_fn(
-            request_id,
-            self.launch_method,
-            profile_key=profile_key,
-            parent=parent,
-        )
+        return self._create_profile_setup_load_worker_fn(request_id, self.launch_method, profile_key=profile_key, parent=parent)
 
     def create_profile_list_file_load_worker(
         self,
@@ -3434,14 +1644,7 @@ class ProfileSetupPageBase(BasePage):
         filter_value: str = "",
         parent=None,
     ):
-        return self._create_profile_list_file_load_worker_fn(
-            request_id,
-            self.launch_method,
-            profile_key=profile_key,
-            filter_kind=filter_kind,
-            filter_value=filter_value,
-            parent=parent,
-        )
+        return self._create_profile_list_file_load_worker_fn(request_id, self.launch_method, profile_key=profile_key, filter_kind=filter_kind, filter_value=filter_value, parent=parent)
 
     def create_profile_list_file_save_worker(
         self,
@@ -3453,24 +1656,10 @@ class ProfileSetupPageBase(BasePage):
         filter_value: str = "",
         parent=None,
     ):
-        return self._create_profile_list_file_save_worker_fn(
-            request_id,
-            self.launch_method,
-            profile_key=profile_key,
-            text=text,
-            filter_kind=filter_kind,
-            filter_value=filter_value,
-            parent=parent,
-        )
+        return self._create_profile_list_file_save_worker_fn(request_id, self.launch_method, profile_key=profile_key, text=text, filter_kind=filter_kind, filter_value=filter_value, parent=parent)
 
     def create_profile_list_file_validation_worker(self, request_id: int, *, kind: str, text: str, parent=None):
-        return self._create_profile_list_file_validation_worker_fn(
-            request_id,
-            self.launch_method,
-            kind=kind,
-            text=text,
-            parent=parent,
-        )
+        return self._create_profile_list_file_validation_worker_fn(request_id, self.launch_method, kind=kind, text=text, parent=parent)
 
     def create_profile_settings_save_worker(
         self,
@@ -3483,25 +1672,10 @@ class ProfileSetupPageBase(BasePage):
         out_range: str,
         parent=None,
     ):
-        return self._create_profile_settings_save_worker_fn(
-            request_id,
-            self.launch_method,
-            profile_key=profile_key,
-            filter_kind=filter_kind,
-            filter_value=filter_value,
-            in_range=in_range,
-            out_range=out_range,
-            parent=parent,
-        )
+        return self._create_profile_settings_save_worker_fn(request_id, self.launch_method, profile_key=profile_key, filter_kind=filter_kind, filter_value=filter_value, in_range=in_range, out_range=out_range, parent=parent)
 
     def create_profile_raw_text_save_worker(self, request_id: int, profile_key: str, raw_text: str, parent=None):
-        return self._create_profile_raw_text_save_worker_fn(
-            request_id,
-            self.launch_method,
-            profile_key=profile_key,
-            raw_text=raw_text,
-            parent=parent,
-        )
+        return self._create_profile_raw_text_save_worker_fn(request_id, self.launch_method, profile_key=profile_key, raw_text=raw_text, parent=parent)
 
     def create_profile_enabled_save_worker(
         self,
@@ -3513,15 +1687,7 @@ class ProfileSetupPageBase(BasePage):
         filter_value: str = "",
         parent=None,
     ):
-        return self._create_profile_enabled_save_worker_fn(
-            request_id,
-            self.launch_method,
-            profile_key=profile_key,
-            enabled=enabled,
-            filter_kind=filter_kind,
-            filter_value=filter_value,
-            parent=parent,
-        )
+        return self._create_profile_enabled_save_worker_fn(request_id, self.launch_method, profile_key=profile_key, enabled=enabled, filter_kind=filter_kind, filter_value=filter_value, parent=parent)
 
     def create_profile_user_update_worker(
         self,
@@ -3533,23 +1699,10 @@ class ProfileSetupPageBase(BasePage):
         ports: str,
         parent=None,
     ):
-        return self._create_profile_user_update_worker_fn(
-            request_id,
-            self.launch_method,
-            profile_id=profile_id,
-            name=name,
-            protocol=protocol,
-            ports=ports,
-            parent=parent,
-        )
+        return self._create_profile_user_update_worker_fn(request_id, self.launch_method, profile_id=profile_id, name=name, protocol=protocol, ports=ports, parent=parent)
 
     def create_profile_user_delete_worker(self, request_id: int, *, profile_id: str, parent=None):
-        return self._create_profile_user_delete_worker_fn(
-            request_id,
-            self.launch_method,
-            profile_id=profile_id,
-            parent=parent,
-        )
+        return self._create_profile_user_delete_worker_fn(request_id, self.launch_method, profile_id=profile_id, parent=parent)
 
     def create_profile_strategy_apply_worker(
         self,
@@ -3560,14 +1713,7 @@ class ProfileSetupPageBase(BasePage):
         strategy_branch_id: str = "",
         parent=None,
     ):
-        return self._create_profile_strategy_apply_worker_fn(
-            request_id,
-            self.launch_method,
-            profile_key=profile_key,
-            strategy_id=strategy_id,
-            strategy_branch_id=strategy_branch_id,
-            parent=parent,
-        )
+        return self._create_profile_strategy_apply_worker_fn(request_id, self.launch_method, profile_key=profile_key, strategy_id=strategy_id, strategy_branch_id=strategy_branch_id, parent=parent)
 
     def create_profile_strategy_feedback_save_worker(
         self,
@@ -3579,128 +1725,25 @@ class ProfileSetupPageBase(BasePage):
         favorite: bool | None = None,
         parent=None,
     ):
-        return self._create_profile_strategy_feedback_save_worker_fn(
-            request_id,
-            self.launch_method,
-            profile_key=profile_key,
-            strategy_id=strategy_id,
-            rating=rating,
-            favorite=favorite,
-            parent=parent,
-        )
+        return self._create_profile_strategy_feedback_save_worker_fn(request_id, self.launch_method, profile_key=profile_key, strategy_id=strategy_id, rating=rating, favorite=favorite, parent=parent)
 
     def _request_profile_setup_payload(self) -> None:
-        if not self._profile_key:
-            return
-        if self._setup_load_state_obj().is_busy():
-            self._setup_load_request_id += 1
-            self._setup_load_state_obj().pending = True
-            return
-
-        self._start_profile_setup_load_worker()
+        return self._payload_controller_obj()._request_profile_setup_payload()
 
     def _start_profile_setup_load_worker(self) -> None:
-        if not self._profile_key:
-            return
-        self._setup_load_request_id += 1
-        request_id = self._setup_load_request_id
-        set_widget_text_if_changed(self._summary, "Загрузка profile...")
-        set_widget_enabled_if_changed(self._enabled_checkbox, False)
-        runtime = self._worker_runtime("_setup_load_runtime")
-        runtime.start_qthread_worker(
-            worker_factory=lambda _runtime_request_id: self.create_profile_setup_load_worker(
-                request_id,
-                self._profile_key,
-                self,
-            ),
-            on_loaded=self._on_profile_setup_payload_loaded,
-            on_failed=self._on_profile_setup_payload_failed,
-            on_finished=self._on_profile_setup_worker_finished,
-        )
-        self._setup_load_runtime_request_id = request_id
+        return self._payload_controller_obj()._start_profile_setup_load_worker()
 
     def _on_profile_setup_payload_loaded(self, request_id: int, payload) -> None:
-        if request_id != self._setup_load_request_id:
-            return
-        if self._setup_load_state_obj().has_pending():
-            return
-        payload, apply_signature = _profile_setup_payload_and_apply_signature(payload)
-        if payload is None:
-            set_widget_text_if_changed(
-                self._summary,
-                "Профиль не найден. Вернитесь к списку и выберите profile заново.",
-            )
-            set_widget_enabled_if_changed(self._enabled_checkbox, False)
-            return
-        if (
-            apply_signature is not None
-            and self.__dict__.get("_last_profile_setup_payload_apply_signature") == apply_signature
-        ):
-            self._restore_loaded_payload_header(payload)
-            return
-        if payload == self.__dict__.get("_payload"):
-            self._restore_loaded_payload_header(payload)
-            return
-        self._payload = payload
-        self._profile_key = self._profile_result_reference(
-            payload,
-            str(self.__dict__.get("_profile_key", "") or ""),
-        )
-        self._schedule_profile_setup_payload_apply(payload, apply_signature=apply_signature)
+        return self._payload_controller_obj()._on_profile_setup_payload_loaded(request_id, payload)
 
     def _schedule_profile_setup_payload_apply(self, payload, *, apply_signature=None) -> None:
-        self._pending_profile_setup_payload_apply = (
-            payload,
-            tuple(apply_signature) if apply_signature is not None else None,
-        )
-        if self.__dict__.get("_profile_setup_payload_apply_scheduled", False):
-            return
-        self._profile_setup_payload_apply_scheduled = True
-        try:
-            QTimer.singleShot(0, self._run_scheduled_profile_setup_payload_apply)
-        except Exception:
-            self._run_scheduled_profile_setup_payload_apply()
+        return self._payload_controller_obj()._schedule_profile_setup_payload_apply(payload, apply_signature=apply_signature)
 
     def _run_scheduled_profile_setup_payload_apply(self) -> None:
-        pending = self.__dict__.get("_pending_profile_setup_payload_apply")
-        self._pending_profile_setup_payload_apply = None
-        self._profile_setup_payload_apply_scheduled = False
-        if isinstance(pending, tuple) and len(pending) == 2:
-            payload, apply_signature = pending
-        else:
-            payload = pending
-            apply_signature = None
-        if payload is None or self.__dict__.get("_cleanup_in_progress"):
-            return
-        if (
-            self._setup_load_state_obj().has_pending()
-            or self._setup_load_state_obj().start_scheduled
-        ):
-            return
-        if (
-            apply_signature is not None
-            and self.__dict__.get("_last_profile_setup_payload_apply_signature") == apply_signature
-        ):
-            self._restore_loaded_payload_header(payload)
-            return
-        self._apply_payload(payload)
-        if apply_signature is not None:
-            self._last_profile_setup_payload_apply_signature = apply_signature
+        return self._payload_controller_obj()._run_scheduled_profile_setup_payload_apply()
 
     def _on_profile_setup_payload_failed(self, request_id: int, error: str) -> None:
-        if request_id != self._setup_load_request_id:
-            return
-        if (
-            self._setup_load_state_obj().has_pending()
-            or self._setup_load_state_obj().start_scheduled
-        ):
-            return
-        log(f"{self.__class__.__name__}: не удалось прочитать профиль {self._profile_key}: {error}", "ERROR")
-        set_widget_text_if_changed(
-            self._summary,
-            "Профиль не найден. Вернитесь к списку и выберите profile заново.",
-        )
-        set_widget_enabled_if_changed(self._enabled_checkbox, False)
+        return self._payload_controller_obj()._on_profile_setup_payload_failed(request_id, error)
 
     def _on_profile_setup_worker_finished(self, _worker) -> None:
         self._setup_load_state_obj().schedule_pending_after_finish(
@@ -3714,74 +1757,20 @@ class ProfileSetupPageBase(BasePage):
         )
 
     def _accept_current_profile_setup_load_worker_finished(self, worker) -> bool:
-        request_id = getattr(worker, "_request_id", None)
-        if request_id is None:
-            return False
-        try:
-            current_request_id = int(self.__dict__.get("_setup_load_runtime_request_id", 0) or 0)
-            if int(request_id) != current_request_id:
-                return False
-        except (TypeError, ValueError):
-            return False
-        self._setup_load_runtime_request_id = 0
-        return True
+        return self._payload_controller_obj()._accept_current_profile_setup_load_worker_finished(worker)
 
     def _schedule_profile_setup_load_start(self) -> None:
-        state = self._setup_load_state_obj()
-        state.pending = True
-
-        def _single_shot(delay: int, callback) -> None:
-            try:
-                QTimer.singleShot(delay, callback)
-            except Exception:
-                callback()
-
-        state.schedule_start(
-            _single_shot,
-            self._run_scheduled_profile_setup_load_start,
-            pending_when_already_scheduled=True,
-        )
+        return self._payload_controller_obj()._schedule_profile_setup_load_start()
 
     def _run_scheduled_profile_setup_load_start(self) -> None:
-        pending = self._setup_load_state_obj().take_pending_for_scheduled_start(
-            cleanup_in_progress=self.__dict__.get("_cleanup_in_progress", False),
-        )
-        if not pending:
-            return
-        self._request_profile_setup_payload()
+        return self._payload_controller_obj()._run_scheduled_profile_setup_load_start()
 
     def _setup_load_state_obj(self) -> LatestValueWorkerState:
-        state = self.__dict__.get("_setup_load_state")
-        runtime = self.__dict__.get("_setup_load_runtime")
-        if state is None:
-            pending = bool(self.__dict__.pop("_setup_load_dirty", False))
-            start_scheduled = bool(self.__dict__.pop("_setup_load_start_scheduled", False))
-            state = LatestValueWorkerState(
-                runtime,
-                empty_value=False,
-                pending=pending,
-                start_scheduled=start_scheduled,
-            )
-            self.__dict__["_setup_load_state"] = state
-        elif getattr(state, "runtime", None) is None and runtime is not None:
-            state.runtime = runtime
-        return state
+        return self._payload_controller_obj()._setup_load_state_obj()
 
-    @property
-    def _setup_load_dirty(self) -> bool:
-        return bool(self._setup_load_state_obj().pending)
+    _setup_load_dirty = _worker_pending_property("_setup_load_state_obj", cast=bool)
 
-    @_setup_load_dirty.setter
-    def _setup_load_dirty(self, value: bool) -> None:
-        self._setup_load_state_obj().pending = bool(value)
-
-    @property
-    def _setup_load_start_scheduled(self) -> bool:
-        return bool(self._setup_load_state_obj().start_scheduled)
-
-    @_setup_load_start_scheduled.setter
-    def _setup_load_start_scheduled(self, value: bool) -> None:
-        self._setup_load_state_obj().start_scheduled = bool(value)
+    _setup_load_start_scheduled = _worker_start_scheduled_property("_setup_load_state_obj")
 
     def _restore_loaded_payload_header(self, payload) -> None:
         item = getattr(payload, "item", None)
@@ -4060,49 +2049,16 @@ class ProfileSetupPageBase(BasePage):
         return text
 
     def _run_scheduled_list_file_validation(self) -> None:
-        if self._loading or self._list_file_text is None:
-            return
-        self._request_list_file_validation({
-            "kind": self._list_file_kind,
-            "text": None,
-        })
+        return self._list_file_editor_controller_obj()._run_scheduled_list_file_validation()
 
     def _request_list_file_validation(self, request: dict) -> None:
-        state = self._list_file_validation_state_obj()
-        if state.is_busy():
-            state.pending = dict(request)
-            return
-        self._start_list_file_validation_worker(request)
+        return self._list_file_editor_controller_obj()._request_list_file_validation(request)
 
     def _resolve_list_file_validation_request(self, request: dict) -> dict[str, str]:
-        request = dict(request or {})
-        raw_text = request.get("text")
-        if raw_text is None:
-            text = self._current_list_file_text()
-        else:
-            text = str(raw_text or "")
-        return {
-            "kind": str(request.get("kind") or ""),
-            "text": text,
-        }
+        return self._list_file_editor_controller_obj()._resolve_list_file_validation_request(request)
 
     def _start_list_file_validation_worker(self, request: dict) -> None:
-        request = self._resolve_list_file_validation_request(request)
-        runtime = self._worker_runtime("_list_file_validation_runtime")
-        self._list_file_validation_request_id = int(getattr(self, "_list_file_validation_request_id", 0) or 0) + 1
-        request_id = self._list_file_validation_request_id
-        runtime.start_qthread_worker(
-            worker_factory=lambda _runtime_request_id: self.create_profile_list_file_validation_worker(
-                request_id,
-                kind=str(request.get("kind") or ""),
-                text=str(request.get("text") or ""),
-                parent=self,
-            ),
-            on_loaded=self._on_list_file_validation_finished,
-            on_failed=self._on_list_file_validation_failed,
-            on_finished=self._on_list_file_validation_worker_finished,
-            loaded_signal_name="validated",
-        )
+        return self._list_file_editor_controller_obj()._start_list_file_validation_worker(request)
 
     def _on_list_file_validation_finished(
         self,
@@ -4111,121 +2067,22 @@ class ProfileSetupPageBase(BasePage):
         text: str,
         invalid_lines,
     ) -> None:
-        if request_id != int(getattr(self, "_list_file_validation_request_id", 0) or 0):
-            return
-        if self._list_file_validation_state_obj().has_pending():
-            return
-        if str(kind or "").strip() != str(getattr(self, "_list_file_kind", "") or "").strip():
-            return
-        # Поздний результат по устаревшему тексту отбрасывается: пока воркер
-        # работал, пользователь мог успеть напечатать новое — сравниваем с
-        # живым текстом редактора, а не с моментом запуска валидации.
-        if str(text or "") != self._current_list_file_text():
-            return
-        validation_result = invalid_lines
-        if isinstance(validation_result, dict):
-            invalid_lines = tuple(validation_result.get("invalid_lines") or ())
-            try:
-                self._list_file_user_entries_count = int(validation_result.get("entries_count") or 0)
-            except (TypeError, ValueError):
-                self._list_file_user_entries_count = 0
-        else:
-            invalid_lines = tuple(validation_result or ())
-        # Флаг означает «ТЕКСТ невалиден» и выставляется только валидацией.
-        # Ошибка ЗАПИСИ его не трогает: валидные правки при неудавшемся
-        # сохранении обязаны уйти на диск при следующем флаше.
-        self._list_file_validation_has_error = bool(invalid_lines)
-        self._render_list_file_validation(tuple(invalid_lines or ()))
-        if self._list_file_save_button is not None:
-            editable = self._list_file_text is not None and not self._list_file_text.isReadOnly()
-            set_widget_enabled_if_changed(self._list_file_save_button, not invalid_lines and editable)
-        if self._list_file_status_label is not None:
-            if invalid_lines:
-                set_profile_list_status_text(
-                    self._list_file_status_label,
-                    "Исправьте ошибки перед сохранением.",
-                )
-            else:
-                user_count = int(self.__dict__.get("_list_file_user_entries_count", 0) or 0)
-                base_count = int(self.__dict__.get("_list_file_base_entries_count", 0) or 0)
-                set_profile_list_status_text(
-                    self._list_file_status_label,
-                    f"Записей всего: {base_count + user_count} • ваших: {user_count} • есть несохранённые изменения",
-                )
-        if not invalid_lines:
-            self._maybe_autosave_list_file()
+        return self._list_file_editor_controller_obj()._on_list_file_validation_finished(request_id, kind, text, invalid_lines)
 
     def _unsaved_list_file_text(self) -> str | None:
-        """Текст редактора, ещё не подтверждённый сервером, либо None.
-
-        Пока серверный текст неизвестен (None), сохранять нечего: снапшот
-        может относиться к ещё не загруженному файлу."""
-        editor = self.__dict__.get("_list_file_text")
-        if editor is None or editor.isReadOnly():
-            return None
-        server_snapshot = self.__dict__.get("_list_file_server_text_snapshot")
-        if not isinstance(server_snapshot, str):
-            return None
-        snapshot = self._current_list_file_text()
-        return None if snapshot == server_snapshot else snapshot
+        return self._list_file_editor_controller_obj()._unsaved_list_file_text()
 
     def _list_file_target_filter(self) -> tuple[str, str]:
-        """Пара (kind, value), под которую загружен текущий текст редактора."""
-        pair = self.__dict__.get("_list_file_editor_filter")
-        if isinstance(pair, tuple) and len(pair) == 2:
-            return str(pair[0] or ""), str(pair[1] or "")
-        return self._current_filter_kind(), self._current_filter_value()
+        return self._list_file_editor_controller_obj()._list_file_target_filter()
 
     def _maybe_autosave_list_file(self) -> None:
-        """Автосохранение вместо кнопки: валидный текст с несохранёнными
-        правками уходит на диск сам. «Несохранённость» — производная от
-        server_text_snapshot, поэтому цикл сохранений не возникает: после
-        успешной записи снапшоты совпадают и повторный вызов — no-op."""
-        if bool(self.__dict__.get("_loading", False)) or not str(self.__dict__.get("_profile_key", "") or ""):
-            return
-        snapshot = self._unsaved_list_file_text()
-        if snapshot is None:
-            return
-        target_kind, target_value = self._list_file_target_filter()
-        self._request_list_file_save(
-            self._profile_key,
-            snapshot,
-            filter_kind=target_kind,
-            filter_value=target_value,
-        )
+        return self._list_file_editor_controller_obj()._maybe_autosave_list_file()
 
     def _flush_list_file_autosave_before_switch(self, previous_key: str) -> None:
-        """Уход с профиля не должен терять валидные несохранённые домены:
-        отправляем их на запись по СТАРОЙ ссылке до сброса снапшотов.
-        Результат к редактору нового профиля не применится — его отсечёт
-        guard по _list_file_save_profile_key."""
-        previous = str(previous_key or "").strip()
-        if not previous or bool(self.__dict__.get("_list_file_validation_has_error", False)):
-            return
-        snapshot = self._unsaved_list_file_text()
-        if snapshot is None:
-            return
-        target_kind, target_value = self._list_file_target_filter()
-        self._request_list_file_save(
-            previous,
-            snapshot,
-            filter_kind=target_kind,
-            filter_value=target_value,
-        )
+        return self._list_file_editor_controller_obj()._flush_list_file_autosave_before_switch(previous_key)
 
     def _on_list_file_validation_failed(self, request_id: int, error: str) -> None:
-        if request_id != int(getattr(self, "_list_file_validation_request_id", 0) or 0):
-            return
-        if self._list_file_validation_state_obj().has_pending():
-            return
-        log(f"{self.__class__.__name__}: не удалось проверить файл списка profile: {error}", "ERROR")
-        # Валидность неизвестна — консервативно блокируем автосейв/флаш.
-        self._list_file_validation_has_error = True
-        self._render_list_file_validation((), fallback_error=str(error))
-        if self._list_file_save_button is not None:
-            set_widget_enabled_if_changed(self._list_file_save_button, False)
-        if self._list_file_status_label is not None:
-            set_profile_list_status_text(self._list_file_status_label, "Ошибка проверки списка.")
+        return self._list_file_editor_controller_obj()._on_list_file_validation_failed(request_id, error)
 
     def _on_list_file_validation_worker_finished(self, _worker) -> None:
         self._list_file_validation_state_obj().schedule_pending_after_finish(
@@ -4240,56 +2097,17 @@ class ProfileSetupPageBase(BasePage):
         )
 
     def _schedule_pending_list_file_validation_start(self) -> None:
-        state = self._list_file_validation_state_obj()
-
-        def _single_shot(delay: int, callback) -> None:
-            try:
-                QTimer.singleShot(delay, callback)
-            except Exception:
-                callback()
-
-        state.schedule_start(_single_shot, self._run_scheduled_list_file_validation_start)
+        return self._list_file_editor_controller_obj()._schedule_pending_list_file_validation_start()
 
     def _run_scheduled_list_file_validation_start(self) -> None:
-        pending = self._list_file_validation_state_obj().take_pending_for_scheduled_start(
-            cleanup_in_progress=self.__dict__.get("_cleanup_in_progress", False),
-        )
-        if not pending:
-            return
-        self._start_list_file_validation_worker(dict(pending or {}))
+        return self._list_file_editor_controller_obj()._run_scheduled_list_file_validation_start()
 
     def _list_file_validation_state_obj(self) -> LatestValueWorkerState:
-        state = self.__dict__.get("_list_file_validation_state")
-        runtime = self.__dict__.get("_list_file_validation_runtime")
-        if state is None:
-            pending = self.__dict__.pop("_pending_list_file_validation", None)
-            start_scheduled = bool(self.__dict__.pop("_list_file_validation_start_scheduled", False))
-            state = LatestValueWorkerState(
-                runtime,
-                empty_value=None,
-                pending=pending,
-                start_scheduled=start_scheduled,
-            )
-            self.__dict__["_list_file_validation_state"] = state
-        elif getattr(state, "runtime", None) is None and runtime is not None:
-            state.runtime = runtime
-        return state
+        return self._list_file_editor_controller_obj()._list_file_validation_state_obj()
 
-    @property
-    def _pending_list_file_validation(self):
-        return self._list_file_validation_state_obj().pending
+    _pending_list_file_validation = _worker_pending_property("_list_file_validation_state_obj")
 
-    @_pending_list_file_validation.setter
-    def _pending_list_file_validation(self, value) -> None:
-        self._list_file_validation_state_obj().pending = value
-
-    @property
-    def _list_file_validation_start_scheduled(self) -> bool:
-        return bool(self._list_file_validation_state_obj().start_scheduled)
-
-    @_list_file_validation_start_scheduled.setter
-    def _list_file_validation_start_scheduled(self, value: bool) -> None:
-        self._list_file_validation_state_obj().start_scheduled = bool(value)
+    _list_file_validation_start_scheduled = _worker_start_scheduled_property("_list_file_validation_state_obj")
 
     def _on_list_file_save_clicked(self) -> None:
         if self._loading or not self._profile_key or self._list_file_text is None:
@@ -4309,28 +2127,7 @@ class ProfileSetupPageBase(BasePage):
         filter_kind: str = "",
         filter_value: str = "",
     ) -> None:
-        request = _list_file_save_request(
-            profile_key,
-            text,
-            filter_kind=filter_kind,
-            filter_value=filter_value,
-        )
-        if not request["profile_key"]:
-            return
-        if self._profile_setup_write_is_running():
-            state = self._list_file_save_state_obj()
-            if not (state.start_scheduled and state.has_pending()):
-                state.pending = request
-            self._queue_profile_setup_write_operation(
-                {"kind": "list_file_save", **request}
-            )
-            return
-        self._start_list_file_save_worker(
-            request["profile_key"],
-            request["text"],
-            filter_kind=request["filter_kind"],
-            filter_value=request["filter_value"],
-        )
+        return self._list_file_editor_controller_obj()._request_list_file_save(profile_key, text, filter_kind=filter_kind, filter_value=filter_value)
 
     def _start_list_file_save_worker(
         self,
@@ -4340,90 +2137,16 @@ class ProfileSetupPageBase(BasePage):
         filter_kind: str = "",
         filter_value: str = "",
     ) -> None:
-        runtime = self._worker_runtime("_list_file_save_runtime")
-        self._list_file_save_request_id += 1
-        request_id = self._list_file_save_request_id
-        self._list_file_save_profile_key = str(profile_key or "").strip()
-        self._list_file_save_filter = (str(filter_kind or "").strip(), str(filter_value or "").strip())
-        if self._list_file_status_label is not None:
-            set_profile_list_status_text(self._list_file_status_label, "Сохранение списка...")
-        if self._list_file_save_button is not None:
-            set_widget_enabled_if_changed(self._list_file_save_button, False)
-        runtime.start_qthread_worker(
-            worker_factory=lambda _runtime_request_id: self.create_profile_list_file_save_worker(
-                request_id,
-                profile_key,
-                str(text or ""),
-                filter_kind=filter_kind,
-                filter_value=filter_value,
-                parent=self,
-            ),
-            on_loaded=self._on_list_file_save_finished,
-            on_failed=self._on_list_file_save_failed,
-            on_finished=self._on_list_file_save_worker_finished,
-            loaded_signal_name="saved",
-        )
+        return self._list_file_editor_controller_obj()._start_list_file_save_worker(profile_key, text, filter_kind=filter_kind, filter_value=filter_value)
 
     def _on_list_file_save_finished(self, request_id: int, state, payload=None) -> None:
-        if request_id != self._list_file_save_request_id:
-            return
-        if self._list_file_save_state_obj().has_pending():
-            return
-        saved_for = str(self.__dict__.get("_list_file_save_profile_key", "") or "")
-        if saved_for and saved_for != str(self.__dict__.get("_profile_key", "") or ""):
-            # Флаш при переключении профиля: запись на диск состоялась, но её
-            # state нельзя применять к редактору другого профиля. Остальные
-            # страницы всё же должны узнать об изменении файла.
-            self._on_profile_changed_callback(saved_for, "list_file")
-            return
-        saved_filter = self.__dict__.get("_list_file_save_filter")
-        if isinstance(saved_filter, tuple) and saved_filter != self._list_file_target_filter():
-            # Флаш при смене фильтра: state старого файла не должен откатывать
-            # редактор, уже показывающий другой файл.
-            self._on_profile_changed_callback(self._profile_key, "list_file")
-            return
-        payload, apply_signature = _profile_setup_payload_and_apply_signature(payload)
-        if state is not None:
-            self._apply_list_file_editor_state(state)
-        if self._list_file_status_label is not None:
-            set_profile_list_status_text(self._list_file_status_label, "Список сохранён.")
-        if payload is None:
-            self.reload_current_profile()
-            self._on_profile_changed_callback(self._profile_key, "list_file")
-        elif self.__dict__.get("_payload") is payload:
-            pass
-        else:
-            self._payload = payload
-            self._schedule_profile_setup_payload_apply(payload, apply_signature=apply_signature)
-            self._on_profile_changed_callback(self._profile_key, "list_file", getattr(payload, "item", None))
-        InfoBar.success(
-            title="Список сохранён",
-            content="Файл списка обновлён.",
-            parent=self.window(),
-        )
+        return self._list_file_editor_controller_obj()._on_list_file_save_finished(request_id, state, payload)
 
     def _on_list_file_save_failed(self, request_id: int, error: str) -> None:
-        if request_id != self._list_file_save_request_id:
-            return
-        if self._list_file_save_state_obj().has_pending():
-            return
-        log(f"{self.__class__.__name__}: не удалось сохранить файл списка profile: {error}", "ERROR")
-        self._render_list_file_validation((), fallback_error=str(error))
-        if self._list_file_save_button is not None:
-            set_widget_enabled_if_changed(self._list_file_save_button, True)
-        InfoBar.error(title="Ошибка", content=str(error), parent=self.window())
+        return self._list_file_editor_controller_obj()._on_list_file_save_failed(request_id, error)
 
     def _on_list_file_save_worker_finished(self, worker) -> None:
-        accepted, scheduled = self._schedule_next_profile_setup_write_operation_after_finish(
-            "_list_file_save_request_id",
-            worker,
-        )
-        if not accepted:
-            return
-        if scheduled:
-            return
-        if self._list_file_save_state_obj().has_pending():
-            self._schedule_pending_list_file_save_start()
+        return self._list_file_editor_controller_obj()._on_list_file_save_worker_finished(worker)
 
     def _schedule_pending_list_file_save_start(
         self,
@@ -4433,90 +2156,19 @@ class ProfileSetupPageBase(BasePage):
         filter_kind: str | None = None,
         filter_value: str | None = None,
     ) -> None:
-        state = self._list_file_save_state_obj()
-        if profile_key is not None or text is not None or filter_kind is not None or filter_value is not None:
-            state.pending = _list_file_save_request(
-                str(profile_key or ""),
-                str(text or ""),
-                filter_kind=str(filter_kind or ""),
-                filter_value=str(filter_value or ""),
-            )
-
-        def _single_shot(delay: int, callback) -> None:
-            try:
-                QTimer.singleShot(delay, callback)
-            except Exception:
-                callback()
-
-        state.schedule_start(_single_shot, self._run_scheduled_list_file_save_start)
+        return self._list_file_editor_controller_obj()._schedule_pending_list_file_save_start(profile_key, text, filter_kind=filter_kind, filter_value=filter_value)
 
     def _run_scheduled_list_file_save_start(self) -> None:
-        pending = self._list_file_save_state_obj().take_pending_for_scheduled_start(
-            cleanup_in_progress=self.__dict__.get("_cleanup_in_progress", False),
-        )
-        if not pending:
-            return
-        request = _normalized_list_file_save_request(pending)
-        profile_key = request["profile_key"]
-        if not profile_key:
-            return
-        if self._profile_setup_write_is_running():
-            self._list_file_save_state_obj().pending = request
-            self._queue_profile_setup_write_operation(
-                {
-                    "kind": "list_file_save",
-                    **request,
-                }
-            )
-            return
-        self._start_list_file_save_worker(
-            profile_key,
-            request["text"],
-            filter_kind=request["filter_kind"],
-            filter_value=request["filter_value"],
-        )
+        return self._list_file_editor_controller_obj()._run_scheduled_list_file_save_start()
 
     def _list_file_save_state_obj(self) -> LatestValueWorkerState:
-        state = self.__dict__.get("_list_file_save_state")
-        runtime = self.__dict__.get("_list_file_save_runtime")
-        if state is None:
-            pending = self.__dict__.pop("_pending_list_file_save", None)
-            scheduled = self.__dict__.pop("_scheduled_list_file_save", None)
-            start_scheduled = bool(self.__dict__.pop("_list_file_save_start_scheduled", False))
-            state = LatestValueWorkerState(
-                runtime,
-                empty_value=None,
-                pending=scheduled if scheduled is not None else pending,
-                start_scheduled=start_scheduled,
-            )
-            self.__dict__["_list_file_save_state"] = state
-        elif getattr(state, "runtime", None) is None and runtime is not None:
-            state.runtime = runtime
-        return state
+        return self._list_file_editor_controller_obj()._list_file_save_state_obj()
 
-    @property
-    def _pending_list_file_save(self):
-        return self._list_file_save_state_obj().pending
+    _pending_list_file_save = _worker_pending_property("_list_file_save_state_obj")
 
-    @_pending_list_file_save.setter
-    def _pending_list_file_save(self, value) -> None:
-        self._list_file_save_state_obj().pending = value
+    _scheduled_list_file_save = _worker_pending_property("_list_file_save_state_obj")
 
-    @property
-    def _scheduled_list_file_save(self):
-        return self._list_file_save_state_obj().pending
-
-    @_scheduled_list_file_save.setter
-    def _scheduled_list_file_save(self, value) -> None:
-        self._list_file_save_state_obj().pending = value
-
-    @property
-    def _list_file_save_start_scheduled(self) -> bool:
-        return bool(self._list_file_save_state_obj().start_scheduled)
-
-    @_list_file_save_start_scheduled.setter
-    def _list_file_save_start_scheduled(self, value: bool) -> None:
-        self._list_file_save_state_obj().start_scheduled = bool(value)
+    _list_file_save_start_scheduled = _worker_start_scheduled_property("_list_file_save_state_obj")
 
     def _render_list_file_validation(
         self,
@@ -4780,132 +2432,30 @@ class ProfileSetupPageBase(BasePage):
             self._filter_value.setText(normalized)
 
     def _schedule_settings_autosave(self) -> None:
-        if self._loading or not self._profile_key or not is_preset_launch_method(self.launch_method):
-            return
-        if self._profile_is_only_template():
-            return
-        self._settings_save_timer.start()
+        return self._save_controller_obj()._schedule_settings_autosave()
 
     def _autosave_editable_settings(self) -> None:
-        if self._loading or not self._profile_key or not is_preset_launch_method(self.launch_method):
-            return
-        filter_value = self._filter_value.text().strip()
-        filter_enabled = bool(getattr(self._payload, "editable_filter_enabled", True))
-        if filter_enabled and not filter_value:
-            return
-        request = {
-            "profile_key": self._profile_key,
-            "filter_kind": self._current_filter_kind(),
-            "filter_value": filter_value,
-            "in_range": range_expression_from_controls(self._in_range_mode, self._in_range_value, default="x"),
-            "out_range": range_expression_from_controls(self._out_range_mode, self._out_range_value, default="a"),
-        }
-        payload = self.__dict__.get("_payload")
-        if payload is not None and (
-            str(getattr(payload, "editable_filter_kind", "") or "hostlist") == request["filter_kind"]
-            and str(getattr(payload, "editable_filter_value", "") or "") == request["filter_value"]
-            and str(getattr(payload, "in_range", "") or "x") == request["in_range"]
-            and str(getattr(payload, "out_range", "") or "a") == request["out_range"]
-        ):
-            return
-        self._request_settings_save(request)
+        return self._save_controller_obj()._autosave_editable_settings()
 
     def _request_settings_save(self, request: dict) -> None:
-        request = dict(request)
-        if self._profile_setup_write_is_running():
-            state = self._settings_save_state_obj()
-            if state.pending == dict(request):
-                return
-            state.pending = request
-            self._queue_profile_setup_write_operation({"kind": "settings_save", "request": request})
-            return
-        self._start_settings_save_worker(request)
+        return self._save_controller_obj()._request_settings_save(request)
 
     def _start_settings_save_worker(self, request: dict) -> None:
-        runtime = self._worker_runtime("_settings_save_runtime")
-        self._settings_save_request_id += 1
-        request_id = self._settings_save_request_id
-        runtime.start_qthread_worker(
-            worker_factory=lambda _runtime_request_id: self.create_profile_settings_save_worker(
-                request_id,
-                profile_key=str(request.get("profile_key") or ""),
-                filter_kind=str(request.get("filter_kind") or ""),
-                filter_value=str(request.get("filter_value") or ""),
-                in_range=str(request.get("in_range") or ""),
-                out_range=str(request.get("out_range") or ""),
-                parent=self,
-            ),
-            on_loaded=self._on_settings_save_finished,
-            on_failed=self._on_settings_save_failed,
-            on_finished=self._on_settings_save_worker_finished,
-            loaded_signal_name="saved",
-        )
+        return self._save_controller_obj()._start_settings_save_worker(request)
 
-    def _on_settings_save_finished(self, request_id: int, profile_key: str, payload=None) -> None:
-        if request_id != self._settings_save_request_id:
-            return
-        if self._settings_save_state_obj().has_pending():
-            return
-        payload, apply_signature = _profile_setup_payload_and_apply_signature(payload)
-        new_key = self._profile_result_reference(payload, profile_key)
-        old_key = str(self._profile_key or "").strip()
-        if new_key:
-            self._profile_key = new_key
-        if payload is None:
-            self.reload_current_profile()
-            self._on_profile_changed_callback(self._profile_key, "settings")
-            return
-        if self.__dict__.get("_payload") is payload and (not new_key or new_key == old_key):
-            return
-        self._payload = payload
-        self._schedule_profile_setup_payload_apply(payload, apply_signature=apply_signature)
-        self._on_profile_changed_callback(self._profile_key, "settings", getattr(payload, "item", None))
+    def _on_settings_save_finished(self, request_id: int, saved_keys, payload=None) -> None:
+        return self._save_controller_obj()._on_settings_save_finished(request_id, saved_keys, payload)
 
     def _on_settings_save_failed(self, request_id: int, error: str) -> None:
-        if request_id != self._settings_save_request_id:
-            return
-        if self._settings_save_state_obj().has_pending():
-            return
-        log(f"{self.__class__.__name__}: не удалось сохранить настройки профиля: {error}", "ERROR")
+        return self._save_controller_obj()._on_settings_save_failed(request_id, error)
 
     def _on_settings_save_worker_finished(self, worker) -> None:
-        accepted, scheduled = self._schedule_next_profile_setup_write_operation_after_finish(
-            "_settings_save_request_id",
-            worker,
-        )
-        if not accepted:
-            return
-        if scheduled:
-            return
-        pending = self._settings_save_state_obj().pending
-        self._settings_save_state_obj().pending = None
-        if pending:
-            self._schedule_profile_setup_write_operation_start(
-                {"kind": "settings_save", "request": dict(pending)}
-            )
+        return self._save_controller_obj()._on_settings_save_worker_finished(worker)
 
     def _settings_save_state_obj(self) -> LatestValueWorkerState:
-        state = self.__dict__.get("_settings_save_state")
-        runtime = self.__dict__.get("_settings_save_runtime")
-        if state is None:
-            pending = self.__dict__.pop("_pending_settings_save", None)
-            state = LatestValueWorkerState(
-                runtime,
-                empty_value=None,
-                pending=pending,
-            )
-            self.__dict__["_settings_save_state"] = state
-        elif getattr(state, "runtime", None) is None and runtime is not None:
-            state.runtime = runtime
-        return state
+        return self._save_controller_obj()._settings_save_state_obj()
 
-    @property
-    def _pending_settings_save(self):
-        return self._settings_save_state_obj().pending
-
-    @_pending_settings_save.setter
-    def _pending_settings_save(self, value) -> None:
-        self._settings_save_state_obj().pending = value
+    _pending_settings_save = _worker_pending_property("_settings_save_state_obj")
 
     def _on_raw_profile_save_clicked(self) -> None:
         if self._loading or not self._profile_key or self._raw_profile_text is None:
@@ -4913,124 +2463,27 @@ class ProfileSetupPageBase(BasePage):
         self._request_raw_profile_save(self._profile_key, None)
 
     def _resolve_raw_profile_save_text(self, raw_text) -> str:
-        if raw_text is not None:
-            return str(raw_text or "")
-        return self._current_raw_profile_text()
+        return self._save_controller_obj()._resolve_raw_profile_save_text(raw_text)
 
     def _request_raw_profile_save(self, profile_key: str, raw_text: str | None) -> None:
-        profile_key = str(profile_key or "").strip()
-        if not profile_key:
-            return
-        if self._profile_setup_write_is_running():
-            self._raw_profile_save_state_obj().pending = (profile_key, raw_text)
-            self._queue_profile_setup_write_operation(
-                {"kind": "raw_profile_save", "profile_key": profile_key, "text": raw_text}
-            )
-            return
-        self._start_raw_profile_save_worker(profile_key, raw_text)
+        return self._save_controller_obj()._request_raw_profile_save(profile_key, raw_text)
 
     def _start_raw_profile_save_worker(self, profile_key: str, raw_text: str | None) -> None:
-        runtime = self._worker_runtime("_raw_profile_save_runtime")
-        self._raw_profile_save_request_id += 1
-        request_id = self._raw_profile_save_request_id
-        raw_text = self._resolve_raw_profile_save_text(raw_text)
-        if self._raw_profile_save_button is not None:
-            set_widget_enabled_if_changed(self._raw_profile_save_button, False)
-        runtime.start_qthread_worker(
-            worker_factory=lambda _runtime_request_id: self.create_profile_raw_text_save_worker(
-                request_id,
-                profile_key,
-                str(raw_text or ""),
-                parent=self,
-            ),
-            on_loaded=self._on_raw_profile_save_finished,
-            on_failed=self._on_raw_profile_save_failed,
-            on_finished=self._on_raw_profile_save_worker_finished,
-            loaded_signal_name="saved",
-        )
+        return self._save_controller_obj()._start_raw_profile_save_worker(profile_key, raw_text)
 
-    def _on_raw_profile_save_finished(self, request_id: int, profile_key: str, payload=None) -> None:
-        if request_id != self._raw_profile_save_request_id:
-            return
-        if self._raw_profile_save_state_obj().has_pending():
-            return
-        payload, apply_signature = _profile_setup_payload_and_apply_signature(payload)
-        old_key = str(self._profile_key or "").strip()
-        new_key = self._profile_result_reference(payload, profile_key)
-        if new_key:
-            self._profile_key = new_key
-        if payload is None:
-            self.reload_current_profile()
-            self._on_profile_changed_callback(self._profile_key, "raw_profile")
-        elif self.__dict__.get("_payload") is payload and (not new_key or new_key == old_key):
-            pass
-        else:
-            self._payload = payload
-            self._schedule_profile_setup_payload_apply(payload, apply_signature=apply_signature)
-            self._on_profile_changed_callback(self._profile_key, "raw_profile", getattr(payload, "item", None))
-        InfoBar.success(
-            title="Profile сохранён",
-            content="Текст profile обновлён только в текущем preset.",
-            parent=self.window(),
-        )
+    def _on_raw_profile_save_finished(self, request_id: int, saved_keys, payload=None) -> None:
+        return self._save_controller_obj()._on_raw_profile_save_finished(request_id, saved_keys, payload)
 
     def _on_raw_profile_save_failed(self, request_id: int, error: str) -> None:
-        if request_id != self._raw_profile_save_request_id:
-            return
-        if self._raw_profile_save_state_obj().has_pending():
-            return
-        if self._raw_profile_save_button is not None:
-            set_widget_enabled_if_changed(self._raw_profile_save_button, True)
-        log(f"{self.__class__.__name__}: не удалось сохранить сырой текст profile: {error}", "ERROR")
-        InfoBar.error(
-            title="Ошибка",
-            content=str(error),
-            parent=self.window(),
-        )
+        return self._save_controller_obj()._on_raw_profile_save_failed(request_id, error)
 
     def _on_raw_profile_save_worker_finished(self, worker) -> None:
-        accepted, scheduled = self._schedule_next_profile_setup_write_operation_after_finish(
-            "_raw_profile_save_request_id",
-            worker,
-        )
-        if not accepted:
-            return
-        if scheduled:
-            return
-        pending = self._raw_profile_save_state_obj().pending
-        self._raw_profile_save_state_obj().pending = None
-        if pending:
-            profile_key, raw_text = pending
-            self._schedule_profile_setup_write_operation_start(
-                {
-                    "kind": "raw_profile_save",
-                    "profile_key": str(profile_key or ""),
-                    "text": raw_text,
-                }
-            )
+        return self._save_controller_obj()._on_raw_profile_save_worker_finished(worker)
 
     def _raw_profile_save_state_obj(self) -> LatestValueWorkerState:
-        state = self.__dict__.get("_raw_profile_save_state")
-        runtime = self.__dict__.get("_raw_profile_save_runtime")
-        if state is None:
-            pending = self.__dict__.pop("_pending_raw_profile_save", None)
-            state = LatestValueWorkerState(
-                runtime,
-                empty_value=None,
-                pending=pending,
-            )
-            self.__dict__["_raw_profile_save_state"] = state
-        elif getattr(state, "runtime", None) is None and runtime is not None:
-            state.runtime = runtime
-        return state
+        return self._save_controller_obj()._raw_profile_save_state_obj()
 
-    @property
-    def _pending_raw_profile_save(self):
-        return self._raw_profile_save_state_obj().pending
-
-    @_pending_raw_profile_save.setter
-    def _pending_raw_profile_save(self, value) -> None:
-        self._raw_profile_save_state_obj().pending = value
+    _pending_raw_profile_save = _worker_pending_property("_raw_profile_save_state_obj")
 
     def _on_enabled_changed(self, state: int) -> None:
         if self._loading or not self._profile_key:
@@ -5053,59 +2506,10 @@ class ProfileSetupPageBase(BasePage):
         self._start_enabled_save_worker(enabled)
 
     def _start_enabled_save_worker(self, enabled: bool) -> None:
-        runtime = self._worker_runtime("_enabled_save_runtime")
-        self._enabled_save_request_id += 1
-        request_id = self._enabled_save_request_id
-        if self._enabled_checkbox is not None:
-            set_widget_enabled_if_changed(self._enabled_checkbox, False)
-        self._enabled_save_runtime_enabled = bool(enabled)
-        runtime.start_qthread_worker(
-            worker_factory=lambda _runtime_request_id: self.create_profile_enabled_save_worker(
-                request_id,
-                profile_key=self._profile_key,
-                enabled=enabled,
-                filter_kind=self._current_filter_kind(),
-                filter_value=self._current_filter_value(),
-                parent=self,
-            ),
-            on_loaded=self._on_enabled_save_finished,
-            on_failed=self._on_enabled_save_failed,
-            on_finished=self._on_enabled_save_worker_finished,
-            loaded_signal_name="saved",
-        )
+        return self._save_controller_obj()._start_enabled_save_worker(enabled)
 
     def _on_enabled_save_finished(self, request_id: int, profile_key: str, enabled: bool, payload=None) -> None:
-        if request_id != self._enabled_save_request_id:
-            return
-        if self._enabled_save_state_obj().has_pending():
-            return
-        payload, apply_signature = _profile_setup_payload_and_apply_signature(payload)
-        old_key = str(self._profile_key or "").strip()
-        new_key = self._profile_result_reference(payload, profile_key)
-        if payload is not None:
-            if self.__dict__.get("_payload") is payload and (not new_key or new_key == old_key):
-                return
-            if new_key:
-                self._profile_key = new_key
-            self._payload = payload
-            self._schedule_profile_setup_payload_apply(payload, apply_signature=apply_signature)
-            self._on_profile_changed_callback(
-                self._profile_key,
-                "enabled" if enabled else "disabled",
-                getattr(payload, "item", None),
-            )
-            return
-        if new_key and new_key != old_key:
-            self._profile_key = new_key
-            self.reload_current_profile()
-            self._on_profile_changed_callback(self._profile_key, "enabled" if enabled else "disabled")
-            return
-        updated_item = self._apply_enabled_locally(enabled)
-        if updated_item is None:
-            self.reload_current_profile()
-            self._on_profile_changed_callback(self._profile_key, "enabled" if enabled else "disabled")
-            return
-        self._on_profile_changed_callback(self._profile_key, "enabled" if enabled else "disabled", updated_item)
+        return self._save_controller_obj()._on_enabled_save_finished(request_id, profile_key, enabled, payload)
 
     def _apply_enabled_locally(self, enabled: bool):
         payload = self._payload
@@ -5127,93 +2531,23 @@ class ProfileSetupPageBase(BasePage):
         return updated_item
 
     def _on_enabled_save_failed(self, request_id: int, error: str) -> None:
-        if request_id != self._enabled_save_request_id:
-            return
-        if self._enabled_save_state_obj().has_pending():
-            return
-        if self._enabled_checkbox is not None:
-            set_widget_enabled_if_changed(self._enabled_checkbox, True)
-        log(f"{self.__class__.__name__}: не удалось изменить состояние профиля: {error}", "ERROR")
+        return self._save_controller_obj()._on_enabled_save_failed(request_id, error)
 
     def _on_enabled_save_worker_finished(self, worker) -> None:
-        accepted, scheduled = self._schedule_next_profile_setup_write_operation_after_finish(
-            "_enabled_save_request_id",
-            worker,
-        )
-        if not accepted:
-            return
-        self._enabled_save_runtime_enabled = None
-        if scheduled:
-            return
-        pending = self._enabled_save_state_obj().pending
-        self._enabled_save_state_obj().pending = None
-        if pending is None:
-            return
-        item = getattr(self.__dict__.get("_payload"), "item", None)
-        if item is not None and bool(getattr(item, "enabled", False)) == bool(pending):
-            if self._enabled_checkbox is not None:
-                set_widget_enabled_if_changed(self._enabled_checkbox, True)
-            return
-        self._enabled_save_state_obj().pending = bool(pending)
-        self._schedule_enabled_save_worker_start()
+        return self._save_controller_obj()._on_enabled_save_worker_finished(worker)
 
     def _schedule_enabled_save_worker_start(self) -> None:
-        state = self._enabled_save_state_obj()
-
-        def _single_shot(delay: int, callback) -> None:
-            try:
-                QTimer.singleShot(delay, callback)
-            except Exception:
-                callback()
-
-        state.schedule_start(_single_shot, self._run_scheduled_enabled_save_worker_start)
+        return self._save_controller_obj()._schedule_enabled_save_worker_start()
 
     def _run_scheduled_enabled_save_worker_start(self) -> None:
-        pending = self._enabled_save_state_obj().take_pending_for_scheduled_start(
-            cleanup_in_progress=self.__dict__.get("_cleanup_in_progress", False),
-        )
-        if pending is None:
-            return
-        item = getattr(self.__dict__.get("_payload"), "item", None)
-        if item is not None and bool(getattr(item, "enabled", False)) == bool(pending):
-            if self._enabled_checkbox is not None:
-                set_widget_enabled_if_changed(self._enabled_checkbox, True)
-            return
-        enabled = bool(pending)
-        self._start_enabled_save_worker(bool(enabled))
+        return self._save_controller_obj()._run_scheduled_enabled_save_worker_start()
 
     def _enabled_save_state_obj(self) -> LatestValueWorkerState:
-        state = self.__dict__.get("_enabled_save_state")
-        runtime = self.__dict__.get("_enabled_save_runtime")
-        if state is None:
-            pending = self.__dict__.pop("_pending_enabled_save", None)
-            start_scheduled = bool(self.__dict__.pop("_enabled_save_start_scheduled", False))
-            state = LatestValueWorkerState(
-                runtime,
-                empty_value=None,
-                pending=pending,
-                start_scheduled=start_scheduled,
-            )
-            self.__dict__["_enabled_save_state"] = state
-        elif getattr(state, "runtime", None) is None and runtime is not None:
-            state.runtime = runtime
-        return state
+        return self._save_controller_obj()._enabled_save_state_obj()
 
-    @property
-    def _pending_enabled_save(self):
-        return self._enabled_save_state_obj().pending
+    _pending_enabled_save = _worker_pending_property("_enabled_save_state_obj")
 
-    @_pending_enabled_save.setter
-    def _pending_enabled_save(self, value) -> None:
-        self._enabled_save_state_obj().pending = value
-
-    @property
-    def _enabled_save_start_scheduled(self) -> bool:
-        return bool(self._enabled_save_state_obj().start_scheduled)
-
-    @_enabled_save_start_scheduled.setter
-    def _enabled_save_start_scheduled(self, value: bool) -> None:
-        self._enabled_save_state_obj().start_scheduled = bool(value)
+    _enabled_save_start_scheduled = _worker_start_scheduled_property("_enabled_save_state_obj")
 
     def _on_strategy_list_activated(self, strategy_id: str) -> None:
         if self._loading or not self._profile_key:
@@ -5230,51 +2564,10 @@ class ProfileSetupPageBase(BasePage):
         self._request_strategy_apply(strategy_id)
 
     def _request_strategy_apply(self, strategy_id: str) -> None:
-        strategy_id = str(strategy_id or "").strip()
-        branch_id = _current_strategy_branch_id(self._payload)
-        if self._profile_setup_write_is_running():
-            if (
-                strategy_id != str(getattr(self, "_strategy_apply_runtime_strategy_id", "") or "").strip()
-                or branch_id != str(getattr(self, "_strategy_apply_runtime_branch_id", "") or "").strip()
-            ):
-                self._strategy_apply_state_obj().pending = (strategy_id, branch_id) if branch_id else strategy_id
-                self._queue_profile_setup_write_operation(
-                    {
-                        "kind": "strategy_apply",
-                        "strategy_id": strategy_id,
-                        "branch_id": branch_id,
-                    }
-                )
-            return
-        self._start_strategy_apply_worker(strategy_id, strategy_branch_id=branch_id)
+        return self._strategy_controller_obj()._request_strategy_apply(strategy_id)
 
     def _start_strategy_apply_worker(self, strategy_id: str, *, strategy_branch_id: str = "") -> None:
-        strategy_id = str(strategy_id or "").strip()
-        strategy_branch_id = str(strategy_branch_id or "").strip()
-        if not strategy_id or not self._profile_key:
-            return
-        runtime = self._worker_runtime("_strategy_apply_runtime")
-        self._strategy_apply_request_id = int(getattr(self, "_strategy_apply_request_id", 0) or 0) + 1
-        request_id = self._strategy_apply_request_id
-        self._strategy_apply_runtime_strategy_id = strategy_id
-        self._strategy_apply_runtime_branch_id = strategy_branch_id
-        worker_kwargs = {
-            "profile_key": self._profile_key,
-            "strategy_id": strategy_id,
-            "parent": self,
-        }
-        if strategy_branch_id:
-            worker_kwargs["strategy_branch_id"] = strategy_branch_id
-        runtime.start_qthread_worker(
-            worker_factory=lambda _runtime_request_id: self.create_profile_strategy_apply_worker(
-                request_id,
-                **worker_kwargs,
-            ),
-            on_loaded=self._on_strategy_apply_finished,
-            on_failed=self._on_strategy_apply_failed,
-            on_finished=self._on_strategy_apply_worker_finished,
-            loaded_signal_name="applied",
-        )
+        return self._strategy_controller_obj()._start_strategy_apply_worker(strategy_id, strategy_branch_id=strategy_branch_id)
 
     def _on_strategy_apply_finished(
         self,
@@ -5284,136 +2577,18 @@ class ProfileSetupPageBase(BasePage):
         strategy_id: str,
         payload=None,
     ) -> None:
-        if request_id != int(getattr(self, "_strategy_apply_request_id", 0) or 0):
-            return
-        requested = str(requested_profile_key or "").strip()
-        current = str(self._profile_key or "").strip()
-        # Страница могла принять persistent-ссылку уже после старта запроса —
-        # позиционный ключ того же профиля не повод выбрасывать результат.
-        item_key = str(getattr(getattr(self.__dict__.get("_payload"), "item", None), "key", "") or "").strip()
-        if requested not in {current, item_key}:
-            return
-        pending = self._strategy_apply_state_obj().pending
-        pending_strategy_id = ""
-        if isinstance(pending, tuple):
-            pending_strategy_id = str(pending[0] or "").strip()
-        else:
-            pending_strategy_id = str(pending or "").strip()
-        if pending_strategy_id and pending_strategy_id != str(strategy_id or "").strip():
-            return
-        apply_result = _profile_setup_apply_result_from_worker_result(payload)
-        result_payload, apply_signature = (
-            _profile_setup_payload_and_apply_signature(payload)
-            if payload is not None
-            else (None, None)
-        )
-        previous_key = self._profile_key
-        new_key = self._profile_result_reference(result_payload, profile_key)
-        if new_key:
-            self._profile_key = new_key
-        if apply_result is not None and bool(getattr(apply_result, "should_reload", False)):
-            if result_payload is not None:
-                branch_id = str(getattr(self, "_strategy_apply_runtime_branch_id", "") or "").strip()
-                if branch_id:
-                    result_payload = _payload_with_strategy_branch(result_payload, branch_id)
-                    apply_signature = None
-                self._payload = result_payload
-                self._schedule_profile_setup_payload_apply(result_payload, apply_signature=apply_signature)
-                self._on_profile_changed_callback(
-                    self._profile_key,
-                    "strategy",
-                    getattr(result_payload, "item", None),
-                )
-                return
-            self.reload_current_profile()
-            self._on_profile_changed_callback(self._profile_key, "strategy")
-            return
-        item = getattr(getattr(self, "_payload", None), "item", None)
-        if self._profile_key == previous_key and strategy_id == _current_strategy_id(self._payload):
-            self._on_profile_changed_callback(self._profile_key, "strategy", item)
-            return
-        if result_payload is not None:
-            branch_id = str(getattr(self, "_strategy_apply_runtime_branch_id", "") or "").strip()
-            if branch_id:
-                result_payload = _payload_with_strategy_branch(result_payload, branch_id)
-                apply_signature = None
-            self._payload = result_payload
-            self._schedule_profile_setup_payload_apply(result_payload, apply_signature=apply_signature)
-            self._on_profile_changed_callback(
-                self._profile_key,
-                "strategy",
-                getattr(result_payload, "item", None),
-            )
-            return
-        applied_locally = self._apply_strategy_locally(strategy_id)
-        if not applied_locally or self._profile_key != previous_key:
-            self.reload_current_profile()
-            self._on_profile_changed_callback(self._profile_key, "strategy")
-            return
-        item = getattr(getattr(self, "_payload", None), "item", None)
-        self._on_profile_changed_callback(self._profile_key, "strategy", item)
+        return self._strategy_controller_obj()._on_strategy_apply_finished(request_id, requested_profile_key, profile_key, strategy_id, payload)
 
     def _on_strategy_apply_failed(self, request_id: int, error: str) -> None:
-        if request_id != int(getattr(self, "_strategy_apply_request_id", 0) or 0):
-            return
-        if self._strategy_apply_state_obj().has_pending():
-            return
-        log(f"{self.__class__.__name__}: не удалось применить стратегию: {error}", "ERROR")
-        self.reload_current_profile()
+        return self._strategy_controller_obj()._on_strategy_apply_failed(request_id, error)
 
     def _on_strategy_apply_worker_finished(self, worker) -> None:
-        accepted, scheduled = self._schedule_next_profile_setup_write_operation_after_finish(
-            "_strategy_apply_request_id",
-            worker,
-        )
-        if not accepted:
-            return
-        self._strategy_apply_runtime_strategy_id = ""
-        self._strategy_apply_runtime_branch_id = ""
-        if scheduled:
-            return
-        pending = self._strategy_apply_state_obj().pending
-        self._strategy_apply_state_obj().pending = None
-        if pending:
-            if isinstance(pending, tuple):
-                self._schedule_profile_setup_write_operation_start(
-                    {
-                        "kind": "strategy_apply",
-                        "strategy_id": str(pending[0] or ""),
-                        "branch_id": str(pending[1] or ""),
-                    }
-                )
-            else:
-                self._schedule_profile_setup_write_operation_start(
-                    {
-                        "kind": "strategy_apply",
-                        "strategy_id": str(pending or ""),
-                        "branch_id": "",
-                    }
-                )
+        return self._strategy_controller_obj()._on_strategy_apply_worker_finished(worker)
 
     def _strategy_apply_state_obj(self) -> LatestValueWorkerState:
-        state = self.__dict__.get("_strategy_apply_state")
-        runtime = self.__dict__.get("_strategy_apply_runtime")
-        if state is None:
-            pending = self.__dict__.pop("_pending_strategy_apply", None)
-            state = LatestValueWorkerState(
-                runtime,
-                empty_value=None,
-                pending=pending,
-            )
-            self.__dict__["_strategy_apply_state"] = state
-        elif getattr(state, "runtime", None) is None and runtime is not None:
-            state.runtime = runtime
-        return state
+        return self._strategy_controller_obj()._strategy_apply_state_obj()
 
-    @property
-    def _pending_strategy_apply(self):
-        return self._strategy_apply_state_obj().pending
-
-    @_pending_strategy_apply.setter
-    def _pending_strategy_apply(self, value) -> None:
-        self._strategy_apply_state_obj().pending = value
+    _pending_strategy_apply = _worker_pending_property("_strategy_apply_state_obj")
 
     def _apply_strategy_locally(self, strategy_id: str) -> bool:
         payload = self._payload
@@ -5538,47 +2713,13 @@ class ProfileSetupPageBase(BasePage):
         self._request_strategy_feedback_save({"rating": None, "favorite": not current})
 
     def _request_strategy_feedback_save(self, request: dict) -> None:
-        runtime = self._worker_runtime("_strategy_feedback_save_runtime")
-        if self._strategy_feedback_save_state_obj().is_busy():
-            self._merge_pending_strategy_feedback_save(request)
-            return
-        self._start_strategy_feedback_save_worker(request)
+        return self._strategy_controller_obj()._request_strategy_feedback_save(request)
 
     def _merge_pending_strategy_feedback_save(self, request: dict) -> None:
-        state = self._strategy_feedback_save_state_obj()
-        pending = dict(state.pending or {})
-        next_request = dict(request or {})
-        for key in ("rating", "favorite"):
-            if key in next_request and next_request.get(key) is not None:
-                pending[key] = next_request.get(key)
-            elif key not in pending:
-                pending[key] = next_request.get(key)
-        state.pending = pending
+        return self._strategy_controller_obj()._merge_pending_strategy_feedback_save(request)
 
     def _start_strategy_feedback_save_worker(self, request: dict) -> None:
-        if not self._profile_key:
-            return
-        item = getattr(getattr(self, "_payload", None), "item", None)
-        strategy_id = _current_strategy_id(self._payload)
-        if not strategy_id or strategy_id in {"none", "custom"}:
-            return
-        runtime = self._worker_runtime("_strategy_feedback_save_runtime")
-        self._strategy_feedback_save_request_id = int(getattr(self, "_strategy_feedback_save_request_id", 0) or 0) + 1
-        request_id = self._strategy_feedback_save_request_id
-        runtime.start_qthread_worker(
-            worker_factory=lambda _runtime_request_id: self.create_profile_strategy_feedback_save_worker(
-                request_id,
-                profile_key=self._profile_key,
-                strategy_id=strategy_id,
-                rating=request.get("rating"),
-                favorite=request.get("favorite"),
-                parent=self,
-            ),
-            on_loaded=self._on_strategy_feedback_save_finished,
-            on_failed=self._on_strategy_feedback_save_failed,
-            on_finished=self._on_strategy_feedback_save_worker_finished,
-            loaded_signal_name="saved",
-        )
+        return self._strategy_controller_obj()._start_strategy_feedback_save_worker(request)
 
     def _on_strategy_feedback_save_finished(
         self,
@@ -5587,96 +2728,26 @@ class ProfileSetupPageBase(BasePage):
         strategy_id: str,
         state,
     ) -> None:
-        if request_id != int(getattr(self, "_strategy_feedback_save_request_id", 0) or 0):
-            return
-        if self._strategy_feedback_save_state_obj().has_pending():
-            return
-        if str(profile_key or "").strip() != str(self._profile_key or "").strip():
-            return
-        item = getattr(getattr(self, "_payload", None), "item", None)
-        current_strategy_id = _current_strategy_id(self._payload)
-        if str(strategy_id or "").strip() != current_strategy_id:
-            return
-        next_state = state if isinstance(state, ProfileStrategyState) else ProfileStrategyState()
-        current_state = getattr(getattr(self, "_payload", None), "current_strategy_state", None)
-        if (
-            current_state == next_state
-            and str(getattr(item, "rating", "") or "") == str(getattr(next_state, "rating", "") or "")
-            and bool(getattr(item, "favorite", False)) == bool(getattr(next_state, "favorite", False))
-        ):
-            return
-        if not self._apply_strategy_feedback_locally(state):
-            self.reload_current_profile()
-            self._on_profile_changed_callback(self._profile_key, "feedback")
-            return
-        item = getattr(getattr(self, "_payload", None), "item", None)
-        self._on_profile_changed_callback(self._profile_key, "feedback", item)
+        return self._strategy_controller_obj()._on_strategy_feedback_save_finished(request_id, profile_key, strategy_id, state)
 
     def _on_strategy_feedback_save_failed(self, request_id: int, error: str) -> None:
-        if request_id != int(getattr(self, "_strategy_feedback_save_request_id", 0) or 0):
-            return
-        if self._strategy_feedback_save_state_obj().has_pending():
-            return
-        log(f"{self.__class__.__name__}: не удалось обновить оценку стратегии: {error}", "ERROR")
-        self.reload_current_profile()
+        return self._strategy_controller_obj()._on_strategy_feedback_save_failed(request_id, error)
 
     def _on_strategy_feedback_save_worker_finished(self, worker) -> None:
-        if not self._accept_current_profile_setup_worker_finished("_strategy_feedback_save_request_id", worker):
-            return
-        if self._strategy_feedback_save_state_obj().has_pending():
-            self._schedule_strategy_feedback_save_worker_start()
+        return self._strategy_controller_obj()._on_strategy_feedback_save_worker_finished(worker)
 
     def _schedule_strategy_feedback_save_worker_start(self) -> None:
-        state = self._strategy_feedback_save_state_obj()
-
-        def _single_shot(delay: int, callback) -> None:
-            try:
-                QTimer.singleShot(delay, callback)
-            except Exception:
-                callback()
-
-        state.schedule_start(_single_shot, self._run_scheduled_strategy_feedback_save_worker_start)
+        return self._strategy_controller_obj()._schedule_strategy_feedback_save_worker_start()
 
     def _run_scheduled_strategy_feedback_save_worker_start(self) -> None:
-        request = self._strategy_feedback_save_state_obj().take_pending_for_scheduled_start(
-            cleanup_in_progress=self.__dict__.get("_cleanup_in_progress", False),
-        )
-        if not request:
-            return
-        self._start_strategy_feedback_save_worker(dict(request or {}))
+        return self._strategy_controller_obj()._run_scheduled_strategy_feedback_save_worker_start()
 
     def _strategy_feedback_save_state_obj(self) -> LatestValueWorkerState:
-        state = self.__dict__.get("_strategy_feedback_save_state")
-        runtime = self.__dict__.get("_strategy_feedback_save_runtime")
-        if state is None:
-            pending = self.__dict__.pop("_pending_strategy_feedback_save", None)
-            start_scheduled = bool(self.__dict__.pop("_strategy_feedback_save_start_scheduled", False))
-            state = LatestValueWorkerState(
-                runtime,
-                empty_value=None,
-                pending=pending,
-                start_scheduled=start_scheduled,
-            )
-            self.__dict__["_strategy_feedback_save_state"] = state
-        elif getattr(state, "runtime", None) is None and runtime is not None:
-            state.runtime = runtime
-        return state
+        return self._strategy_controller_obj()._strategy_feedback_save_state_obj()
 
-    @property
-    def _pending_strategy_feedback_save(self):
-        return self._strategy_feedback_save_state_obj().pending
+    _pending_strategy_feedback_save = _worker_pending_property("_strategy_feedback_save_state_obj")
 
-    @_pending_strategy_feedback_save.setter
-    def _pending_strategy_feedback_save(self, value) -> None:
-        self._strategy_feedback_save_state_obj().pending = value
-
-    @property
-    def _strategy_feedback_save_start_scheduled(self) -> bool:
-        return bool(self._strategy_feedback_save_state_obj().start_scheduled)
-
-    @_strategy_feedback_save_start_scheduled.setter
-    def _strategy_feedback_save_start_scheduled(self, value: bool) -> None:
-        self._strategy_feedback_save_state_obj().start_scheduled = bool(value)
+    _strategy_feedback_save_start_scheduled = _worker_start_scheduled_property("_strategy_feedback_save_state_obj")
 
     def cleanup(self) -> None:
         self._cleanup_in_progress = True

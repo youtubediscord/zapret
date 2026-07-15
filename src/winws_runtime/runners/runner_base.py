@@ -17,12 +17,18 @@ from winws_runtime.health.process_health_check import (
     check_process_health, get_last_crash_info, check_common_crash_causes,
     diagnose_startup_error, diagnose_winws_exit, execute_windivert_auto_fix,
 )
+from winws_runtime.health.windivert_diagnostics import (
+    _ERROR_SERVICE_MARKED_FOR_DELETE,
+    _WINDIVERT_PRESPAWN_WAIT_SECONDS,
+    WinDivertReadinessResult,
+    describe_windivert_readiness_failure,
+    ensure_windivert_ready_before_spawn,
+)
 from winws_runtime.health.windows_system_dependencies import (
     mark_windows_server_wlanapi_message,
     should_offer_windows_server_wlanapi_install,
 )
 from winws_runtime.runtime.system_ops import (
-    _ERROR_SERVICE_MARKED_FOR_DELETE,
     aggressive_windivert_cleanup_runtime,
     cleanup_windivert_services_runtime,
     force_kill_all_winws_processes,
@@ -30,13 +36,11 @@ from winws_runtime.runtime.system_ops import (
     stop_and_delete_named_service,
     unload_known_windivert_drivers_runtime,
     WinDivertRuntimeProbeResult,
-    wait_for_windivert_spawn_ready_runtime,
 )
 from utils.args_resolver import resolve_args_paths
 
 
 _AGGRESSIVE_WINDIVERT_RETRY_COOLDOWN_SECONDS = 1.8
-_WINDIVERT_PRESPAWN_WAIT_SECONDS = 3.0
 _WINDOWS_SYSTEM_DLLS_REQUIRED_BY_WINWS = ("wlanapi.dll",)
 _SAFE_WINDIVERT_AUTOFIX_ACTIONS = {
     "cleanup_driver",
@@ -65,6 +69,8 @@ class StrategyRunnerBase(ABC):
         self._launch_error_callback = None
         self._active_preset_content_changed_callback = None
         self._unexpected_process_exit_callback = None
+        self._last_windivert_readiness_probe: Optional[WinDivertRuntimeProbeResult] = None
+        self._last_windivert_readiness_result: Optional[WinDivertReadinessResult] = None
 
         # Verify exe exists
         if not os.path.exists(self.winws_exe):
@@ -75,6 +81,13 @@ class StrategyRunnerBase(ABC):
         self.work_dir = os.path.dirname(exe_dir)
         self.bin_dir = os.path.join(self.work_dir, "bin")
         self.lists_dir = os.path.join(self.work_dir, "lists")
+
+        try:
+            from winws_runtime.health.launch_conflicts import register_own_windivert_dirs
+
+            register_own_windivert_dirs(self.work_dir)
+        except Exception:
+            pass
 
         log(f"{self.__class__.__name__} initialized. exe: {self.winws_exe}", "INFO")
         log(f"Working directory: {self.work_dir}", "DEBUG")
@@ -447,56 +460,48 @@ class StrategyRunnerBase(ABC):
         return True
 
     def _ensure_windivert_ready_before_spawn(self, *, max_wait_seconds: float = _WINDIVERT_PRESPAWN_WAIT_SECONDS) -> bool:
-        """Проверяет готовность WinDivert прямо перед новым spawn."""
-        try:
-            probe = wait_for_windivert_spawn_ready_runtime(
-                max_wait_seconds=max_wait_seconds,
-                poll_interval=0.25,
-            )
-        except Exception:
-            return True
+        """Проверяет готовность WinDivert прямо перед новым spawn.
 
-        if probe.ready:
-            return True
-
-        recovery_probe = self._retry_windivert_spawn_readiness_after_recovery(probe)
-        if recovery_probe.ready:
-            return True
-
-        log(
-            "WinDivert pre-spawn readiness check failed: "
-            f"installed={recovery_probe.installed}, error={recovery_probe.error_code}, stage={recovery_probe.stage}",
-            "WARNING",
+        Probe-оркестрация и recovery-цикл живут в центре диагностики
+        (`winws_runtime.health.windivert_diagnostics`); runner передаёт туда
+        только свои cleanup-колбэки.
+        """
+        self._last_windivert_readiness_probe = None
+        self._last_windivert_readiness_result = None
+        result = ensure_windivert_ready_before_spawn(
+            max_wait_seconds=max_wait_seconds,
+            aggressive_cleanup=self._aggressive_windivert_cleanup,
+            wait_after_cleanup=self._wait_after_aggressive_windivert_cleanup,
         )
+        if result.ready:
+            return True
+
+        self._last_windivert_readiness_probe = result.probe
+        self._last_windivert_readiness_result = result
         return False
 
-    def _retry_windivert_spawn_readiness_after_recovery(
-        self,
-        probe: WinDivertRuntimeProbeResult,
-    ) -> WinDivertRuntimeProbeResult:
-        """Один recovery-цикл для pre-spawn readiness.
+    def _fail_spawn_for_windivert_readiness(self, *, context: str = "spawn") -> bool:
+        """Единственная точка провала spawn из-за pre-spawn readiness WinDivert.
 
-        Нужен для плавающих случаев, когда stop/cleanup уже завершён, но
-        WinDivert ещё не готов открыть NETWORK layer. Не бесконечный retry:
-        делаем один контролируемый цикл и возвращаем итоговый probe.
+        Сохраняет прежний контракт всех раннеров: exit code 34, stderr вида
+        "windivert: readiness probe failed before ...", last_error с
+        человеко-читаемым описанием. Всегда возвращает False.
         """
-        transient_codes = {5, 1058, 1060, 1753, _ERROR_SERVICE_MARKED_FOR_DELETE}
-        if probe.ready or int(probe.error_code or 0) not in transient_codes:
-            return probe
-
-        log(
-            "WinDivert pre-spawn readiness transient failure, performing one recovery cycle",
-            "WARNING",
+        result: Optional[WinDivertReadinessResult] = getattr(
+            self, "_last_windivert_readiness_result", None
         )
-        try:
-            self._aggressive_windivert_cleanup()
-            self._wait_after_aggressive_windivert_cleanup()
-            return wait_for_windivert_spawn_ready_runtime(
-                max_wait_seconds=_WINDIVERT_PRESPAWN_WAIT_SECONDS,
-                poll_interval=0.25,
+        if result is not None and result.description:
+            readiness_error = result.description
+        else:
+            readiness_error = describe_windivert_readiness_failure(
+                getattr(self, "_last_windivert_readiness_probe", None)
             )
-        except Exception:
-            return probe
+        self._last_spawn_exit_code = 34
+        self._last_spawn_stderr = (
+            f"windivert: readiness probe failed before {context}: {readiness_error}"
+        )
+        self._set_last_error(readiness_error, notify=False)
+        return False
 
     def _should_retry_transient_windivert_service_error(
         self,
@@ -521,6 +526,214 @@ class StrategyRunnerBase(ABC):
         if retry_count >= max_retry_count:
             return False
         return classify_spawn_failure(exit_code, stderr).is_service_transient
+
+    # ------------------------------------------------------------------
+    #  Общая retry-оркестрация после неудачного spawn (zapret1/zapret2)
+    # ------------------------------------------------------------------
+
+    # Текст лога для системной ошибки WinDivert без ретрая; zapret2 исторически
+    # использует чуть другую формулировку и переопределяет атрибут.
+    _WINDIVERT_SYSTEM_ERROR_NO_RETRY_LOG_MESSAGE = "WinDivert system error — retry will not help"
+
+    def _retry_fast_switch_after_failed_spawn_locked(self, artifact, strategy_name: str) -> bool:
+        """Единый retry-путь после неудачного spawn при быстром переключении preset.
+
+        Порядок проверок, лимиты и коды сохранены байт-в-байт с прежними
+        реализациями zapret1/zapret2; различия вынесены в hook-методы.
+        """
+        exit_code = int(self._last_spawn_exit_code or -1)
+        stderr_output = str(self._last_spawn_stderr or "")
+
+        retry_allowed = self._is_windivert_conflict_error(stderr_output, exit_code)
+        retry_allowed = retry_allowed or self._should_retry_transient_windivert_service_error(
+            stderr_output,
+            exit_code,
+            retry_count=0,
+            max_retry_count=1,
+        )
+        retry_allowed = retry_allowed or self._fast_switch_process_init_retry_allowed(exit_code)
+        if not retry_allowed:
+            return False
+        if self._is_windivert_system_error(stderr_output, exit_code):
+            log("Fast preset switch hit WinDivert system error; retry will not help", "WARNING")
+            return False
+
+        self._log_fast_switch_retry_reason(exit_code)
+        self._cleanup_before_fast_switch_retry_locked()
+        if not self._ensure_windivert_ready_before_spawn():
+            return self._fail_spawn_for_windivert_readiness(context="fast switch retry")
+
+        return bool(self._spawn_fast_switch_retry_locked(artifact, strategy_name))
+
+    def _fast_switch_process_init_retry_allowed(self, exit_code: int) -> bool:
+        """Hook: дополнительное условие ретрая fast switch (zapret2 — DLL init)."""
+        return False
+
+    def _cleanup_before_fast_switch_retry_locked(self) -> None:
+        """Hook: тяжёлая очистка WinDivert перед retry fast switch."""
+        self._aggressive_windivert_cleanup()
+        self._wait_after_aggressive_windivert_cleanup()
+
+    def _log_fast_switch_retry_reason(self, exit_code: int) -> None:
+        """Hook: сообщение лога перед retry fast switch."""
+        log(
+            "Fast preset switch hit WinDivert conflict, retrying inside switch after cleanup",
+            "WARNING",
+        )
+
+    def _spawn_fast_switch_retry_locked(self, artifact, strategy_name: str) -> bool:
+        """Hook: как именно конкретный runner повторяет spawn при fast switch."""
+        raise NotImplementedError
+
+    def _maybe_retry_after_failed_spawn_locked(
+        self,
+        preset_path: str,
+        strategy_name: str,
+        *,
+        retry_count: int,
+        stable_start_window_seconds: float = 1.0,
+        **launch_flags,
+    ) -> bool:
+        """Единая retry-оркестрация после неудачного spawn при обычном запуске.
+
+        Каркас общий; различия раннеров (stale-службы zapret2, retry кода 1 у
+        zapret1, условия conflict-ретрая) вынесены в hook-методы. Порядок
+        проверок и лимиты соответствуют прежним реализациям.
+
+        launch_flags: сквозные параметры конкретного runner-а
+        (zapret1 — max_retries, zapret2 — cleanup_required).
+        """
+        exit_code = int(self._last_spawn_exit_code or -1)
+        stderr_output = str(self._last_spawn_stderr or "")
+
+        transient_service_retry = self._should_retry_transient_windivert_service_error(
+            stderr_output,
+            exit_code,
+            retry_count=retry_count,
+            max_retry_count=1,
+        )
+
+        decided = self._retry_hook_before_transient_locked(
+            preset_path,
+            strategy_name,
+            exit_code=exit_code,
+            transient_service_retry=transient_service_retry,
+            retry_count=retry_count,
+            stable_start_window_seconds=stable_start_window_seconds,
+            **launch_flags,
+        )
+        if decided is not None:
+            return decided
+
+        if transient_service_retry:
+            log(
+                "Transient WinDivert service error detected, retrying with aggressive cleanup",
+                "WARNING",
+            )
+            return self._relaunch_after_failed_spawn_locked(
+                preset_path,
+                strategy_name,
+                retry_count=retry_count,
+                stable_start_window_seconds=stable_start_window_seconds,
+                **launch_flags,
+            )
+
+        decided = self._retry_hook_after_transient_locked(
+            preset_path,
+            strategy_name,
+            exit_code=exit_code,
+            stderr_output=stderr_output,
+            retry_count=retry_count,
+            stable_start_window_seconds=stable_start_window_seconds,
+            **launch_flags,
+        )
+        if decided is not None:
+            return decided
+
+        if self._maybe_run_windivert_auto_fix_after_failed_spawn(
+            stderr_output,
+            exit_code,
+            retry_count=retry_count,
+        ):
+            log("WinDivert auto-fix succeeded, retrying preset start once", "WARNING")
+            return self._relaunch_after_failed_spawn_locked(
+                preset_path,
+                strategy_name,
+                retry_count=retry_count,
+                stable_start_window_seconds=stable_start_window_seconds,
+                **launch_flags,
+            )
+
+        if self._is_windivert_system_error(stderr_output, exit_code):
+            log(self._WINDIVERT_SYSTEM_ERROR_NO_RETRY_LOG_MESSAGE, "WARNING")
+            return False
+
+        return self._retry_hook_conflict_and_tail_locked(
+            preset_path,
+            strategy_name,
+            exit_code=exit_code,
+            stderr_output=stderr_output,
+            retry_count=retry_count,
+            stable_start_window_seconds=stable_start_window_seconds,
+            **launch_flags,
+        )
+
+    def _retry_hook_before_transient_locked(
+        self,
+        preset_path: str,
+        strategy_name: str,
+        *,
+        exit_code: int,
+        transient_service_retry: bool,
+        retry_count: int,
+        stable_start_window_seconds: float,
+        **launch_flags,
+    ) -> Optional[bool]:
+        """Hook перед transient-ретраем (zapret2 — stale delete-pending службы).
+
+        None — продолжить общий каркас; bool — итог всей операции.
+        """
+        return None
+
+    def _retry_hook_after_transient_locked(
+        self,
+        preset_path: str,
+        strategy_name: str,
+        *,
+        exit_code: int,
+        stderr_output: str,
+        retry_count: int,
+        stable_start_window_seconds: float,
+        **launch_flags,
+    ) -> Optional[bool]:
+        """Hook после transient-ретрая (zapret1 — код 1 без вывода, zapret2 — DLL init)."""
+        return None
+
+    def _retry_hook_conflict_and_tail_locked(
+        self,
+        preset_path: str,
+        strategy_name: str,
+        *,
+        exit_code: int,
+        stderr_output: str,
+        retry_count: int,
+        stable_start_window_seconds: float,
+        **launch_flags,
+    ) -> bool:
+        """Hook: обработка WinDivert-конфликта и финал без ретрая."""
+        return False
+
+    def _relaunch_after_failed_spawn_locked(
+        self,
+        preset_path: str,
+        strategy_name: str,
+        *,
+        retry_count: int,
+        stable_start_window_seconds: float,
+        **launch_flags,
+    ) -> bool:
+        """Hook: повторный запуск конкретного runner-а с retry_count + 1."""
+        raise NotImplementedError
 
     def stop(self, *, cleanup_services: bool = True) -> bool:
         """Stops running process.

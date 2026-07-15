@@ -73,6 +73,18 @@ TEXTS: dict[str, dict[str, str]] = {
         "ru": "BlockCheck",
         "en": "BlockCheck",
     },
+    "nav.page.winws_log_analyzer": {
+        "ru": "Анализ лога winws2",
+        "en": "winws2 Log Analysis",
+    },
+    "page.winws_log_analyzer.title": {
+        "ru": "Анализ лога winws2",
+        "en": "winws2 Log Analysis",
+    },
+    "page.winws_log_analyzer.subtitle": {
+        "ru": "Разбор debug-лога: соединения, протоколы, профили и вердикты",
+        "en": "Debug log breakdown: connections, protocols, profiles and verdicts",
+    },
     "nav.page.appearance": {
         "ru": "Оформление",
         "en": "Appearance",
@@ -248,6 +260,14 @@ TEXTS: dict[str, dict[str, str]] = {
     "page.control.setting.max_block.desc": {
         "ru": "Блокирует запуск/установку MAX и домены в hosts",
         "en": "Blocks MAX launch/installation and hosts domains",
+    },
+    "page.control.setting.state_media_block.title": {
+        "ru": "Блокировать государственные СМИ РФ",
+        "en": "Block Russian state media",
+    },
+    "page.control.setting.state_media_block.desc": {
+        "ru": "Добавляет базовый список государственных новостных сайтов в hosts",
+        "en": "Adds a basic list of state news sites to hosts",
     },
     "page.control.button.connection_test": {
         "ru": "Тест соединения",
@@ -668,6 +688,18 @@ TEXTS: dict[str, dict[str, str]] = {
     "page.about.button.premium_vpn": {
         "ru": "Premium и VPN",
         "en": "Premium and VPN",
+    },
+    "page.about.button.zapret_kvn": {
+        "ru": "Zapret KVN",
+        "en": "Zapret KVN",
+    },
+    "page.about.action.zapret_kvn.accessible_name": {
+        "ru": "Открыть Zapret KVN на GitHub",
+        "en": "Open Zapret KVN on GitHub",
+    },
+    "page.about.action.zapret_kvn.description": {
+        "ru": "Открывает репозиторий проекта Zapret KVN на GitHub.",
+        "en": "Opens the Zapret KVN project repository on GitHub.",
     },
     "page.about.support.section.discussions": {
         "ru": "GitHub Discussions",
@@ -4365,6 +4397,14 @@ TEXTS_PAGES_FINAL: dict[str, dict[str, str]] = {
         "ru": "Отключение блокировки MAX",
         "en": "Disable MAX Blocking",
     },
+    "page.control.dialog.state_media_block_enable.title": {
+        "ru": "Блокировка государственных СМИ РФ",
+        "en": "Block Russian State Media",
+    },
+    "page.control.dialog.state_media_block_disable.title": {
+        "ru": "Отключение блокировки государственных СМИ РФ",
+        "en": "Disable Russian State Media Blocking",
+    },
     "page.logs.info.copied": {
         "ru": "✅ Скопировано в буфер обмена",
         "en": "✅ Copied to clipboard",
@@ -4407,6 +4447,7 @@ NAV_PAGE_TEXT_KEYS: dict[PageName, str] = {
     PageName.NETWORK: "nav.page.network",
     PageName.HOSTS: "nav.page.hosts",
     PageName.BLOCKCHECK: "nav.page.blockcheck",
+    PageName.WINWS_LOG_ANALYZER: "nav.page.winws_log_analyzer",
     PageName.APPEARANCE: "nav.page.appearance",
     PageName.PREMIUM: "nav.page.premium",
     PageName.LOGS: "nav.page.logs",

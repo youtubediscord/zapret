@@ -107,7 +107,8 @@ class ProfileServiceApplyStrategyGuardTests(unittest.TestCase):
                 out_range="a",
             )
 
-        self.assertEqual(result, "profile:0")
+        # No-op-успех: пара (old, new) persistent_key с old == new.
+        self.assertEqual(result, ("name:SpeedTest", "name:SpeedTest"))
         self.assertEqual(store.save_count, 0)
 
     def test_update_raw_profile_text_skips_save_when_text_is_unchanged(self) -> None:
@@ -131,7 +132,8 @@ class ProfileServiceApplyStrategyGuardTests(unittest.TestCase):
             service = ProfilePresetService(feature, "zapret2_mode")
             result = service.update_profile_raw_text("profile:0", raw_text)
 
-        self.assertEqual(result, "profile:0")
+        # No-op-успех: пара (old, new) persistent_key с old == new.
+        self.assertEqual(result, ("name:SpeedTest", "name:SpeedTest"))
         self.assertEqual(store.save_count, 0)
 
     def test_save_profile_list_file_text_skips_write_when_user_text_is_unchanged(self) -> None:

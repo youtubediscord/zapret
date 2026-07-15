@@ -78,6 +78,7 @@ SEARCH_ENTRIES: tuple[SearchEntry, ...] = (
     SearchEntry("appearance.background", PageName.APPEARANCE, "page.appearance.background", section_key="page.appearance.background"),
     SearchEntry("premium.title", PageName.PREMIUM, "page.premium.title"),
     SearchEntry("premium.subscription", PageName.PREMIUM, "page.premium.subscription_status", section_key="page.premium.subscription_status"),
+    SearchEntry("winws_log_analyzer.title", PageName.WINWS_LOG_ANALYZER, "page.winws_log_analyzer.title", keywords=("лог", "log", "winws2", "анализ")),
     SearchEntry("logs.title", PageName.LOGS, "page.logs.title"),
     SearchEntry("logs.controls", PageName.LOGS, "page.logs.controls", section_key="page.logs.controls"),
     SearchEntry("servers.title", PageName.SERVERS, "page.servers.title"),

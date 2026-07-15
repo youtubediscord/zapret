@@ -198,6 +198,30 @@ def set_profile_folder(profile_key: str, folder_key: str) -> bool:
         return True
 
 
+def migrate_profile_folder_meta(old_profile_key: str, new_profile_key: str) -> bool:
+    """Переносит мету профиля `items[old]` → `items[new]` при смене
+    persistent_key (правка имени/match-строк меняет производный ключ).
+
+    Существующая мета нового ключа имеет приоритет и не затирается; старый
+    ключ удаляется в любом случае. Возвращает True, если состояние было
+    изменено; при old == new или отсутствии старого ключа запись не
+    производится."""
+    old_key = str(old_profile_key or "").strip()
+    new_key = str(new_profile_key or "").strip()
+    if not old_key or not new_key or old_key == new_key:
+        return False
+    with profile_folder_state_lock():
+        state = load_profile_folder_state()
+        items = state.get("items")
+        if not isinstance(items, dict) or old_key not in items:
+            return False
+        old_meta = items.pop(old_key)
+        if new_key not in items and isinstance(old_meta, dict):
+            items[new_key] = old_meta
+        save_profile_folder_state(state)
+        return True
+
+
 def _profile_classification_text(profile) -> str:
     parts: list[str] = [
         str(getattr(profile, "display_name", "") or ""),
@@ -215,6 +239,7 @@ __all__ = [
     "create_profile_folder",
     "delete_profile_folder",
     "load_profile_folder_state",
+    "migrate_profile_folder_meta",
     "move_profile_folder_by_step",
     "profile_folder_collapsed",
     "profile_folder_for_profile",

@@ -120,7 +120,7 @@ def update_winws2_profile_settings(
     filter_value: str,
     in_range: str,
     out_range: str,
-) -> str | None:
+) -> tuple[str, str] | None:
     return _profile_preset_service(profile_services, launch_method).update_winws2_editable_settings(
         profile_key,
         filter_kind=filter_kind,
@@ -135,7 +135,7 @@ def update_profile_raw_text(
     launch_method: str,
     profile_key: str,
     raw_text: str,
-) -> str | None:
+) -> tuple[str, str] | None:
     return _profile_preset_service(profile_services, launch_method).update_profile_raw_text(profile_key, raw_text)
 
 
@@ -170,7 +170,7 @@ def set_profile_filter_kind(
     launch_method: str,
     profile_key: str,
     filter_kind: str,
-) -> str | None:
+) -> tuple[str, str] | None:
     return _profile_preset_service(profile_services, launch_method).set_profile_filter_kind(profile_key, filter_kind)
 
 

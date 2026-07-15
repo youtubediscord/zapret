@@ -1,25 +1,20 @@
 from __future__ import annotations
 
 import json
-from dataclasses import replace
 from typing import Any
 
 from PyQt6.QtCore import QAbstractListModel, QMimeData, QModelIndex, Qt
 
-from profile.display_items import ProfileDisplayItem, build_profile_display_items, profile_display_sort_key
+from profile.display_items import ProfileDisplayItem, build_profile_display_items
 from profile.list_view_state import (
     ProfileListViewState,
     apply_profile_folder_state_to_items as _apply_profile_folder_state_to_items,
     build_profile_list_view_state,
     build_profile_rows_from as _build_profile_rows_from,
-    group_name_for_key as _group_name_for_key,
-    grouped_items as _grouped_items,
     initial_group_expanded as _initial_group_expanded,
     moved_profile_display_items as _moved_profile_display_items,
     normalized_profile_types as _normalized_profile_types,
     normalized_search_query as _normalized_search_query,
-    profile_matches_filter as _profile_matches_filter,
-    row_for_profile as _row_for_profile,
 )
 
 
@@ -99,28 +94,107 @@ class ProfileListModel(QAbstractListModel):
             and self._rows == next_rows
         ):
             return
-        if [_stable_row_identity(row) for row in self._rows] == [
-            _stable_row_identity(row) for row in next_rows
-        ]:
-            changed_rows = tuple(index for index, row in enumerate(next_rows) if self._rows[index] != row)
+
+        def commit() -> None:
             self._all_items = next_all_items
             self._profile_items = next_profile_items
             self._group_expanded = next_group_expanded
             self._active_profile_types = next_active_profile_types
             self._search_query = next_search_query
             self._show_only_added = next_show_only_added
-            self._set_rows(next_rows)
-            self._emit_data_changed_for_rows(changed_rows)
+
+        # Структурные точечные обновления допустимы только при неизменных
+        # фильтрах: смена поиска/типов должна вести себя как новый список
+        # (reset), а не как случайный insert/remove с сохранённой прокруткой.
+        filters_unchanged = (
+            self._active_profile_types == next_active_profile_types
+            and self._search_query == next_search_query
+            and self._show_only_added == next_show_only_added
+        )
+        self._apply_rows_or_reset(next_rows, commit=commit, allow_structural=filters_unchanged)
+
+    def _apply_rows_or_reset(
+        self,
+        next_rows: list[dict[str, Any]],
+        *,
+        commit,
+        allow_structural: bool = True,
+    ) -> None:
+        if self._apply_rows_update(next_rows, commit=commit, allow_structural=allow_structural):
             return
         self.beginResetModel()
-        self._all_items = next_all_items
-        self._profile_items = next_profile_items
-        self._group_expanded = next_group_expanded
-        self._active_profile_types = next_active_profile_types
-        self._search_query = next_search_query
-        self._show_only_added = next_show_only_added
+        commit()
         self._set_rows(next_rows)
         self.endResetModel()
+
+    def _apply_rows_update(
+        self,
+        next_rows: list[dict[str, Any]],
+        *,
+        commit,
+        allow_structural: bool = True,
+    ) -> bool:
+        """Применяет next_rows точечными сигналами вместо полного reset,
+        чтобы QListView сохранял позицию прокрутки и текущую строку.
+
+        Покрывает типовые правки списка: изменение данных строк
+        (dataChanged), смену идентичности строк на месте (правка имени или
+        match-строк меняет persistent_key, но количество и позиции строк те
+        же), появление или исчезновение непрерывного блока строк
+        (insert/remove: удаление, дублирование, сворачивание папки) и перенос
+        одной строки (move). Возвращает False, если изменение не сводится к
+        одному из этих случаев — тогда вызывающий делает reset.
+        """
+        old_ids = [_stable_row_identity(row) for row in self._rows]
+        next_ids = [_stable_row_identity(row) for row in next_rows]
+        # Полное совпадение identity — data-only обновление, допустимо при
+        # любых фильтрах. Смена identity «на месте» — структурная правка
+        # (переименование/правка match-строк): при смене фильтров
+        # (allow_structural=False) она обязана вести к reset, иначе «новый
+        # список» со случайно совпавшей формой унаследует прокрутку старого.
+        if old_ids == next_ids or (allow_structural and _is_in_place_identity_change(old_ids, next_ids)):
+            changed_rows = tuple(index for index, row in enumerate(next_rows) if self._rows[index] != row)
+            commit()
+            self._set_rows(next_rows)
+            self._emit_data_changed_for_rows(changed_rows)
+            return True
+        if not allow_structural:
+            return False
+
+        changed_rows = _changed_existing_row_indexes(self._rows, next_rows, identity_fn=_stable_row_identity)
+
+        inserted_span = _contiguous_inserted_row_span(old_ids, next_ids)
+        if inserted_span is not None:
+            first, last = inserted_span
+            self.beginInsertRows(QModelIndex(), first, last)
+            commit()
+            self._set_rows(next_rows)
+            self.endInsertRows()
+            self._emit_data_changed_for_rows(changed_rows)
+            return True
+
+        removed_span = _contiguous_removed_row_span(old_ids, next_ids)
+        if removed_span is not None:
+            first, last = removed_span
+            self.beginRemoveRows(QModelIndex(), first, last)
+            commit()
+            self._set_rows(next_rows)
+            self.endRemoveRows()
+            self._emit_data_changed_for_rows(changed_rows)
+            return True
+
+        move = _single_row_move(self._rows, next_rows, identity_fn=_stable_row_identity)
+        if move is not None:
+            source_row, insert_row = move
+            destination_child = _move_destination_child(source_row, insert_row)
+            if destination_child not in {source_row, source_row + 1}:
+                self.beginMoveRows(QModelIndex(), source_row, source_row, QModelIndex(), destination_child)
+                commit()
+                self._set_rows(next_rows)
+                self.endMoveRows()
+                self._emit_data_changed_for_rows(changed_rows)
+                return True
+        return False
 
     def view_state_options(self) -> dict[str, Any]:
         return {
@@ -146,130 +220,46 @@ class ProfileListModel(QAbstractListModel):
         next_group_expanded = dict(self._group_expanded)
         for item in display_items:
             next_group_expanded.setdefault(str(item.group or "common"), True)
-        next_rows = self._build_rows_from(display_items, next_group_expanded)
+        next_rows = self._build_rows_from(
+            display_items,
+            next_group_expanded,
+            active_profile_types=active,
+            search_query=normalized_search,
+        )
         next_profile_items = {item.key: item for item in display_items}
-
         filters_unchanged = self._active_profile_types == active and self._search_query == normalized_search
-        can_keep_visible_rows = filters_unchanged and [_stable_row_identity(row) for row in self._rows] == [
-            _stable_row_identity(row) for row in next_rows
-        ]
-        if can_keep_visible_rows:
-            changed_rows = tuple(index for index, row in enumerate(next_rows) if self._rows[index] != row)
+
+        def commit() -> None:
             self._all_items = display_items
             self._profile_items = next_profile_items
             self._group_expanded = next_group_expanded
-            self._set_rows(next_rows)
-            self._emit_data_changed_for_rows(changed_rows)
-            return True
+            self._active_profile_types = active
+            self._search_query = normalized_search
 
-        insert_index = _single_inserted_row_index(self._rows, next_rows, identity_fn=_stable_row_identity)
-        if filters_unchanged and insert_index >= 0:
-            changed_rows = _changed_existing_row_indexes(self._rows, next_rows, identity_fn=_stable_row_identity)
-            self.beginInsertRows(QModelIndex(), insert_index, insert_index)
-            self._all_items = display_items
-            self._profile_items = next_profile_items
-            self._group_expanded = next_group_expanded
-            self._set_rows(next_rows)
-            self.endInsertRows()
-            self._emit_data_changed_for_rows(changed_rows)
-            return True
-
-        remove_index = _single_removed_row_index(self._rows, next_rows, identity_fn=_stable_row_identity)
-        if filters_unchanged and remove_index >= 0:
-            changed_rows = _changed_existing_row_indexes(self._rows, next_rows, identity_fn=_stable_row_identity)
-            self.beginRemoveRows(QModelIndex(), remove_index, remove_index)
-            self._all_items = display_items
-            self._profile_items = next_profile_items
-            self._group_expanded = next_group_expanded
-            self._set_rows(next_rows)
-            self.endRemoveRows()
-            self._emit_data_changed_for_rows(changed_rows)
-            return True
-
-        self.beginResetModel()
-        self._all_items = display_items
-        self._profile_items = next_profile_items
-        self._group_expanded = next_group_expanded
-        self._active_profile_types = active
-        self._search_query = normalized_search
-        self._set_rows(next_rows)
-        self.endResetModel()
+        self._apply_rows_or_reset(next_rows, commit=commit, allow_structural=filters_unchanged)
         return True
 
     def set_active_profile_types(self, profile_types: set[str]) -> None:
         active = _normalized_profile_types(profile_types)
         if self._active_profile_types == active:
             return
-        previous_active = self._active_profile_types
-        self._active_profile_types = active
-        try:
-            next_rows = self._build_rows()
-        finally:
-            self._active_profile_types = previous_active
+        next_rows = self._build_rows_from(self._all_items, self._group_expanded, active_profile_types=active)
 
-        old_ids = [_stable_row_identity(row) for row in self._rows]
-        next_ids = [_stable_row_identity(row) for row in next_rows]
-        if old_ids == next_ids:
-            changed_rows = tuple(index for index, row in enumerate(next_rows) if self._rows[index] != row)
+        def commit() -> None:
             self._active_profile_types = active
-            self._set_rows(next_rows)
-            self._emit_data_changed_for_rows(changed_rows)
-            return
 
-        self.beginResetModel()
-        self._active_profile_types = active
-        self._set_rows(next_rows)
-        self.endResetModel()
-
-    def set_show_only_added(self, enabled: bool) -> None:
-        value = bool(enabled)
-        if self._show_only_added == value:
-            return
-        previous_value = self._show_only_added
-        self._show_only_added = value
-        try:
-            next_rows = self._build_rows()
-        finally:
-            self._show_only_added = previous_value
-
-        old_ids = [_stable_row_identity(row) for row in self._rows]
-        next_ids = [_stable_row_identity(row) for row in next_rows]
-        if old_ids == next_ids:
-            changed_rows = tuple(index for index, row in enumerate(next_rows) if self._rows[index] != row)
-            self._show_only_added = value
-            self._set_rows(next_rows)
-            self._emit_data_changed_for_rows(changed_rows)
-            return
-
-        self.beginResetModel()
-        self._show_only_added = value
-        self._set_rows(next_rows)
-        self.endResetModel()
+        self._apply_rows_or_reset(next_rows, commit=commit, allow_structural=False)
 
     def set_search_query(self, query: str) -> None:
         normalized = _normalized_search_query(query)
         if self._search_query == normalized:
             return
-        previous_query = self._search_query
-        self._search_query = normalized
-        try:
-            next_rows = self._build_rows()
-        finally:
-            self._search_query = previous_query
+        next_rows = self._build_rows_from(self._all_items, self._group_expanded, search_query=normalized)
 
-        old_ids = [_stable_row_identity(row) for row in self._rows]
-        next_ids = [_stable_row_identity(row) for row in next_rows]
-        if old_ids == next_ids:
-            changed_rows = tuple(index for index, row in enumerate(next_rows) if self._rows[index] != row)
+        def commit() -> None:
             self._search_query = normalized
-            self._set_rows(next_rows)
-            self._emit_data_changed_for_rows(changed_rows)
-            return
 
-        self.beginResetModel()
-        self._search_query = normalized
-        self._set_rows(next_rows)
-        self.endResetModel()
+        self._apply_rows_or_reset(next_rows, commit=commit, allow_structural=False)
 
     def set_group_expanded(self, group_key: str, expanded: bool) -> None:
         key = str(group_key or "")
@@ -281,65 +271,14 @@ class ProfileListModel(QAbstractListModel):
         next_group_expanded = dict(self._group_expanded)
         next_group_expanded[key] = expanded_value
         next_rows = self._build_rows_from(self._all_items, next_group_expanded)
-        old_ids = [_stable_row_identity(row) for row in self._rows]
-        next_ids = [_stable_row_identity(row) for row in next_rows]
 
-        if old_ids == next_ids:
-            changed_rows = tuple(index for index, row in enumerate(next_rows) if self._rows[index] != row)
+        def commit() -> None:
             self._group_expanded = next_group_expanded
-            self._set_rows(next_rows)
-            self._emit_data_changed_for_rows(changed_rows)
-            return
 
-        old_group_index = _row_index_for_group(self._rows, key)
-        next_group_index = _row_index_for_group(next_rows, key)
-        if old_group_index >= 0 and old_group_index == next_group_index:
-            changed_rows = _changed_existing_row_indexes(
-                self._rows,
-                next_rows,
-                identity_fn=_stable_row_identity,
-            )
-            if expanded_value and _rows_match_single_group_insert(self._rows, next_rows, old_group_index):
-                insert_count = len(next_rows) - len(self._rows)
-                self.beginInsertRows(QModelIndex(), old_group_index + 1, old_group_index + insert_count)
-                self._group_expanded = next_group_expanded
-                self._set_rows(next_rows)
-                self.endInsertRows()
-                self._emit_data_changed_for_rows(changed_rows)
-                return
-            if not expanded_value and _rows_match_single_group_remove(self._rows, next_rows, old_group_index):
-                remove_count = len(self._rows) - len(next_rows)
-                self.beginRemoveRows(QModelIndex(), old_group_index + 1, old_group_index + remove_count)
-                self._group_expanded = next_group_expanded
-                self._set_rows(next_rows)
-                self.endRemoveRows()
-                self._emit_data_changed_for_rows(changed_rows)
-                return
-
-        self.beginResetModel()
-        self._group_expanded = next_group_expanded
-        self._set_rows(next_rows)
-        self.endResetModel()
-
-    def set_all_groups_expanded(self, expanded: bool) -> tuple[str, ...]:
-        expanded_value = bool(expanded)
-        group_keys = tuple(str(group_key) for group_key in _grouped_items(self._all_items))
-        changed_group_keys = tuple(
-            group_key
-            for group_key in group_keys
-            if self._group_expanded.get(group_key, True) != expanded_value
-        )
-        if not changed_group_keys:
-            return ()
-        if len(changed_group_keys) == 1:
-            self.set_group_expanded(changed_group_keys[0], expanded_value)
-            return changed_group_keys
-        self.beginResetModel()
-        for group_key in group_keys:
-            self._group_expanded[group_key] = expanded_value
-        self._set_rows(self._build_rows())
-        self.endResetModel()
-        return changed_group_keys
+        # Сворачивание/разворачивание одной группы — это непрерывный блок
+        # строк сразу за её заголовком, поэтому общий детектор insert/remove
+        # покрывает этот случай без специальной проверки индекса группы.
+        self._apply_rows_or_reset(next_rows, commit=commit)
 
     def is_group_expanded(self, group_key: str) -> bool:
         return bool(self._group_expanded.get(str(group_key or ""), True))
@@ -363,36 +302,13 @@ class ProfileListModel(QAbstractListModel):
         next_group_expanded = dict(self._group_expanded)
         next_group_expanded.setdefault(str(replacement.group or "common"), True)
         next_rows = self._build_rows_from(next_items, next_group_expanded)
-        if [_stable_row_identity(row) for row in self._rows] == [_stable_row_identity(row) for row in next_rows]:
-            changed_rows = tuple(index for index, row in enumerate(next_rows) if self._rows[index] != row)
+
+        def commit() -> None:
             self._all_items = next_items
-            self._profile_items = {entry.key: entry for entry in self._all_items}
+            self._profile_items = {entry.key: entry for entry in next_items}
             self._group_expanded = next_group_expanded
-            self._set_rows(next_rows)
-            self._emit_data_changed_for_rows(changed_rows)
-            return True
 
-        can_update_row = (
-            str(current.group or "") == str(replacement.group or "")
-            and self._matches_filter(current)
-            and self._matches_filter(replacement)
-        )
-        self._all_items = next_items
-        self._profile_items = {entry.key: entry for entry in self._all_items}
-
-        if can_update_row:
-            row_index = self._row_index_for_profile_key(source_key)
-            if row_index >= 0:
-                self._rows[row_index] = _row_for_profile(replacement)
-                self._rebuild_visible_profile_row_index()
-                model_index = self.index(row_index, 0)
-                self.dataChanged.emit(model_index, model_index, _profile_data_roles())
-                return True
-
-        self.beginResetModel()
-        self._group_expanded = next_group_expanded
-        self._set_rows(next_rows)
-        self.endResetModel()
+        self._apply_rows_or_reset(next_rows, commit=commit)
         return True
 
     def add_profile(self, item: Any) -> bool:
@@ -405,99 +321,30 @@ class ProfileListModel(QAbstractListModel):
         if profile.key in self._profile_items:
             return self.replace_profile(profile.key, item)
         next_items = tuple((*self._all_items, profile))
-        next_profile_items = {entry.key: entry for entry in next_items}
         next_group_expanded = dict(self._group_expanded)
         next_group_expanded.setdefault(str(profile.group or "common"), True)
         next_rows = self._build_rows_from(next_items, next_group_expanded)
-        if [_stable_row_identity(row) for row in self._rows] == [_stable_row_identity(row) for row in next_rows]:
-            changed_rows = tuple(index for index, row in enumerate(next_rows) if self._rows[index] != row)
-            self._all_items = next_items
-            self._profile_items = next_profile_items
-            self._group_expanded = next_group_expanded
-            self._set_rows(next_rows)
-            self._emit_data_changed_for_rows(changed_rows)
-            return True
 
-        insert_index = _single_inserted_row_index(self._rows, next_rows)
-        if insert_index >= 0:
-            changed_rows = _changed_existing_row_indexes(self._rows, next_rows)
-            self.beginInsertRows(QModelIndex(), insert_index, insert_index)
+        def commit() -> None:
             self._all_items = next_items
-            self._profile_items = next_profile_items
+            self._profile_items = {entry.key: entry for entry in next_items}
             self._group_expanded = next_group_expanded
-            self._set_rows(next_rows)
-            self.endInsertRows()
-            self._emit_data_changed_for_rows(changed_rows)
-            return True
 
-        self.beginResetModel()
-        self._all_items = next_items
-        self._profile_items = next_profile_items
-        self._group_expanded = next_group_expanded
-        self._set_rows(next_rows)
-        self.endResetModel()
+        self._apply_rows_or_reset(next_rows, commit=commit)
         return True
-
-    def replace_user_profile_items(self, profile_id: str, items: tuple[Any, ...]) -> bool:
-        clean_profile_id = str(profile_id or "").strip()
-        replacement_items = build_profile_display_items(tuple(items or ()))
-        if not clean_profile_id or not replacement_items:
-            return False
-        existing_items = tuple(
-            item for item in self._all_items
-            if str(getattr(item, "user_profile_id", "") or "").strip() == clean_profile_id
-        )
-        if not existing_items:
-            return False
-        next_items = tuple(
-            item for item in self._all_items
-            if str(getattr(item, "user_profile_id", "") or "").strip() != clean_profile_id
-        )
-        return self.update_profiles(tuple((*next_items, *replacement_items)))
-
-    def remove_user_profile_items(self, profile_id: str) -> bool:
-        clean_profile_id = str(profile_id or "").strip()
-        if not clean_profile_id:
-            return False
-        next_items = tuple(
-            item for item in self._all_items
-            if str(getattr(item, "user_profile_id", "") or "").strip() != clean_profile_id
-        )
-        if len(next_items) == len(self._all_items):
-            return False
-        return self.update_profiles(next_items)
 
     def remove_profile(self, profile_key: str) -> bool:
         key = str(profile_key or "").strip()
         if not key or key not in self._profile_items:
             return False
         next_items = tuple(item for item in self._all_items if item.key != key)
-        next_profile_items = {entry.key: entry for entry in next_items}
         next_rows = self._build_rows_from(next_items, self._group_expanded)
-        if [_stable_row_identity(row) for row in self._rows] == [_stable_row_identity(row) for row in next_rows]:
-            changed_rows = tuple(index for index, row in enumerate(next_rows) if self._rows[index] != row)
-            self._all_items = next_items
-            self._profile_items = next_profile_items
-            self._set_rows(next_rows)
-            self._emit_data_changed_for_rows(changed_rows)
-            return True
 
-        remove_index = _single_removed_row_index(self._rows, next_rows)
-        if remove_index >= 0:
-            changed_rows = _changed_existing_row_indexes(self._rows, next_rows)
-            self.beginRemoveRows(QModelIndex(), remove_index, remove_index)
+        def commit() -> None:
             self._all_items = next_items
-            self._profile_items = next_profile_items
-            self._set_rows(next_rows)
-            self.endRemoveRows()
-            self._emit_data_changed_for_rows(changed_rows)
-            return True
+            self._profile_items = {entry.key: entry for entry in next_items}
 
-        self.beginResetModel()
-        self._all_items = next_items
-        self._profile_items = next_profile_items
-        self._set_rows(next_rows)
-        self.endResetModel()
+        self._apply_rows_or_reset(next_rows, commit=commit)
         return True
 
     def move_profile(
@@ -534,31 +381,13 @@ class ProfileListModel(QAbstractListModel):
         next_group_expanded = dict(self._group_expanded)
         next_group_expanded.setdefault(target_group, True)
         next_rows = self._build_rows_from(next_items_tuple, next_group_expanded)
-        move = _single_row_move(self._rows, next_rows, identity_fn=_stable_row_identity)
-        if move is not None:
-            source_row, insert_row = move
-            destination_child = _move_destination_child(source_row, insert_row)
-            if destination_child not in {source_row, source_row + 1}:
-                changed_rows = _changed_existing_row_indexes(
-                    self._rows,
-                    next_rows,
-                    identity_fn=_stable_row_identity,
-                )
-                self.beginMoveRows(QModelIndex(), source_row, source_row, QModelIndex(), destination_child)
-                self._all_items = next_items_tuple
-                self._profile_items = {item.key: item for item in self._all_items}
-                self._group_expanded = next_group_expanded
-                self._set_rows(next_rows)
-                self.endMoveRows()
-                self._emit_data_changed_for_rows(changed_rows)
-                return True
 
-        self.beginResetModel()
-        self._all_items = next_items_tuple
-        self._profile_items = {item.key: item for item in self._all_items}
-        self._group_expanded = next_group_expanded
-        self._set_rows(next_rows)
-        self.endResetModel()
+        def commit() -> None:
+            self._all_items = next_items_tuple
+            self._profile_items = {item.key: item for item in next_items_tuple}
+            self._group_expanded = next_group_expanded
+
+        self._apply_rows_or_reset(next_rows, commit=commit)
         return True
 
     def apply_folder_state(self, folder_state: dict[str, Any]) -> bool:
@@ -571,26 +400,13 @@ class ProfileListModel(QAbstractListModel):
         next_items_tuple = _apply_profile_folder_state_to_items(self._all_items, folder_state)
         next_group_expanded = _initial_group_expanded(next_items_tuple)
         next_rows = self._build_rows_from(next_items_tuple, next_group_expanded)
-        next_profile_items = {item.key: item for item in next_items_tuple}
 
-        can_keep_visible_rows = [_stable_row_identity(row) for row in self._rows] == [
-            _stable_row_identity(row) for row in next_rows
-        ]
-        if can_keep_visible_rows:
-            changed_rows = tuple(index for index, row in enumerate(next_rows) if self._rows[index] != row)
+        def commit() -> None:
             self._all_items = next_items_tuple
-            self._profile_items = next_profile_items
+            self._profile_items = {item.key: item for item in next_items_tuple}
             self._group_expanded = next_group_expanded
-            self._set_rows(next_rows)
-            self._emit_data_changed_for_rows(changed_rows)
-            return True
 
-        self.beginResetModel()
-        self._all_items = next_items_tuple
-        self._profile_items = next_profile_items
-        self._group_expanded = next_group_expanded
-        self._set_rows(next_rows)
-        self.endResetModel()
+        self._apply_rows_or_reset(next_rows, commit=commit)
         return True
 
     def rowCount(self, parent: QModelIndex = QModelIndex()) -> int:
@@ -686,12 +502,15 @@ class ProfileListModel(QAbstractListModel):
         self,
         items: tuple[ProfileDisplayItem, ...],
         group_expanded: dict[str, bool],
+        *,
+        active_profile_types: set[str] | None = None,
+        search_query: str | None = None,
     ) -> list[dict[str, Any]]:
         return _build_profile_rows_from(
             items,
             group_expanded,
-            active_profile_types=self._active_profile_types,
-            search_query=self._search_query,
+            active_profile_types=self._active_profile_types if active_profile_types is None else active_profile_types,
+            search_query=self._search_query if search_query is None else search_query,
             show_only_added=self._show_only_added,
         )
 
@@ -713,51 +532,68 @@ class ProfileListModel(QAbstractListModel):
             model_index = self.index(row_index, 0)
             self.dataChanged.emit(model_index, model_index, _profile_data_roles())
 
-    def _matches_filter(self, item: ProfileDisplayItem) -> bool:
-        return _profile_matches_filter(
-            item,
-            active_profile_types=self._active_profile_types,
-            search_query=self._search_query,
-            show_only_added=self._show_only_added,
-        )
-
     def _row_index_for_profile_key(self, profile_key: str) -> int:
         key = str(profile_key or "").strip()
         return int(self._profile_row_by_key.get(key, -1))
 
+    def stable_row_identity_at(self, row_index: int) -> tuple[str, str] | None:
+        """Стабильная идентичность строки для scroll-anchor или None."""
+        if 0 <= int(row_index) < len(self._rows):
+            return _stable_row_identity(self._rows[int(row_index)])
+        return None
 
-def _single_inserted_row_index(
-    old_rows: list[dict[str, Any]],
-    next_rows: list[dict[str, Any]],
-    *,
-    identity_fn=None,
-) -> int:
-    identity_fn = identity_fn or _row_identity
-    if len(next_rows) != len(old_rows) + 1:
+    def row_for_stable_identity(self, identity: tuple[str, str] | None) -> int:
+        """Индекс строки с данной стабильной идентичностью или -1."""
+        if identity is None:
+            return -1
+        for index, row in enumerate(self._rows):
+            if _stable_row_identity(row) == identity:
+                return index
         return -1
-    old_ids = [identity_fn(row) for row in old_rows]
-    next_ids = [identity_fn(row) for row in next_rows]
-    for index in range(len(next_ids)):
-        if next_ids[:index] + next_ids[index + 1 :] == old_ids:
-            return index
-    return -1
 
 
-def _single_removed_row_index(
-    old_rows: list[dict[str, Any]],
-    next_rows: list[dict[str, Any]],
-    *,
-    identity_fn=None,
-) -> int:
-    identity_fn = identity_fn or _row_identity
-    if len(old_rows) != len(next_rows) + 1:
-        return -1
-    old_ids = [identity_fn(row) for row in old_rows]
-    next_ids = [identity_fn(row) for row in next_rows]
-    for index in range(len(old_ids)):
-        if old_ids[:index] + old_ids[index + 1 :] == next_ids:
-            return index
-    return -1
+def _is_in_place_identity_change(
+    old_ids: list[tuple[str, str]],
+    next_ids: list[tuple[str, str]],
+) -> bool:
+    """True, если строки изменили идентичность «на месте»: длина та же,
+    kind в каждой позиции совпадает, но набор идентичностей стал другим
+    (правка имени/match-строк меняет persistent_key профиля). Такое изменение
+    не структурное — достаточно dataChanged, reset не нужен. Перестановка
+    прежних идентичностей сюда не попадает — её решает move-детектор."""
+    if len(old_ids) != len(next_ids):
+        return False
+    if set(old_ids) == set(next_ids):
+        return False
+    return all(old_id[0] == next_id[0] for old_id, next_id in zip(old_ids, next_ids))
+
+
+def _contiguous_inserted_row_span(
+    old_ids: list[tuple[str, str]],
+    next_ids: list[tuple[str, str]],
+) -> tuple[int, int] | None:
+    """Диапазон (first, last) вставленного непрерывного блока строк или None.
+
+    Идентичности строк уникальны, поэтому достаточно сверить общий префикс
+    и потребовать, чтобы остаток нового списка совпал со старым хвостом.
+    """
+    inserted = len(next_ids) - len(old_ids)
+    if inserted <= 0:
+        return None
+    start = 0
+    while start < len(old_ids) and old_ids[start] == next_ids[start]:
+        start += 1
+    if next_ids[start + inserted :] == old_ids[start:]:
+        return start, start + inserted - 1
+    return None
+
+
+def _contiguous_removed_row_span(
+    old_ids: list[tuple[str, str]],
+    next_ids: list[tuple[str, str]],
+) -> tuple[int, int] | None:
+    """Диапазон (first, last) удалённого непрерывного блока строк или None."""
+    return _contiguous_inserted_row_span(next_ids, old_ids)
 
 
 def _changed_existing_row_indexes(
@@ -819,46 +655,6 @@ def _move_destination_child(source_index: int, insert_index_after_removal: int) 
     if insert_index_after_removal > source_index:
         return insert_index_after_removal + 1
     return insert_index_after_removal
-
-
-def _row_index_for_group(rows: list[dict[str, Any]], group_key: str) -> int:
-    key = str(group_key or "")
-    for index, row in enumerate(rows):
-        if str(row.get("kind") or "") == "folder" and str(row.get("group") or "") == key:
-            return index
-    return -1
-
-
-def _rows_match_single_group_insert(
-    old_rows: list[dict[str, Any]],
-    next_rows: list[dict[str, Any]],
-    group_index: int,
-) -> bool:
-    insert_count = len(next_rows) - len(old_rows)
-    if insert_count <= 0:
-        return False
-    old_ids = [_stable_row_identity(row) for row in old_rows]
-    next_ids = [_stable_row_identity(row) for row in next_rows]
-    return (
-        old_ids[: group_index + 1] == next_ids[: group_index + 1]
-        and old_ids[group_index + 1 :] == next_ids[group_index + 1 + insert_count :]
-    )
-
-
-def _rows_match_single_group_remove(
-    old_rows: list[dict[str, Any]],
-    next_rows: list[dict[str, Any]],
-    group_index: int,
-) -> bool:
-    remove_count = len(old_rows) - len(next_rows)
-    if remove_count <= 0:
-        return False
-    old_ids = [_stable_row_identity(row) for row in old_rows]
-    next_ids = [_stable_row_identity(row) for row in next_rows]
-    return (
-        old_ids[: group_index + 1] == next_ids[: group_index + 1]
-        and old_ids[group_index + 1 + remove_count :] == next_ids[group_index + 1 :]
-    )
 
 
 def _row_identity(row: dict[str, Any]) -> tuple[str, str]:

@@ -5,6 +5,7 @@ DOCS_URL = "https://publish.obsidian.md/zapret/Privacy/Zapret/home"  # Осно�
 INFO_URL = "https://publish.obsidian.md/zapret/Privacy/Zapret/home"  # URL с информацией о программе
 PRESET_INFO_URL = "https://publish.obsidian.md/zapret/Privacy/Zapret2/preset"  # URL о пресетах
 PROFILE_INFO_URL = "https://publish.obsidian.md/zapret/Privacy/Zapret2/filter"  # URL о профилях
+WINWS_LOG_ANALYZER_INFO_URL = "https://publish.obsidian.md/zapret/Privacy/Zapret2/log-analyzer"  # URL об анализаторе логов winws2
 ANDROID_URL = "https://publish.obsidian.md/zapret/Privacy/Zapret/android"  # URL инструкции для Android
 BOLVAN_URL = "https://github.com/bol-van/zapret-win-bundle"  # URL автора
 SUPPORT_DISCUSSIONS_URL = "https://github.com/youtubediscord/zapret/discussions"  # Основная ссылка поддержки

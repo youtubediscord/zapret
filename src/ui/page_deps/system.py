@@ -55,6 +55,12 @@ def build_premium_page_kwargs(*, page_name: PageName, premium_feature, ui_state_
     }
 
 
+def build_winws_log_analyzer_page_kwargs(*, page_name: PageName) -> dict:
+    _ = page_name
+    # Страница самодостаточна: путь к папке логов берёт из config.LOGS_FOLDER.
+    return {}
+
+
 def build_support_page_kwargs(*, page_name: PageName, external_actions_feature) -> dict:
     _ = page_name
 
@@ -262,6 +268,7 @@ __all__ = [
     "build_orchestra_settings_page_kwargs",
     "build_premium_page_kwargs",
     "build_servers_page_kwargs",
+    "build_winws_log_analyzer_page_kwargs",
     "build_support_page_kwargs",
     "build_telegram_proxy_page_kwargs",
 ]

@@ -46,6 +46,7 @@ from settings.mode import (
     ZAPRET2_MODE,
     exe_path_for_launch_method,
 )
+from winws_runtime.health.windivert_diagnostics import describe_windivert_readiness_failure
 from winws_runtime.public import CREATE_NO_WINDOW, STARTF_USESHOWWINDOW, SW_HIDE
 from winws_runtime.runtime.system_ops import (
     aggressive_windivert_cleanup_runtime,
@@ -54,6 +55,21 @@ from winws_runtime.runtime.system_ops import (
 )
 
 logger = logging.getLogger(__name__)
+
+# При активном Kaspersky частые циклы старт/стоп winws2 провоцируют гонку
+# драйверов (WinDivert vs kl*.sys) в ядре — даём фильтрам время на разрядку.
+_KASPERSKY_STRATEGY_COOLDOWN_SECONDS = 2.0
+
+
+def _strategy_cleanup_pause_seconds() -> float:
+    try:
+        from utils.antivirus_probe import is_kaspersky_present
+
+        if is_kaspersky_present():
+            return _KASPERSKY_STRATEGY_COOLDOWN_SECONDS
+    except Exception as e:
+        logger.debug("Kaspersky probe failed, using default cleanup pause: %s", e)
+    return 0.8
 
 # ---------------------------------------------------------------------------
 # Callback protocol
@@ -157,6 +173,7 @@ class StrategyScanner:
             self._start_index = 0
         self._cb: StrategyScanCallback = callback or _NullCallback()
         self._cancelled = False
+        self._fatal_error = ""
         self._process: subprocess.Popen | None = None
         self._process_lock = threading.Lock()
         self._games_ipset_sources: list[str] = []
@@ -347,6 +364,7 @@ class StrategyScanner:
             cancelled=was_cancelled,
             baseline_accessible=baseline_accessible,
             scan_protocol=self._scan_protocol,
+            fatal_error=self._fatal_error,
         )
 
         if was_cancelled:
@@ -1500,8 +1518,9 @@ class StrategyScanner:
 
     def _launch_winws2(self, preset_path: str) -> subprocess.Popen:
         """Launch winws2.exe with the given preset file."""
-        if not self._ensure_windivert_ready_for_scan():
-            raise RuntimeError("WinDivert ещё не готов к запуску временного winws2")
+        readiness_error = self._ensure_windivert_ready_for_scan()
+        if readiness_error:
+            raise RuntimeError(readiness_error)
 
         cmd = [self._winws2_exe, f"@{preset_path}"]
 
@@ -1519,8 +1538,12 @@ class StrategyScanner:
             creationflags=creation_flags,
         )
 
-    def _ensure_windivert_ready_for_scan(self) -> bool:
-        """Проверяет, что WinDivert готов перед временным запуском стратегии."""
+    def _ensure_windivert_ready_for_scan(self) -> str | None:
+        """Проверяет готовность WinDivert перед временным запуском стратегии.
+
+        Возвращает None, если WinDivert готов, иначе — точное описание
+        причины провала (код ошибки + что делать) из центра диагностики.
+        """
         try:
             probe = wait_for_windivert_spawn_ready_runtime(
                 max_wait_seconds=3.0,
@@ -1528,10 +1551,10 @@ class StrategyScanner:
             )
         except Exception as e:
             logger.debug("Strategy scan WinDivert readiness probe failed: %s", e)
-            return True
+            return None
 
         if getattr(probe, "ready", False):
-            return True
+            return None
 
         error_code = getattr(probe, "error_code", None)
         self._cb.on_log(
@@ -1540,28 +1563,29 @@ class StrategyScanner:
 
         try:
             aggressive_windivert_cleanup_runtime()
-            probe = wait_for_windivert_spawn_ready_runtime(
+            recovery_probe = wait_for_windivert_spawn_ready_runtime(
                 max_wait_seconds=5.0,
                 poll_interval=0.25,
             )
         except Exception as e:
             logger.debug("Strategy scan WinDivert recovery failed: %s", e)
-            return False
+            recovery_probe = None
 
-        if getattr(probe, "ready", False):
-            self._cb.on_log("  WinDivert готов после очистки")
-            return True
+        if recovery_probe is not None:
+            probe = recovery_probe
+            if getattr(probe, "ready", False):
+                self._cb.on_log("  WinDivert готов после очистки")
+                return None
 
-        error_code = getattr(probe, "error_code", None)
+        description = describe_windivert_readiness_failure(probe)
         stage = getattr(probe, "stage", "")
-        self._cb.on_log(f"  WinDivert всё ещё не готов (error={error_code}, stage={stage})")
-        if int(error_code or 0) == 1058:
-            self._cb.on_log(
-                "  Сканирование остановлено: служба WinDivert/Monkey отключена или не может быть "
-                "восстановлена. Запустите Zapret от имени администратора и повторите подбор."
-            )
+        self._cb.on_log(f"  {description} (stage={stage})")
+        error_code = int(getattr(probe, "error_code", 0) or 0)
+        if error_code == 1058:
+            self._fatal_error = description
+            self._cb.on_log("  Сканирование остановлено: продолжать подбор бессмысленно")
             self._cancelled = True
-        return False
+        return description
 
     def _kill_current_process(self) -> None:
         """Terminate the current winws2 process if running (thread-safe)."""
@@ -1598,7 +1622,7 @@ class StrategyScanner:
                 logger.debug("runtime shutdown after failed strategy kill failed: %s", e)
 
         try:
-            standard_windivert_cleanup_runtime()
+            standard_windivert_cleanup_runtime(sleep_seconds=_strategy_cleanup_pause_seconds())
         except Exception as e:
             logger.debug("strategy scan WinDivert cleanup failed: %s", e)
 

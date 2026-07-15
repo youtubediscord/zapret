@@ -45,6 +45,7 @@ from .filter_switch import (
 from .models import EngineName, Preset, Profile, ProfileSegment
 from .normalizer import normalize_preset_profiles
 from .parser import parse_preset_text
+from .persistent_key_migration import migrate_profile_persistent_key_meta
 from .serializer import (
     append_profile_from_template,
     serialize_preset,
@@ -782,11 +783,13 @@ class ProfilePresetService:
         filter_value: str,
         in_range: str,
         out_range: str,
-    ) -> str | None:
+    ) -> tuple[str, str] | None:
         preset, _manifest = self.load_selected_preset()
         index = resolve_preset_profile_reference_index(preset, profile_key)
         if index is None:
             return None
+        old_persistent_key = str(preset.profiles[index].persistent_key or "").strip()
+        preedit_other_keys = self._other_profile_persistent_keys(preset, index)
         current = read_editable_profile_settings(preset.profiles[index])
         next_filter_kind = str(filter_kind or "").strip().lower()
         if next_filter_kind != current.filter_kind:
@@ -820,26 +823,79 @@ class ProfilePresetService:
             and current.in_range == next_settings.in_range
             and current.out_range == next_settings.out_range
         ):
-            return preset.profiles[index].key
+            return old_persistent_key, old_persistent_key
         preset = with_editable_profile_settings(
             preset,
             index,
             next_settings,
         )
         self.save_selected_preset(preset)
-        return preset.profiles[index].key if 0 <= index < len(preset.profiles) else None
+        return self._profile_edit_result(preset, index, old_persistent_key, preedit_other_keys)
 
-    def update_profile_raw_text(self, profile_key: str, raw_text: str) -> str | None:
+    def update_profile_raw_text(self, profile_key: str, raw_text: str) -> tuple[str, str] | None:
         preset, _manifest = self.load_selected_preset()
         index = resolve_preset_profile_reference_index(preset, profile_key)
         if index is None:
             return None
+        old_persistent_key = str(preset.profiles[index].persistent_key or "").strip()
+        preedit_other_keys = self._other_profile_persistent_keys(preset, index)
         normalized_text = str(raw_text or "").replace("\r\n", "\n").replace("\r", "\n").strip()
         if profile_raw_text(preset.profiles[index]) == normalized_text:
-            return preset.profiles[index].key
+            return old_persistent_key, old_persistent_key
         preset = with_profile_raw_text(preset, index, raw_text)
         self.save_selected_preset(preset)
-        return preset.profiles[index].key if 0 <= index < len(preset.profiles) else None
+        return self._profile_edit_result(preset, index, old_persistent_key, preedit_other_keys)
+
+    def _profile_edit_result(
+        self,
+        preset: Preset,
+        index: int,
+        old_persistent_key: str,
+        preedit_other_keys: frozenset[str] = frozenset(),
+    ) -> tuple[str, str] | None:
+        """Пара (old_persistent_key, new_persistent_key) после успешного
+        сохранения preset. При смене ключа мигрирует мету профиля в
+        settings.json (оценки стратегий и папку/порядок) со старого ключа
+        на новый — иначе она осиротеет."""
+        if not (0 <= index < len(preset.profiles)):
+            return None
+        new_persistent_key = str(preset.profiles[index].persistent_key or "").strip()
+        old_key = str(old_persistent_key or "").strip()
+        # Guard от слияния меты в чужой профиль. Parser гарантирует
+        # уникальность persistent_key внутри пресета (_assign_profile_keys
+        # суффиксует дубликаты имён), но при совпадении имён базовый ключ
+        # "name:<имя>" может ПЕРЕЙТИ от одного профиля к другому (владелец
+        # выбирается по контенту). Мигрировать нельзя, когда:
+        # - новый ключ до правки принадлежал другому профилю: перенос слил
+        #   бы мету редактируемого профиля с чужой (setdefault, необратимо);
+        # - старый ключ после правки достался другому профилю: перенос унёс
+        #   бы мету, которую тот профиль унаследовал вместе с ключом.
+        new_key_was_foreign = new_persistent_key in preedit_other_keys
+        old_key_still_used = any(
+            str(getattr(profile, "persistent_key", "") or "").strip() == old_key
+            for position, profile in enumerate(preset.profiles)
+            if position != index
+        )
+        if not new_key_was_foreign and not old_key_still_used:
+            if migrate_profile_persistent_key_meta(old_key, new_persistent_key, strategy_state_store=self._state_store):
+                self._invalidate_profile_list_snapshot()
+        if new_persistent_key:
+            return old_key, new_persistent_key
+        positional_key = str(preset.profiles[index].key or "").strip()
+        return old_key, positional_key
+
+    @staticmethod
+    def _other_profile_persistent_keys(preset: Preset, index: int) -> frozenset[str]:
+        """persistent_key всех профилей пресета, кроме index (снимок берётся
+        ДО правки: пост-правочная переразметка ключей может перевесить
+        базовый ключ на другой профиль)."""
+        return frozenset(
+            key
+            for position, profile in enumerate(tuple(getattr(preset, "profiles", ()) or ()))
+            if position != index
+            for key in (str(getattr(profile, "persistent_key", "") or "").strip(),)
+            if key
+        )
 
     def validate_list_file_text(self, kind: str, text: str) -> tuple[tuple[int, str], ...]:
         return validate_profile_list_file_text(kind, text)
@@ -892,7 +948,7 @@ class ProfilePresetService:
         )
         return self._list_editor_state_for_profile(profile)
 
-    def set_profile_filter_kind(self, profile_key: str, filter_kind: str) -> str | None:
+    def set_profile_filter_kind(self, profile_key: str, filter_kind: str) -> tuple[str, str] | None:
         filter_kind = str(filter_kind or "").strip().lower()
         if filter_kind not in {"hostlist", "ipset"}:
             return None
@@ -902,11 +958,13 @@ class ProfilePresetService:
         if index is None:
             return None
         profile = preset.profiles[index]
+        old_persistent_key = str(profile.persistent_key or "").strip()
+        preedit_other_keys = self._other_profile_persistent_keys(preset, index)
         current = read_editable_profile_settings(profile)
         if not current.filter_editable:
             return None
         if current.filter_kind == filter_kind:
-            return profile.key
+            return old_persistent_key, old_persistent_key
         resolved = resolve_filter_kind_switch(current, filter_kind, self._app_paths)
         if not resolved.allowed:
             return None
@@ -925,7 +983,7 @@ class ProfilePresetService:
             ),
         )
         self.save_selected_preset(preset)
-        return preset.profiles[index].key if 0 <= index < len(preset.profiles) else None
+        return self._profile_edit_result(preset, index, old_persistent_key, preedit_other_keys)
 
     def delete_profile(self, profile_key: str) -> bool:
         preset, _manifest = self.load_selected_preset()

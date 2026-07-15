@@ -48,7 +48,15 @@ def open_profile_setup_for_method(window, method, profile_key, *, allow_internal
     return bool(_open_profile_setup_for_method(window, method, profile_key, allow_internal=allow_internal))
 
 
-def apply_profile_setup_change_for_method(window, method, profile_key, change_kind, *, profile_item=None) -> bool:
+def apply_profile_setup_change_for_method(
+    window,
+    method,
+    profile_key,
+    change_kind,
+    *,
+    profile_item=None,
+    old_profile_key=None,
+) -> bool:
     from main.window_page_presenters import apply_profile_setup_change_for_method as _apply_profile_setup_change_for_method
 
     return bool(
@@ -58,6 +66,7 @@ def apply_profile_setup_change_for_method(window, method, profile_key, change_ki
             profile_key,
             change_kind,
             profile_item=profile_item,
+            old_profile_key=old_profile_key,
         )
     )
 
@@ -144,12 +153,13 @@ def build_window_page_actions(*, window, appearance_actions) -> WindowPageAction
             profile_key,
             allow_internal=True,
         ),
-        on_profile_setup_changed=lambda method, profile_key, change_kind, profile_item=None: apply_profile_setup_change_for_method(
+        on_profile_setup_changed=lambda method, profile_key, change_kind, profile_item=None, old_profile_key=None: apply_profile_setup_change_for_method(
             window,
             method,
             profile_key,
             change_kind,
             profile_item=profile_item,
+            old_profile_key=old_profile_key,
         ),
         open_preset_raw_editor=lambda method, preset_name, *, allow_internal=True: open_preset_raw_editor_for_method(
             window,

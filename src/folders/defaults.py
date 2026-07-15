@@ -74,7 +74,7 @@ def classify_profile_folder(text: object) -> str:
     value = str(text or "").strip().lower()
     if not value:
         return COMMON_FOLDER_KEY
-    if "youtube" in value or "googlevideo" in value:
+    if any(token in value for token in ("youtube", "googlevideo", "ytimg")):
         return "youtube"
     if "discord" in value:
         return "discord"

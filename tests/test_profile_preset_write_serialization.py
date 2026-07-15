@@ -64,8 +64,10 @@ class ProfilePresetWriteSerializationTests(unittest.TestCase):
         page = PresetSetupPageBase.__new__(PresetSetupPageBase)
         page._profile_context_action_runtime = _Runtime(running=False)
 
+        from profile.ui.preset_write_queue import PresetWriteQueue
+
         init_source = inspect.getsource(PresetSetupPageBase.__init__)
-        queue_source = inspect.getsource(PresetSetupPageBase._queue_profile_preset_write_operation)
+        queue_source = inspect.getsource(PresetWriteQueue._queue_profile_preset_write_operation)
         cleanup_source = inspect.getsource(PresetSetupPageBase.cleanup)
 
         self.assertTrue(hasattr(PresetSetupPageBase, "_profile_preset_write_state_obj"))

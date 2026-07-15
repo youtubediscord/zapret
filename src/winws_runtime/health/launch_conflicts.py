@@ -1,11 +1,18 @@
 from __future__ import annotations
 
+import os
 import time
 from typing import Dict, List
 
 from log.log import log
-from winws_runtime.runtime.system_ops import kill_process_by_pid_runtime
-from utils.windows_process_probe import iter_process_records_winapi
+from winws_runtime.runtime.system_ops import (
+    _KNOWN_WINDIVERT_SERVICES,
+    kill_process_by_pid_runtime,
+)
+from utils.windows_process_probe import (
+    iter_process_module_paths_winapi,
+    iter_process_records_winapi,
+)
 
 
 CONFLICTING_PROCESSES = {
@@ -41,6 +48,156 @@ _CONFLICTING_PROCESS_BY_NAME = {
     for exe_name, info in CONFLICTING_PROCESSES.items()
 }
 
+# Папки нашей собственной установки: процессы и драйверы из них — не конфликт.
+# Раннеры регистрируют сюда свой work_dir при инициализации.
+_OWN_WINDIVERT_DIRS: set[str] = set()
+
+_SERVICES_REGISTRY_KEY = r"SYSTEM\CurrentControlSet\Services"
+
+
+def register_own_windivert_dirs(*dirs: str) -> None:
+    """Регистрирует папки нашей установки, чтобы не считать себя конфликтом."""
+    for directory in dirs:
+        normalized = _normalize_dir(directory)
+        if normalized:
+            _OWN_WINDIVERT_DIRS.add(normalized)
+
+
+def _normalize_dir(directory: str) -> str:
+    text = str(directory or "").strip()
+    if not text:
+        return ""
+    # Пути из реестра/снимков всегда с "\"; на тестовых POSIX-системах
+    # os.path с ними не работает, поэтому приводим разделитель явно.
+    return os.path.normpath(text.replace("\\", os.sep)).lower()
+
+
+def _is_own_path(path: str) -> bool:
+    normalized = _normalize_dir(path)
+    if not normalized:
+        return False
+    for own_dir in _OWN_WINDIVERT_DIRS:
+        if normalized == own_dir or normalized.startswith(own_dir + os.sep):
+            return True
+    return False
+
+
+def _is_windivert_module_name(module_path: str) -> bool:
+    base_name = str(module_path or "").replace("\\", "/").rsplit("/", 1)[-1].strip().lower()
+    return base_name.startswith("windivert") and base_name.endswith(".dll")
+
+
+def _normalize_service_image_path(image_path: str) -> str:
+    """Приводит ImagePath службы к обычному пути файла драйвера."""
+    driver_path = str(image_path or "").strip().strip('"')
+    if driver_path.startswith("\\??\\"):
+        driver_path = driver_path[4:]
+    return driver_path
+
+
+def find_windivert_holder_processes() -> List[Dict[str, str]]:
+    """Ищет чужие процессы с загруженной windivert*.dll.
+
+    Любой процесс не из нашей папки, который держит WinDivert.dll, — почти
+    наверняка программа, конфликтующая за драйвер (другой форк zapret,
+    GoodbyeDPI и т.п.). Сканирование модулей всех процессов не бесплатно,
+    поэтому вызывать только из веток обработки ошибок запуска.
+    """
+    holders: list[dict] = []
+    own_pid = os.getpid()
+    try:
+        for pid, proc_name in iter_process_records_winapi():
+            if int(pid) <= 4 or int(pid) == own_pid:
+                continue
+            module_paths = iter_process_module_paths_winapi(int(pid))
+            if not module_paths:
+                continue
+
+            windivert_dlls = [path for path in module_paths if _is_windivert_module_name(path)]
+            if not windivert_dlls:
+                continue
+
+            exe_path = module_paths[0]
+            if _is_own_path(exe_path):
+                continue
+
+            holders.append(
+                {
+                    "name": str(proc_name or "").strip() or os.path.basename(exe_path),
+                    "exe": exe_path,
+                    "windivert_dll": windivert_dlls[0],
+                    "pid": int(pid),
+                }
+            )
+            log(
+                f"Обнаружен чужой процесс с WinDivert.dll: {proc_name} (PID {pid}, {exe_path})",
+                "WARNING",
+            )
+    except Exception as e:
+        log(f"Ошибка поиска процессов с WinDivert.dll: {e}", "DEBUG")
+
+    return holders
+
+
+def find_foreign_windivert_service_paths() -> List[str]:
+    """Ищет службы WinDivert*, чей драйвер лежит не в нашей папке.
+
+    Работает даже если чужой процесс уже завершился, а его драйвер остался
+    зарегистрирован: ImagePath службы называет папку программы-владельца.
+    """
+    try:
+        import winreg
+    except Exception:
+        return []
+
+    foreign_paths: list[str] = []
+    for service_name in _KNOWN_WINDIVERT_SERVICES:
+        try:
+            key_path = f"{_SERVICES_REGISTRY_KEY}\\{service_name}"
+            with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, key_path, 0, winreg.KEY_READ) as service_key:
+                image_path, _ = winreg.QueryValueEx(service_key, "ImagePath")
+        except Exception:
+            continue
+
+        driver_path = _normalize_service_image_path(image_path)
+        if not driver_path or _is_own_path(driver_path):
+            continue
+
+        if driver_path not in foreign_paths:
+            foreign_paths.append(driver_path)
+            log(
+                f"Служба {service_name} указывает на чужой драйвер WinDivert: {driver_path}",
+                "WARNING",
+            )
+
+    return foreign_paths
+
+
+def build_windivert_conflict_hint() -> str | None:
+    """Однострочная подсказка о найденном виновнике для текста ошибки."""
+    try:
+        holders = find_windivert_holder_processes()
+    except Exception:
+        holders = []
+    if holders:
+        first = holders[0]
+        return (
+            f"Возможный конфликт: {first['name']} (PID {first['pid']}, {first['exe']}) "
+            "держит WinDivert — закройте эту программу"
+        )
+
+    try:
+        foreign_paths = find_foreign_windivert_service_paths()
+    except Exception:
+        foreign_paths = []
+    if foreign_paths:
+        return (
+            f"Драйвер WinDivert установлен другой программой: {foreign_paths[0]} — "
+            "закройте её или выполните очистку драйвера"
+        )
+
+    return None
+
 
 def check_conflicting_processes() -> List[Dict[str, str]]:
     """Ищет программы, которые могут мешать WinDivert."""
@@ -75,7 +232,7 @@ def build_launch_conflict_advice() -> tuple[str, str] | None:
     """Возвращает подсказку только после неудачного запуска Zapret."""
     conflicting = check_conflicting_processes()
     if not conflicting:
-        return None
+        return _build_dynamic_conflict_advice()
 
     names = ", ".join(
         str(item.get("name") or item.get("exe") or "неизвестная программа")
@@ -90,6 +247,26 @@ def build_launch_conflict_advice() -> tuple[str, str] | None:
     cause = f"{names}, похоже, помешал запуску Zapret: WinDivert не смог открыться"
     solution = "\n".join(solutions) or "Закройте конфликтующую программу и повторите запуск Zapret"
     return cause, solution
+
+
+def _build_dynamic_conflict_advice() -> tuple[str, str] | None:
+    """Подсказка по программам вне чёрного списка: кто реально держит WinDivert."""
+    holders = find_windivert_holder_processes()
+    if holders:
+        names = ", ".join(f"{h['name']} (PID {h['pid']}, {h['exe']})" for h in holders)
+        return (
+            f"WinDivert занят другой программой: {names}",
+            "Закройте эту программу и повторите запуск Zapret",
+        )
+
+    foreign_paths = find_foreign_windivert_service_paths()
+    if foreign_paths:
+        return (
+            f"Драйвер WinDivert установлен другой программой: {foreign_paths[0]}",
+            "Закройте ту программу (или удалите её драйвер) и повторите запуск Zapret",
+        )
+
+    return None
 
 
 def try_kill_conflicting_processes(auto_kill: bool = False) -> bool:

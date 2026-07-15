@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import threading
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -9,6 +10,13 @@ from settings import store as settings_store
 
 
 VALID_RATINGS = frozenset({"", "work", "notwork"})
+
+# Мутации — read-modify-write над общим settings.json и зовутся из разных
+# QThread-воркеров (save-воркеры мигрируют ключ, оценки пишутся из feedback-
+# воркеров). _read()/_write() атомарны по отдельности, связка — нет: без
+# общего лока интерлив теряет рейтинг или мигрированную мету. Паттерн — как
+# _PROFILE_FOLDER_STATE_LOCK в folders.py.
+_PROFILE_STRATEGY_STATE_LOCK = threading.RLock()
 
 
 @dataclass(frozen=True)
@@ -59,48 +67,85 @@ class ProfileStrategyStateStore:
         if not clean_strategy_id:
             raise ValueError("strategy id is required")
 
-        data = self._read()
-        current_state = _state_from_row(_strategy_row(data, clean_profile_key, clean_strategy_id))
-        next_state = ProfileStrategyState(
-            rating=_normalize_rating(rating) if rating is not None else current_state.rating,
-            favorite=bool(favorite) if favorite is not None else current_state.favorite,
-        )
-        if next_state == current_state:
-            return current_state
+        with _PROFILE_STRATEGY_STATE_LOCK:
+            data = self._read()
+            current_state = _state_from_row(_strategy_row(data, clean_profile_key, clean_strategy_id))
+            next_state = ProfileStrategyState(
+                rating=_normalize_rating(rating) if rating is not None else current_state.rating,
+                favorite=bool(favorite) if favorite is not None else current_state.favorite,
+            )
+            if next_state == current_state:
+                return current_state
 
-        profiles = data.setdefault("profiles", {})
-        if not isinstance(profiles, dict):
-            profiles = {}
-            data["profiles"] = profiles
+            profiles = data.setdefault("profiles", {})
+            if not isinstance(profiles, dict):
+                profiles = {}
+                data["profiles"] = profiles
 
-        profile_row = profiles.setdefault(clean_profile_key, {})
-        if not isinstance(profile_row, dict):
-            profile_row = {}
-            profiles[clean_profile_key] = profile_row
+            profile_row = profiles.setdefault(clean_profile_key, {})
+            if not isinstance(profile_row, dict):
+                profile_row = {}
+                profiles[clean_profile_key] = profile_row
 
-        strategies = profile_row.setdefault("strategies", {})
-        if not isinstance(strategies, dict):
-            strategies = {}
-            profile_row["strategies"] = strategies
+            strategies = profile_row.setdefault("strategies", {})
+            if not isinstance(strategies, dict):
+                strategies = {}
+                profile_row["strategies"] = strategies
 
-        row = strategies.setdefault(clean_strategy_id, {})
-        if not isinstance(row, dict):
-            row = {}
-            strategies[clean_strategy_id] = row
+            row = strategies.setdefault(clean_strategy_id, {})
+            if not isinstance(row, dict):
+                row = {}
+                strategies[clean_strategy_id] = row
 
-        if rating is not None:
-            row["rating"] = _normalize_rating(rating)
-        if favorite is not None:
-            row["favorite"] = bool(favorite)
-        row["updated_at"] = _now_iso()
+            if rating is not None:
+                row["rating"] = _normalize_rating(rating)
+            if favorite is not None:
+                row["favorite"] = bool(favorite)
+            row["updated_at"] = _now_iso()
 
-        if not row.get("rating") and not bool(row.get("favorite")):
-            strategies.pop(clean_strategy_id, None)
-        if not strategies:
-            profiles.pop(clean_profile_key, None)
+            if not row.get("rating") and not bool(row.get("favorite")):
+                strategies.pop(clean_strategy_id, None)
+            if not strategies:
+                profiles.pop(clean_profile_key, None)
 
-        self._write(data)
-        return self.get_strategy_state(clean_profile_key, clean_strategy_id)
+            self._write(data)
+            return self.get_strategy_state(clean_profile_key, clean_strategy_id)
+
+    def migrate_profile_key(self, old_profile_key: str, new_profile_key: str) -> bool:
+        """Переносит записи стратегий `profiles[old]` → `profiles[new]` при
+        смене persistent_key профиля (правка имени/match-строк).
+
+        Правило слияния: существующие записи нового ключа имеют приоритет и
+        не затираются; отсутствующие копируются со старого ключа. Старый ключ
+        удаляется. Возвращает True, если хранилище было изменено; при
+        old == new или отсутствии старого ключа запись не производится."""
+        old_key = _normalize_profile_key(old_profile_key)
+        new_key = _normalize_profile_key(new_profile_key)
+        if not old_key or not new_key or old_key == new_key:
+            return False
+
+        with _PROFILE_STRATEGY_STATE_LOCK:
+            data = self._read()
+            profiles = data.get("profiles")
+            if not isinstance(profiles, dict) or old_key not in profiles:
+                return False
+
+            old_row = profiles.pop(old_key)
+            old_strategies = old_row.get("strategies") if isinstance(old_row, dict) else None
+            if isinstance(old_strategies, dict) and old_strategies:
+                new_row = profiles.get(new_key)
+                if not isinstance(new_row, dict):
+                    new_row = {}
+                    profiles[new_key] = new_row
+                new_strategies = new_row.get("strategies")
+                if not isinstance(new_strategies, dict):
+                    new_strategies = {}
+                    new_row["strategies"] = new_strategies
+                for strategy_id, row in old_strategies.items():
+                    new_strategies.setdefault(strategy_id, row)
+
+            self._write(data)
+            return True
 
     def clear_strategy_state(self, profile_key: str, strategy_id: str) -> None:
         clean_profile_key = _normalize_profile_key(profile_key)
@@ -108,23 +153,24 @@ class ProfileStrategyStateStore:
         if not clean_profile_key or not clean_strategy_id:
             return
 
-        data = self._read()
-        profiles = data.get("profiles")
-        if not isinstance(profiles, dict):
-            return
-        profile_row = profiles.get(clean_profile_key)
-        if not isinstance(profile_row, dict):
-            return
-        strategies = profile_row.get("strategies")
-        if not isinstance(strategies, dict):
-            return
-        if clean_strategy_id not in strategies:
-            return
+        with _PROFILE_STRATEGY_STATE_LOCK:
+            data = self._read()
+            profiles = data.get("profiles")
+            if not isinstance(profiles, dict):
+                return
+            profile_row = profiles.get(clean_profile_key)
+            if not isinstance(profile_row, dict):
+                return
+            strategies = profile_row.get("strategies")
+            if not isinstance(strategies, dict):
+                return
+            if clean_strategy_id not in strategies:
+                return
 
-        strategies.pop(clean_strategy_id, None)
-        if not strategies:
-            profiles.pop(clean_profile_key, None)
-        self._write(data)
+            strategies.pop(clean_strategy_id, None)
+            if not strategies:
+                profiles.pop(clean_profile_key, None)
+            self._write(data)
 
     def _read(self) -> dict[str, Any]:
         raw = settings_store.get_profile_strategy_state_settings()

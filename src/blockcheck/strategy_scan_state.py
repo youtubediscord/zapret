@@ -40,6 +40,7 @@ class StrategyScanFinishPlan:
     support_status_code: str
     notification_kind: str
     baseline_variant: str
+    fatal_error: str = ""
 
 
 @dataclass(slots=True)

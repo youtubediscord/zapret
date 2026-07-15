@@ -92,6 +92,7 @@ class ProgramSettingsFeature:
             "tray_close_mode": save_tray_close_mode,
             "defender_disabled": commands.set_defender_disabled,
             "max_block": commands.set_max_block_enabled,
+            "state_media_block": commands.set_state_media_block_enabled,
         }
         save_action = actions.get(normalized_action)
         if save_action is not None:

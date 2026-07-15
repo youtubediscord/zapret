@@ -98,7 +98,9 @@ def _register_managed_scroll_widget(widget) -> None:
 def iter_managed_smooth_scroll_widgets() -> tuple:
     """Возвращает снимок всех живых виджетов с плавной прокруткой qfluentwidgets."""
     try:
-        return tuple(_managed_scroll_widgets)
+        from PyQt6 import sip
+
+        return tuple(widget for widget in _managed_scroll_widgets if not sip.isdeleted(widget))
     except Exception:
         return ()
 

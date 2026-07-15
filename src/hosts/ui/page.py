@@ -517,7 +517,7 @@ class HostsPage(BasePage):
         handled = reconcile_catalog_after_hidden_refresh(
             catalog_dirty=self._catalog_dirty,
             services_layout_exists=self._services_layout is not None,
-            rebuild_services_selectors=self._rebuild_services_selectors,
+            rebuild_services_selectors=self._refresh_services_selectors,
             invalidate_cache=self._invalidate_cache,
         )
         if handled:
@@ -555,7 +555,7 @@ class HostsPage(BasePage):
             services_layout_exists=self._services_layout is not None,
             page_visible=self.isVisible(),
             invalidate_catalog_cache=self._hosts.invalidate_catalog_cache,
-            rebuild_services_selectors=self._rebuild_services_selectors,
+            rebuild_services_selectors=self._refresh_services_selectors,
             log_info=lambda message: log(message, "INFO"),
         )
         if not result["changed"]:
@@ -713,6 +713,20 @@ class HostsPage(BasePage):
         self._services_build_generation = generation
         self._services_pending_row_batches = []
         return generation
+
+    def _refresh_services_selectors(self) -> None:
+        """Обновляет список сервисов без предварительной очистки layout.
+
+        Свежий план приходит из воркера; _build_services_selectors сама решает,
+        достаточно ли in-place обновления или структура каталога изменилась и
+        нужна полная пересборка. Открытые меню выбора профиля не разрушаются.
+        """
+        if self._services_layout is None:
+            return
+        if not self.__dict__.get("_services_ui_mounted", False):
+            self._rebuild_services_selectors()
+            return
+        self._start_services_catalog_worker()
 
     def _rebuild_services_selectors(self) -> None:
         if self._services_layout is None:
