@@ -501,6 +501,22 @@ class BuiltinProfileCatalogTests(unittest.TestCase):
         self.assertEqual(vencord_entries, ["vencord.dev"])
         self.assertNotIn("vencord.dev", discord_entries)
 
+    def test_chatgpt_profile_uses_shipped_hostlist(self) -> None:
+        preset = parse_preset_text(
+            ALL_PROFILES_PATH.read_text(encoding="utf-8"),
+            engine="winws2",
+            source_name=ALL_PROFILES_PATH.name,
+        )
+        profiles = [profile for profile in preset.profiles if str(profile.name or "").strip() == "chatgpt"]
+
+        self.assertEqual(len(profiles), 1)
+        self.assertEqual(profiles[0].match.filter_lines, ["--filter-tcp=80-65535"])
+        self.assertEqual(profiles[0].match.hostlist_lines, ["--hostlist=lists/chatgpt.txt"])
+        self.assertEqual(
+            _list_entries(PRIVATE_ROOT / "dist" / "lists" / "chatgpt.txt"),
+            ["chatgpt.com", "openai.com", "oaiusercontent.com"],
+        )
+
     def test_builtin_presets_do_not_repeat_enabled_logical_profile_matches(self) -> None:
         offenders: list[str] = []
 
