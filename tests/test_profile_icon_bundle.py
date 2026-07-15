@@ -74,6 +74,16 @@ class SimpleIconsBundleTests(unittest.TestCase):
         self.assertIn("simple", cache_kinds, "иконка не отрисована из бандла")
         self.assertNotIn("initials", cache_kinds, "не должно быть заглушки для иконки из бандла")
 
+    def test_vencord_icon_renders_from_bundle(self) -> None:
+        pixmap = profile_icon.profile_icon_pixmap(
+            "simple:vencord:VC",
+            color="#EB7396",
+            size=18,
+        )
+
+        self.assertFalse(pixmap.isNull())
+        self.assertTrue(any(key[0] == "simple" and key[1] == "vencord" for key in profile_icon._PROFILE_PIXMAP_CACHE))
+
     def test_unknown_slug_falls_back_to_initials(self) -> None:
         pixmap = profile_icon.profile_icon_pixmap(
             "simple:definitely-not-in-bundle:NB",

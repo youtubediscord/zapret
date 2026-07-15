@@ -23,6 +23,15 @@ class ProfileIconTests(unittest.TestCase):
 
         self.assertEqual(icon.icon_name, "simple:discord:DI")
 
+    def test_vencord_profile_uses_brand_icon(self) -> None:
+        icon = resolve_profile_icon(
+            "vencord.dev",
+            ("--filter-tcp=80,443", "--hostlist=lists/vencord.txt"),
+        )
+
+        self.assertEqual(icon.icon_name, "simple:vencord:VC")
+        self.assertEqual(icon.color, "#EB7396")
+
     def test_unknown_site_gets_stable_initials_icon(self) -> None:
         first = resolve_profile_icon(
             "example.org",

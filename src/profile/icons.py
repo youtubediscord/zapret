@@ -19,6 +19,7 @@ _KNOWN_ICONS: dict[str, ProfileIconSpec] = {
     "googlevideo": ProfileIconSpec("simple:youtube:YT", "#FF0000"),
     "discord": ProfileIconSpec("simple:discord:DI", "#5865F2"),
     "discord-updates": ProfileIconSpec("simple:discord:DI", "#5865F2"),
+    "vencord": ProfileIconSpec("simple:vencord:VC", "#EB7396"),
     "telegram": ProfileIconSpec("simple:telegram:TG", "#229ED9"),
     "whatsapp": ProfileIconSpec("simple:whatsapp:WA", "#25D366"),
     "facebook": ProfileIconSpec("simple:facebook:FB", "#1877F2"),
