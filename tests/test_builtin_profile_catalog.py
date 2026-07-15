@@ -473,6 +473,23 @@ class BuiltinProfileCatalogTests(unittest.TestCase):
         self.assertTrue(all(item.in_preset for item in discord_updates))
         self.assertTrue(all(item.in_preset for item in discord_media))
 
+    def test_vencord_profile_uses_dedicated_hostlist(self) -> None:
+        preset = parse_preset_text(
+            ALL_PROFILES_PATH.read_text(encoding="utf-8"),
+            engine="winws2",
+            source_name=ALL_PROFILES_PATH.name,
+        )
+        profiles = [profile for profile in preset.profiles if str(profile.name or "").strip() == "vencord.dev"]
+
+        self.assertEqual(len(profiles), 1)
+        self.assertEqual(profiles[0].match.filter_lines, ["--filter-tcp=80,443"])
+        self.assertEqual(profiles[0].match.hostlist_lines, ["--hostlist=lists/vencord.txt"])
+
+        vencord_entries = _list_entries(PRIVATE_ROOT / "dist" / "lists" / "vencord.txt")
+        discord_entries = _list_entries(PRIVATE_ROOT / "dist" / "lists" / "discord.txt")
+        self.assertEqual(vencord_entries, ["vencord.dev"])
+        self.assertNotIn("vencord.dev", discord_entries)
+
     def test_builtin_presets_do_not_repeat_enabled_logical_profile_matches(self) -> None:
         offenders: list[str] = []
 
@@ -1148,6 +1165,14 @@ def _items_with_match_line(items, expected_line: str):
         item
         for item in items
         if expected_line in getattr(item, "match_lines", ())
+    ]
+
+
+def _list_entries(path: Path) -> list[str]:
+    return [
+        line.strip()
+        for line in path.read_text(encoding="utf-8").splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
     ]
 
 

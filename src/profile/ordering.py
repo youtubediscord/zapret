@@ -107,13 +107,24 @@ def _live_item(
     classification_text = " ".join(
         part for part in (name, classification_extra, persistent_key, " ".join(match_lines)) if part
     )
+    folder_key = classify_profile_folder(classification_text)
     return {
         "key": persistent_key,
         "name": name,
-        "folder_key": classify_profile_folder(classification_text),
+        "folder_key": folder_key,
         "manual_tie": (),
-        "auto_rank": (protocol_sort_rank(match_lines), fallback_index),
+        "auto_rank": (
+            _profile_folder_tail_rank(folder_key, classification_text),
+            protocol_sort_rank(match_lines),
+            fallback_index,
+        ),
     }
+
+
+def _profile_folder_tail_rank(folder_key: str, classification_text: str) -> int:
+    if folder_key == "discord" and "vencord" in classification_text.lower():
+        return 1
+    return 0
 
 
 def _normalized_state(folder_state: dict[str, Any] | None) -> dict[str, Any]:

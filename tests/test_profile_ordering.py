@@ -87,6 +87,29 @@ class ProfileOrderRoundTripTests(unittest.TestCase):
             ("yt-ui", "yt-quic", "googlevideo", "yt-rtmps"),
         )
 
+    def test_vencord_is_last_in_discord_default_order(self) -> None:
+        items = (
+            _item("discord-tcp", "discord.com", match_lines=("--filter-tcp=443",), source_order=0),
+            _item("discord-udp", "Discord UDP", match_lines=("--filter-udp=443-65535",), source_order=1),
+            _item("discord-voice", "Discord voice", match_lines=("--filter-l7=stun,discord",), source_order=2),
+            _item(
+                "vencord",
+                "vencord.dev",
+                match_lines=("--filter-tcp=80,443", "--hostlist=lists/vencord.txt"),
+                source_order=3,
+            ),
+        )
+
+        view = resolve_profile_order_view(
+            live_items_from_display_items(items),
+            build_default_profile_folders(),
+        )
+
+        self.assertEqual(
+            view.items_by_folder["discord"],
+            ("discord-tcp", "discord-udp", "discord-voice", "vencord"),
+        )
+
     def test_ac1_move_round_trip_matches_optimistic_order(self) -> None:
         items = _youtube_items()
         state = _youtube_state()

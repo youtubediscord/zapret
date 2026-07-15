@@ -76,7 +76,7 @@ def classify_profile_folder(text: object) -> str:
         return COMMON_FOLDER_KEY
     if any(token in value for token in ("youtube", "googlevideo", "ytimg")):
         return "youtube"
-    if "discord" in value:
+    if any(token in value for token in ("discord", "vencord")):
         return "discord"
     if any(token in value for token in ("github", "ghcr.io")):
         return "github"

@@ -88,6 +88,7 @@ class FolderDefaultsTests(unittest.TestCase):
             "youtube",
         )
         self.assertEqual(classify_profile_folder("Discord Updates --hostlist=discord.txt"), "discord")
+        self.assertEqual(classify_profile_folder("vencord.dev --hostlist=lists/vencord.txt"), "discord")
         self.assertEqual(classify_profile_folder("GitHub --hostlist=lists/github.txt"), "github")
         self.assertEqual(
             classify_profile_folder("githubusercontent.com --hostlist=lists/githubusercontent.txt"),
