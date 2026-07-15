@@ -1,5 +1,5 @@
 # Preset: Default v1 (game filter)
-# BuiltinVersion: 2.24
+# BuiltinVersion: 2.25
 # IconColor: #a8c5ff
 
 --lua-init=@lua/zapret-lib.lua
@@ -699,7 +699,7 @@
 
 --new
 
---name=Все сайты UDP (исключение)
+--name=Все сайты UDP (айпи)
 --filter-udp=443-65535
 --ipset-exclude=lists/ipset-ru.txt
 --ipset-exclude=lists/ipset-dns.txt
