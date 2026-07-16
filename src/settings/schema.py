@@ -256,6 +256,13 @@ def default_folders() -> dict[str, Any]:
     }
 
 
+def default_profile_identity() -> dict[str, Any]:
+    return {
+        "winws2": {},
+        "winws1": {},
+    }
+
+
 def build_default_settings() -> dict[str, Any]:
     return {
         "version": SETTINGS_VERSION,
@@ -274,4 +281,5 @@ def build_default_settings() -> dict[str, Any]:
         "updater": default_updater(),
         "blockcheck": default_blockcheck(),
         "folders": default_folders(),
+        "profile_identity": default_profile_identity(),
     }

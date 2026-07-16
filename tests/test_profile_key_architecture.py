@@ -164,10 +164,11 @@ class StaleReferenceCorrectnessTests(unittest.TestCase):
                 payload = service.list_profiles()
                 gamma_item = next(
                     item for item in payload.items
-                    if getattr(item, "persistent_key", "") == "name:Gamma"
+                    if getattr(item, "display_name", "") == "Gamma"
                 )
                 gamma_reference = profile_reference_key(gamma_item)
-                self.assertEqual(gamma_reference, "name:Gamma")
+                # Идентичность стабильна: ссылка — uid из sidecar-реестра.
+                self.assertTrue(gamma_reference.startswith("uid:"))
 
                 # Сосед удалён из другого места — позиционные ключи сдвинулись.
                 self.assertTrue(service.delete_profile("profile:0"))
@@ -197,12 +198,12 @@ class StaleReferenceCorrectnessTests(unittest.TestCase):
             with patch("settings.store.MAIN_DIRECTORY", str(root)):
                 payload = service.list_profiles()
                 references = {
-                    getattr(item, "persistent_key", ""): profile_reference_key(item)
+                    getattr(item, "display_name", ""): profile_reference_key(item)
                     for item in payload.items
                 }
                 # Обе ссылки захвачены заранее — как при быстрых кликах в UI.
-                self.assertTrue(service.delete_profile(references["name:Alpha"]))
-                self.assertTrue(service.delete_profile(references["name:Gamma"]))
+                self.assertTrue(service.delete_profile(references["Alpha"]))
+                self.assertTrue(service.delete_profile(references["Gamma"]))
 
         preset = parse_preset_text(store.text, engine="winws2")
         self.assertEqual([profile.name for profile in preset.profiles], ["Beta"])

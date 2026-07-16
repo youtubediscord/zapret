@@ -90,15 +90,34 @@ class ProfileFolderActionTests(unittest.TestCase):
 
         self.assertFalse(state["folders"]["youtube"]["collapsed"])
 
-    def test_duplicate_profile_folder_reset_skips_folder_state_save(self) -> None:
+    def test_profile_folder_reset_always_returns_fresh_state_without_redundant_write(self) -> None:
+        # Reset всегда возвращает свежее состояние (UI обязан перерисоваться),
+        # но фактическая запись settings при неизменном состоянии не происходит.
         with TemporaryDirectory() as temp_dir:
             with patch("settings.store.MAIN_DIRECTORY", str(Path(temp_dir))):
                 load_profile_folder_state()
                 with patch(
-                    "profile.folders.save_profile_folder_state",
-                    side_effect=AssertionError("unchanged profile folder reset must not be saved"),
+                    "profile.folders.settings_store.set_folders_settings",
+                    side_effect=AssertionError("unchanged profile folder state must not write settings"),
                 ):
-                    self.assertFalse(reset_profile_folders())
+                    state = reset_profile_folders()
+        self.assertIsInstance(state, dict)
+        self.assertIn("youtube", state["folders"])
+
+    def test_profile_folder_reset_materializes_assignments(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            with patch("settings.store.MAIN_DIRECTORY", str(Path(temp_dir))):
+                folder_key = create_profile_folder("Моя папка")
+                state = load_profile_folder_state()
+                state["items"]["uid:manual"] = {"folder_key": folder_key, "order": 3, "rating": 0}
+                save_profile_folder_state(state)
+
+                state = reset_profile_folders({"uid:manual": "discord", "uid:unknown-folder": "no-such"})
+
+        self.assertNotIn(folder_key, state["folders"])
+        self.assertEqual(state["items"]["uid:manual"]["folder_key"], "discord")
+        self.assertIsNone(state["items"]["uid:manual"]["order"])
+        self.assertEqual(state["items"]["uid:unknown-folder"]["folder_key"], COMMON_FOLDER_KEY)
 
     def test_save_profile_folder_state_skips_settings_write_when_state_is_unchanged(self) -> None:
         with TemporaryDirectory() as temp_dir:

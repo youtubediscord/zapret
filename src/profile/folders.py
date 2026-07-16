@@ -8,6 +8,8 @@ from folders.defaults import COMMON_FOLDER_KEY, build_default_profile_folders, c
 from folders.store import FolderLibraryStore, normalize_folder_state
 from settings import store as settings_store
 
+from .identity import is_profile_uid
+
 # Сериализует read-modify-write состояния папок: воркеры перемещения и
 # folder-действия страницы работают из разных потоков.
 _PROFILE_FOLDER_STATE_LOCK = threading.RLock()
@@ -109,13 +111,53 @@ def set_profile_folders_collapsed(collapsed_by_key: dict[str, bool]) -> bool:
         return True
 
 
-def reset_profile_folders() -> dict[str, Any] | bool:
+def materialize_profile_folder_items(folder_by_profile_key: dict[str, str]) -> bool:
+    """Первичное размещение: закрепляет папку за профилем, у которого ещё нет
+    меты. Классификация — правило ПЕРВОГО появления; уже размещённые профили
+    не трогаются, дальнейшие изменения текста профиля папку не меняют."""
+    assignments = {
+        str(profile_key or "").strip(): str(folder_key or "").strip()
+        for profile_key, folder_key in dict(folder_by_profile_key or {}).items()
+        if str(profile_key or "").strip()
+    }
+    if not assignments:
+        return False
     with profile_folder_state_lock():
-        default_state = build_default_profile_folders()
-        current_state = load_profile_folder_state()
-        if current_state == normalize_folder_state(default_state, default_state):
+        state = load_profile_folder_state()
+        folders = state.get("folders", {})
+        items = state.setdefault("items", {})
+        changed = False
+        for profile_key, folder_key in assignments.items():
+            if isinstance(items.get(profile_key), dict):
+                continue
+            target = folder_key if isinstance(folders, dict) and folder_key in folders else COMMON_FOLDER_KEY
+            items[profile_key] = {"folder_key": target, "order": None, "rating": 0}
+            changed = True
+        if not changed:
             return False
-        return save_profile_folder_state(default_state)
+        save_profile_folder_state(state)
+        return True
+
+
+def reset_profile_folders(folder_by_profile_key: dict[str, str] | None = None) -> dict[str, Any]:
+    """Сброс к начальному правилу: дефолтные папки + первичное размещение всех
+    переданных профилей (ключ → папка от классификатора). Детерминирован и
+    всегда возвращает свежее состояние — UI обязан перерисоваться."""
+    with profile_folder_state_lock():
+        state = build_default_profile_folders()
+        folders = state["folders"]
+        items = state["items"]
+        for profile_key, folder_key in dict(folder_by_profile_key or {}).items():
+            key = str(profile_key or "").strip()
+            if not key:
+                continue
+            target = str(folder_key or "").strip()
+            items[key] = {
+                "folder_key": target if target in folders else COMMON_FOLDER_KEY,
+                "order": None,
+                "rating": 0,
+            }
+        return save_profile_folder_state(state)
 
 
 def profile_folder_for_profile(profile, state: dict[str, Any] | None = None) -> tuple[str, str, int | None]:
@@ -198,48 +240,32 @@ def set_profile_folder(profile_key: str, folder_key: str) -> bool:
         return True
 
 
-def migrate_profile_folder_meta(old_profile_key: str, new_profile_key: str) -> bool:
-    """Переносит мету профиля `items[old]` → `items[new]` при смене
-    persistent_key (правка имени/match-строк меняет производный ключ).
-
-    Существующая мета нового ключа имеет приоритет и не затирается; старый
-    ключ удаляется в любом случае. Возвращает True, если состояние было
-    изменено; при old == new или отсутствии старого ключа запись не
-    производится."""
-    old_key = str(old_profile_key or "").strip()
-    new_key = str(new_profile_key or "").strip()
-    if not old_key or not new_key or old_key == new_key:
-        return False
-    with profile_folder_state_lock():
-        state = load_profile_folder_state()
-        items = state.get("items")
-        if not isinstance(items, dict) or old_key not in items:
-            return False
-        old_meta = items.pop(old_key)
-        if new_key not in items and isinstance(old_meta, dict):
-            items[new_key] = old_meta
-        save_profile_folder_state(state)
-        return True
-
-
-def _profile_classification_text(profile) -> str:
+def profile_classification_text(profile) -> str:
+    """Текст для правила первичного размещения. Стабильные uid-ключи не несут
+    классификационного сигнала и в текст не включаются; контентные ключи
+    (шаблоны, legacy) — включаются, в них есть имена hostlist-ов."""
+    persistent_key = str(getattr(profile, "persistent_key", "") or "")
     parts: list[str] = [
         str(getattr(profile, "display_name", "") or ""),
         str(getattr(profile, "name", "") or ""),
-        str(getattr(profile, "persistent_key", "") or ""),
+        "" if is_profile_uid(persistent_key) else persistent_key,
     ]
     try:
         parts.extend(str(line or "") for line in profile.match.all_lines())
     except Exception:
         pass
-    return " ".join(parts)
+    return " ".join(part for part in parts if part)
+
+
+_profile_classification_text = profile_classification_text
 
 
 __all__ = [
     "create_profile_folder",
     "delete_profile_folder",
     "load_profile_folder_state",
-    "migrate_profile_folder_meta",
+    "materialize_profile_folder_items",
+    "profile_classification_text",
     "move_profile_folder_by_step",
     "profile_folder_collapsed",
     "profile_folder_for_profile",

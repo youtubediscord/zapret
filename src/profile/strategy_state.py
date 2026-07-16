@@ -111,41 +111,6 @@ class ProfileStrategyStateStore:
             self._write(data)
             return self.get_strategy_state(clean_profile_key, clean_strategy_id)
 
-    def migrate_profile_key(self, old_profile_key: str, new_profile_key: str) -> bool:
-        """Переносит записи стратегий `profiles[old]` → `profiles[new]` при
-        смене persistent_key профиля (правка имени/match-строк).
-
-        Правило слияния: существующие записи нового ключа имеют приоритет и
-        не затираются; отсутствующие копируются со старого ключа. Старый ключ
-        удаляется. Возвращает True, если хранилище было изменено; при
-        old == new или отсутствии старого ключа запись не производится."""
-        old_key = _normalize_profile_key(old_profile_key)
-        new_key = _normalize_profile_key(new_profile_key)
-        if not old_key or not new_key or old_key == new_key:
-            return False
-
-        with _PROFILE_STRATEGY_STATE_LOCK:
-            data = self._read()
-            profiles = data.get("profiles")
-            if not isinstance(profiles, dict) or old_key not in profiles:
-                return False
-
-            old_row = profiles.pop(old_key)
-            old_strategies = old_row.get("strategies") if isinstance(old_row, dict) else None
-            if isinstance(old_strategies, dict) and old_strategies:
-                new_row = profiles.get(new_key)
-                if not isinstance(new_row, dict):
-                    new_row = {}
-                    profiles[new_key] = new_row
-                new_strategies = new_row.get("strategies")
-                if not isinstance(new_strategies, dict):
-                    new_strategies = {}
-                    new_row["strategies"] = new_strategies
-                for strategy_id, row in old_strategies.items():
-                    new_strategies.setdefault(strategy_id, row)
-
-            self._write(data)
-            return True
 
     def clear_strategy_state(self, profile_key: str, strategy_id: str) -> None:
         clean_profile_key = _normalize_profile_key(profile_key)

@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 import unittest
+from unittest.mock import patch
 
 from core.paths import AppPaths
 from profile.editable_settings import EditableProfileSettings
@@ -32,6 +34,10 @@ class ProfileFilterKindSwitchTests(unittest.TestCase):
     ) -> tuple[ProfilePresetService, _PresetStore]:
         store = _PresetStore(text)
         base = root or Path("src").resolve()
+        # Изоляция settings.json: реестр идентичности профилей пишется при
+        # каждой загрузке пресета и не должен попадать в рабочие настройки.
+        settings_dir = self.enterContext(TemporaryDirectory())
+        self.enterContext(patch("settings.store.MAIN_DIRECTORY", settings_dir))
         feature = SimpleNamespace(
             _presets_feature=store,
             _app_paths=AppPaths(user_root=base, local_root=base),
@@ -39,12 +45,13 @@ class ProfileFilterKindSwitchTests(unittest.TestCase):
         return ProfilePresetService(feature, launch_method), store
 
     def _assert_saved_pair(self, result, store, *, engine: str = "winws2") -> None:
-        """Edit-операции service возвращают пару (old, new) persistent_key;
-        new обязан соответствовать profile:0 сохранённого текста preset."""
+        """Edit-операции service возвращают пару (old, new) persistent_key.
+        Идентичность стабильна (uid из sidecar-реестра): правка контента
+        профиля не меняет его ключ — old == new."""
         self.assertIsNotNone(result)
-        _old_key, new_key = result
-        preset = parse_preset_text(store.text, engine=engine)
-        self.assertEqual(new_key, preset.profiles[0].persistent_key)
+        old_key, new_key = result
+        self.assertEqual(old_key, new_key)
+        self.assertTrue(new_key.startswith("uid:"), new_key)
 
     def test_switch_hostlist_profile_to_ipset_rewrites_same_profile_line(self) -> None:
         from tempfile import TemporaryDirectory

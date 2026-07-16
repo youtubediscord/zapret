@@ -416,6 +416,20 @@ def set_folders_settings(values: dict[str, Any]) -> dict[str, Any]:
     return copy.deepcopy(updated["folders"])
 
 
+def get_profile_identity_registry(engine: str) -> dict[str, Any]:
+    key = str(engine or "").strip().lower()
+    registries = read_settings()["profile_identity"]
+    return copy.deepcopy(registries.get(key) or {})
+
+
+def set_profile_identity_registry(engine: str, registry: dict[str, Any]) -> dict[str, Any]:
+    key = str(engine or "").strip().lower()
+    updated = _update_settings(
+        lambda data: _set_path_value(data, ("profile_identity", key), _as_dict(registry))
+    )
+    return copy.deepcopy(updated["profile_identity"].get(key) or {})
+
+
 def get_orchestra_settings() -> dict[str, Any]:
     return copy.deepcopy(read_settings()["orchestra"]["settings"])
 

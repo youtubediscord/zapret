@@ -9,18 +9,26 @@ from typing import Any
 import threading
 import time
 
+from folders.defaults import classify_profile_folder
 from log.log import log
 from presets.cache_signatures import path_cache_signature
 from settings.mode import DEFAULT_LAUNCH_METHOD, PRESET_LAUNCH_METHODS, engine_for_launch_method, normalize_launch_method
-from settings.store import get_user_profiles_revision
+from settings.store import (
+    get_profile_identity_registry,
+    get_user_profiles_revision,
+    set_profile_identity_registry,
+)
 from ui.performance_metrics import log_ui_timing_since
 
 from .derived_cache import PresetSourcesCache, ProfileDerivedCache, profile_raw_text
 from .folders import (
     load_profile_folder_state,
+    materialize_profile_folder_items,
+    profile_classification_text,
     profile_folder_state_lock,
     save_profile_folder_state,
 )
+from .identity import is_profile_uid, normalize_identity_registry, resolve_profile_identities
 from .list_interpreter import build_profile_list_sources
 from .ordering import live_items_from_sources, plan_profile_move, resolve_profile_order_view
 from .key_resolution import (
@@ -42,10 +50,9 @@ from .filter_switch import (
     filter_kinds_without_preset_duplicates,
     resolve_filter_kind_switch,
 )
-from .models import EngineName, Preset, Profile, ProfileSegment
+from .models import EngineName, Preset, Profile, ProfileSegment, build_profile_logical_key
 from .normalizer import normalize_preset_profiles
 from .parser import parse_preset_text
-from .persistent_key_migration import migrate_profile_persistent_key_meta
 from .serializer import (
     append_profile_from_template,
     serialize_preset,
@@ -135,6 +142,10 @@ class ProfilePresetService:
         preset = parse_preset_text(source_text, engine=self._engine, source_name=manifest.file_name)
         self._log_timing("profile_feature.selected_preset.parse", parse_started_at)
 
+        identity_started_at = time.perf_counter()
+        self._restamp_profile_identities(preset)
+        self._log_timing("profile_feature.selected_preset.identity", identity_started_at)
+
         snapshot = _SelectedPresetSnapshot(
             revision=revision,
             preset=preset,
@@ -142,6 +153,41 @@ class ProfilePresetService:
         )
         self._selected_preset_snapshot = snapshot
         return snapshot.preset, snapshot.manifest
+
+    def _restamp_profile_identities(self, preset: Preset) -> None:
+        """persistent_key = стабильный uid из sidecar-реестра идентичности.
+
+        Реестр (`profile_identity.<engine>` в settings) — единственное место,
+        где контент профиля участвует в идентичности: resolver сопоставляет
+        профили парса последним известным (имя, сигнатура) и выдаёт прежний
+        uid при переименовании или правке match-строк. Впервые увиденные
+        профили получают новый uid и один раз материализуются в папку
+        классификатором (правило первичного размещения).
+
+        Кэш снапшота по revision гарантирует один resolve на изменение файла.
+        При сбое settings-хранилища остаёмся на контентных ключах парсера —
+        деградация до старого поведения, а не отказ загрузки."""
+        try:
+            registry = get_profile_identity_registry(self._engine)
+            entries = [
+                (profile.name, build_profile_logical_key(profile.match_signature))
+                for profile in preset.profiles
+            ]
+            resolution = resolve_profile_identities(entries, registry)
+            for profile, uid in zip(preset.profiles, resolution.uids):
+                profile.persistent_key = uid
+            if resolution.registry != normalize_identity_registry(registry):
+                set_profile_identity_registry(self._engine, resolution.registry)
+            if resolution.new_uids:
+                materialize_profile_folder_items(
+                    {
+                        uid: classify_profile_folder(profile_classification_text(profile))
+                        for profile, uid in zip(preset.profiles, resolution.uids)
+                        if uid in resolution.new_uids
+                    }
+                )
+        except Exception as exc:
+            log(f"ProfilePresetService: не удалось применить реестр идентичности профилей: {exc}", "ERROR")
 
     def save_selected_preset(
         self,
@@ -263,6 +309,10 @@ class ProfilePresetService:
     def _list_profiles_locked(self) -> ProfileListPayload:
         total_started_at = time.perf_counter()
         preset_revision, manifest, source_text = self._selected_preset_revision()
+        # Пресет загружается ДО чтения состояния папок: первый resolve
+        # идентичности материализует новые профили в мету папок, и ревизия
+        # списка обязана строиться уже поверх этой записи.
+        preset, manifest = self._load_selected_preset_for_revision(preset_revision, manifest, source_text)
         folder_state_started_at = time.perf_counter()
         folder_state = load_profile_folder_state()
         self._log_timing("profile_feature.folder_state.load", folder_state_started_at)
@@ -279,7 +329,6 @@ class ProfilePresetService:
             self._log_timing("profile_feature.list_profiles.cached", total_started_at)
             return revision_snapshot
 
-        preset, manifest = self._load_selected_preset_for_revision(preset_revision, manifest, source_text)
         templates_started_at = time.perf_counter()
         templates = self._load_profile_templates()
         self._log_timing("profile_feature.templates.load", templates_started_at)
@@ -292,6 +341,9 @@ class ProfilePresetService:
         self._log_timing("profile_feature.profiles.normalize", normalize_started_at)
         if normalization.changed:
             preset = normalization.preset
+            # Нормализация пере-парсит пресет и возвращает контентные ключи —
+            # возвращаем профилям стабильные uid из реестра.
+            self._restamp_profile_identities(preset)
             self._selected_preset_snapshot = _SelectedPresetSnapshot(
                 revision=preset_revision,
                 preset=preset,
@@ -789,7 +841,6 @@ class ProfilePresetService:
         if index is None:
             return None
         old_persistent_key = str(preset.profiles[index].persistent_key or "").strip()
-        preedit_other_keys = self._other_profile_persistent_keys(preset, index)
         current = read_editable_profile_settings(preset.profiles[index])
         next_filter_kind = str(filter_kind or "").strip().lower()
         if next_filter_kind != current.filter_kind:
@@ -830,7 +881,7 @@ class ProfilePresetService:
             next_settings,
         )
         self.save_selected_preset(preset)
-        return self._profile_edit_result(preset, index, old_persistent_key, preedit_other_keys)
+        return self._profile_edit_result(preset, index, old_persistent_key)
 
     def update_profile_raw_text(self, profile_key: str, raw_text: str) -> tuple[str, str] | None:
         preset, _manifest = self.load_selected_preset()
@@ -838,64 +889,56 @@ class ProfilePresetService:
         if index is None:
             return None
         old_persistent_key = str(preset.profiles[index].persistent_key or "").strip()
-        preedit_other_keys = self._other_profile_persistent_keys(preset, index)
         normalized_text = str(raw_text or "").replace("\r\n", "\n").replace("\r", "\n").strip()
         if profile_raw_text(preset.profiles[index]) == normalized_text:
             return old_persistent_key, old_persistent_key
         preset = with_profile_raw_text(preset, index, raw_text)
         self.save_selected_preset(preset)
-        return self._profile_edit_result(preset, index, old_persistent_key, preedit_other_keys)
+        return self._profile_edit_result(preset, index, old_persistent_key)
 
-    def _profile_edit_result(
-        self,
-        preset: Preset,
-        index: int,
-        old_persistent_key: str,
-        preedit_other_keys: frozenset[str] = frozenset(),
-    ) -> tuple[str, str] | None:
+    def _profile_edit_result(self, preset: Preset, index: int, old_persistent_key: str) -> tuple[str, str] | None:
         """Пара (old_persistent_key, new_persistent_key) после успешного
-        сохранения preset. При смене ключа мигрирует мету профиля в
-        settings.json (оценки стратегий и папку/порядок) со старого ключа
-        на новый — иначе она осиротеет."""
+        сохранения preset. Идентичность стабильна: сервис точно знает, какой
+        профиль правился, поэтому сначала обновляет снапшот реестра для его
+        uid, а затем reload через `_restamp_profile_identities` возвращает
+        тот же uid — миграция меты не нужна."""
         if not (0 <= index < len(preset.profiles)):
             return None
-        new_persistent_key = str(preset.profiles[index].persistent_key or "").strip()
         old_key = str(old_persistent_key or "").strip()
-        # Guard от слияния меты в чужой профиль. Parser гарантирует
-        # уникальность persistent_key внутри пресета (_assign_profile_keys
-        # суффиксует дубликаты имён), но при совпадении имён базовый ключ
-        # "name:<имя>" может ПЕРЕЙТИ от одного профиля к другому (владелец
-        # выбирается по контенту). Мигрировать нельзя, когда:
-        # - новый ключ до правки принадлежал другому профилю: перенос слил
-        #   бы мету редактируемого профиля с чужой (setdefault, необратимо);
-        # - старый ключ после правки достался другому профилю: перенос унёс
-        #   бы мету, которую тот профиль унаследовал вместе с ключом.
-        new_key_was_foreign = new_persistent_key in preedit_other_keys
-        old_key_still_used = any(
-            str(getattr(profile, "persistent_key", "") or "").strip() == old_key
-            for position, profile in enumerate(preset.profiles)
-            if position != index
-        )
-        if not new_key_was_foreign and not old_key_still_used:
-            if migrate_profile_persistent_key_meta(old_key, new_persistent_key, strategy_state_store=self._state_store):
-                self._invalidate_profile_list_snapshot()
+        self._update_identity_registry_for_edit(old_key, preset.profiles[index])
+        try:
+            reloaded, _manifest = self.load_selected_preset()
+            profiles = reloaded.profiles
+        except Exception:
+            profiles = preset.profiles
+        if not (0 <= index < len(profiles)):
+            profiles = preset.profiles
+        new_persistent_key = str(profiles[index].persistent_key or "").strip()
         if new_persistent_key:
             return old_key, new_persistent_key
         positional_key = str(preset.profiles[index].key or "").strip()
         return old_key, positional_key
 
-    @staticmethod
-    def _other_profile_persistent_keys(preset: Preset, index: int) -> frozenset[str]:
-        """persistent_key всех профилей пресета, кроме index (снимок берётся
-        ДО правки: пост-правочная переразметка ключей может перевесить
-        базовый ключ на другой профиль)."""
-        return frozenset(
-            key
-            for position, profile in enumerate(tuple(getattr(preset, "profiles", ()) or ()))
-            if position != index
-            for key in (str(getattr(profile, "persistent_key", "") or "").strip(),)
-            if key
-        )
+    def _update_identity_registry_for_edit(self, edited_uid: str, profile: Profile) -> None:
+        """Закрепляет за uid редактируемого профиля его новый контент в
+        реестре. Без этого профиль без имени, у которого правка меняет
+        match-сигнатуру, не сматчился бы resolver-ом и получил бы новый uid
+        (потеря папки/рейтингов)."""
+        if not is_profile_uid(edited_uid):
+            return
+        try:
+            registry = normalize_identity_registry(get_profile_identity_registry(self._engine))
+            if edited_uid not in registry:
+                return
+            entry = {
+                "name": str(profile.name or "").strip(),
+                "sig": str(build_profile_logical_key(profile.match_signature) or "").strip(),
+            }
+            if registry.get(edited_uid) != entry:
+                registry[edited_uid] = entry
+                set_profile_identity_registry(self._engine, registry)
+        except Exception as exc:
+            log(f"ProfilePresetService: не удалось обновить реестр идентичности после правки: {exc}", "DEBUG")
 
     def validate_list_file_text(self, kind: str, text: str) -> tuple[tuple[int, str], ...]:
         return validate_profile_list_file_text(kind, text)
@@ -959,7 +1002,6 @@ class ProfilePresetService:
             return None
         profile = preset.profiles[index]
         old_persistent_key = str(profile.persistent_key or "").strip()
-        preedit_other_keys = self._other_profile_persistent_keys(preset, index)
         current = read_editable_profile_settings(profile)
         if not current.filter_editable:
             return None
@@ -983,7 +1025,7 @@ class ProfilePresetService:
             ),
         )
         self.save_selected_preset(preset)
-        return self._profile_edit_result(preset, index, old_persistent_key, preedit_other_keys)
+        return self._profile_edit_result(preset, index, old_persistent_key)
 
     def delete_profile(self, profile_key: str) -> bool:
         preset, _manifest = self.load_selected_preset()
@@ -1204,6 +1246,17 @@ class ProfilePresetService:
                 save_source(launch_method, file_name, serialize_preset(preset))
                 changed_profiles += len(changed_indexes)
         return changed_profiles
+
+    def profile_folder_reset_assignments(self) -> dict[str, str]:
+        """Раскладка «по начальному правилу» для сброса папок: ключ каждого
+        живого профиля (пресет + шаблоны) → папка от классификатора."""
+        assignments: dict[str, str] = {}
+        for source in self._profile_sources_for_folder_order():
+            profile = getattr(source, "profile", None)
+            key = str(getattr(profile, "persistent_key", "") or "").strip()
+            if key:
+                assignments[key] = classify_profile_folder(profile_classification_text(profile))
+        return assignments
 
     def _profile_sources_for_folder_order(self):
         preset, _manifest = self.load_selected_preset()

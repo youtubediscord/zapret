@@ -487,13 +487,20 @@ class ProfileListPayloadTests(unittest.TestCase):
                 first_payload = service.list_profiles()
                 store.selected = "second.txt"
                 second_payload = service.list_profiles()
+                # Первая загрузка second.txt материализовала мету его нового
+                # профиля и сдвинула ревизию папок — first перечитывается один раз.
+                store.selected = "first.txt"
+                first_warm_payload = service.list_profiles()
+                store.selected = "second.txt"
+                cached_second_payload = service.get_cached_profile_list()
                 store.selected = "first.txt"
                 cached_first_payload = service.get_cached_profile_list()
 
-        self.assertIs(cached_first_payload, first_payload)
+        self.assertIs(cached_first_payload, first_warm_payload)
+        self.assertIs(cached_second_payload, second_payload)
         self.assertIsNot(second_payload, first_payload)
-        self.assertEqual(store.read_count_by_file, {"first.txt": 1, "second.txt": 1})
-        self.assertEqual(catalogs_loader.call_count, 2)
+        self.assertEqual(store.read_count_by_file, {"first.txt": 2, "second.txt": 1})
+        self.assertEqual(catalogs_loader.call_count, 3)
 
     def test_empty_profile_payload_cache_returns_without_touching_preset_file(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -553,6 +560,12 @@ class ProfileListPayloadTests(unittest.TestCase):
                 ),
             ):
                 service = ProfilePresetService(feature, "zapret2_mode")
+                # Прогрев: первый resolve каждого пресета материализует мету
+                # папок и сдвигает ревизию; LRU проверяем на стабильном состоянии.
+                for warm_name in ("first.txt", "second.txt", "third.txt"):
+                    store.selected = warm_name
+                    service.list_profiles()
+                store.selected = "first.txt"
                 service.list_profiles()
                 store.selected = "second.txt"
                 second_payload = service.list_profiles()
@@ -1498,9 +1511,10 @@ class ProfileListPayloadTests(unittest.TestCase):
 
             with patch("settings.store.MAIN_DIRECTORY", str(root)):
                 service = ProfilePresetService(feature, "zapret2_mode")
+                first_key_before = service.load_selected_preset()[0].profiles[0].persistent_key
                 second_key_before = service.load_selected_preset()[0].profiles[1].persistent_key
                 updated = service.update_profile_raw_text(
-                    "name:Same",
+                    first_key_before,
                     "\n".join(
                         (
                             "--name=Same",
@@ -1512,13 +1526,13 @@ class ProfileListPayloadTests(unittest.TestCase):
                 )
                 preset_after, _manifest = service.load_selected_preset()
 
-        # Успех: пара (old, new) persistent_key первого дубликата.
-        self.assertEqual(updated, ("name:Same", "name:Same"))
+        # Успех: пара (old, new) persistent_key первого дубликата; uid стабилен.
+        self.assertEqual(updated, (first_key_before, first_key_before))
         self.assertIn("--lua-desync=split", [segment.text for segment in preset_after.profiles[0].segments])
         # Второй дубликат не тронут и сохранил свой уникальный ключ.
         self.assertIn("--lua-desync=fake", [segment.text for segment in preset_after.profiles[1].segments])
         self.assertEqual(preset_after.profiles[1].persistent_key, second_key_before)
-        self.assertNotEqual(preset_after.profiles[1].persistent_key, "name:Same")
+        self.assertNotEqual(preset_after.profiles[1].persistent_key, first_key_before)
 
     def test_profile_setup_reads_strategy_feedback_in_one_batch(self) -> None:
         class _StateStore:

@@ -1207,6 +1207,7 @@ class PresetSetupPageBase(BasePage):
         )
 
     def _create_profile_folder_action_worker(self, request_id: int, **kwargs):
+        kwargs.setdefault("launch_method", self.launch_method)
         return self._create_profile_folder_action_worker_fn(request_id, parent=self, **kwargs)
 
     # --- folder actions: тонкие делегаты в ProfileFolderController ---

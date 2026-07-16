@@ -11,6 +11,7 @@ from typing import Any
 from folders.defaults import build_default_profile_folders, classify_profile_folder
 from folders.ordering import FolderOrderView, plan_item_move, resolve_folder_order
 from folders.store import normalize_folder_state
+from profile.identity import is_profile_uid
 from profile.match_filters import filter_values
 
 
@@ -104,8 +105,11 @@ def _live_item(
     fallback_index: int,
     classification_extra: str = "",
 ) -> dict[str, Any]:
+    # Стабильные uid-ключи не несут классификационного сигнала; контентные
+    # ключи (шаблоны, legacy) содержат имена hostlist-ов и остаются в тексте.
+    key_text = "" if is_profile_uid(persistent_key) else persistent_key
     classification_text = " ".join(
-        part for part in (name, classification_extra, persistent_key, " ".join(match_lines)) if part
+        part for part in (name, classification_extra, key_text, " ".join(match_lines)) if part
     )
     folder_key = classify_profile_folder(classification_text)
     return {

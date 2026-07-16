@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 from copy import deepcopy
+from functools import lru_cache
 from typing import Any
 
 COMMON_FOLDER_KEY = "common"
@@ -74,23 +75,23 @@ def classify_profile_folder(text: object) -> str:
     value = str(text or "").strip().lower()
     if not value:
         return COMMON_FOLDER_KEY
-    if any(token in value for token in ("youtube", "googlevideo", "ytimg")):
+    if _has_any_token(value, ("youtube", "googlevideo", "ytimg")):
         return "youtube"
-    if any(token in value for token in ("discord", "vencord")):
+    if _has_any_token(value, ("discord", "vencord")):
         return "discord"
-    if any(token in value for token in ("github", "ghcr.io")):
+    if _has_any_token(value, ("github", "ghcr.io")):
         return "github"
-    if any(token in value for token in ("telegram", "whatsapp", "viber", "signal", "mtproto")):
+    if _has_any_token(value, ("telegram", "whatsapp", "viber", "signal", "mtproto")):
         return "messengers"
-    if any(token in value for token in ("facebook", "instagram", "tiktok", "twitter", "x.com", "vk.com", "vk ")):
+    if _has_any_token(value, ("facebook", "instagram", "tiktok", "twitter", "x.com", "vk")):
         return "social"
-    if any(token in value for token in ("roblox", "rbxcdn")):
+    if _has_any_token(value, ("roblox", "rbxcdn")):
         return "roblox"
-    if any(token in value for token in ("amazon", "amazonaws", "awsapps", "awsglobalaccelerator", "cloudfront")):
+    if _has_any_token(value, ("amazon", "awsapps", "awsglobalaccelerator", "cloudfront")):
         return "amazon"
-    if any(
-        token in value
-        for token in (
+    if _has_any_token(
+        value,
+        (
             "game",
             "epicgames",
             "epic games",
@@ -111,18 +112,46 @@ def classify_profile_folder(text: object) -> str:
             "battle.net",
             "wow",
             "dead by daylight",
-        )
+        ),
     ):
         return "games"
-    if any(token in value for token in ("cloudflare", "datacamp", "digitalocean", "fastly", "frantech", "google cloud", "hetzner", "novoserve", "ovh", "railway", "usa google", "warp")):
+    if _has_any_token(
+        value,
+        (
+            "cloudflare",
+            "datacamp",
+            "digitalocean",
+            "fastly",
+            "frantech",
+            "google cloud",
+            "hetzner",
+            "novoserve",
+            "ovh",
+            "railway",
+            "usa google",
+            "warp",
+        ),
+    ):
         return "hosters"
-    if any(token in value for token in ("timeweb", "zapretkvn")):
+    if _has_any_token(value, ("timeweb", "zapretkvn")):
         return "zapretkvn"
     if _looks_like_all_sites_profile(value):
         return "all-sites"
     if _mentions_site_or_list(value):
         return "sites"
     return COMMON_FOLDER_KEY
+
+
+def _has_any_token(value: str, tokens: tuple[str, ...]) -> bool:
+    """Токен обязан начинаться на границе слова: `x.com` не находится в
+    `wix.com`, `lol` — в `trololo`. Правая граница не требуется — `game`
+    покрывает `games`, `steam` — `steamcommunity`."""
+    return any(_token_pattern(token).search(value) for token in tokens)
+
+
+@lru_cache(maxsize=256)
+def _token_pattern(token: str) -> re.Pattern[str]:
+    return re.compile(rf"(?<![a-z0-9а-яё]){re.escape(token)}")
 
 
 def _build_default_state(folder_specs: tuple[tuple[str, str, bool], ...]) -> dict[str, Any]:

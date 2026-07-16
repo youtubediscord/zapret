@@ -938,6 +938,7 @@ class ProfileFeature:
         request_id: int,
         *,
         action: str,
+        launch_method: str = "",
         folder_key: str = "",
         name: str = "",
         direction: int = 0,
@@ -958,6 +959,18 @@ class ProfileFeature:
         )
         from profile.profile_setup_loader import ProfileFolderActionWorker
 
+        def _reset_profile_folders():
+            # Сброс = дефолтные папки + раскладка живых профилей по начальному
+            # правилу; раскладку считает сервис выбранного launch_method.
+            assignments: dict[str, str] = {}
+            if launch_method:
+                try:
+                    service = self._commands()._profile_preset_service(self, launch_method)
+                    assignments = service.profile_folder_reset_assignments()
+                except Exception:
+                    assignments = {}
+            return reset_profile_folders(assignments)
+
         return ProfileFolderActionWorker(
             request_id,
             load_profile_folder_state,
@@ -967,7 +980,7 @@ class ProfileFeature:
             move_profile_folder_by_step,
             set_profile_folder_collapsed,
             set_profile_folders_collapsed,
-            reset_profile_folders,
+            _reset_profile_folders,
             action=action,
             folder_key=folder_key,
             name=name,

@@ -693,6 +693,16 @@ def normalize_folders(data: object) -> dict[str, Any]:
     }
 
 
+def normalize_profile_identity(data: object) -> dict[str, Any]:
+    from profile.identity import normalize_identity_registry
+
+    raw = as_dict(data)
+    return {
+        "winws2": normalize_identity_registry(raw.get("winws2")),
+        "winws1": normalize_identity_registry(raw.get("winws1")),
+    }
+
+
 def normalize_settings(data: object) -> dict[str, Any]:
     raw = as_dict(data)
     return {
@@ -712,4 +722,5 @@ def normalize_settings(data: object) -> dict[str, Any]:
         "updater": normalize_updater(raw.get("updater")),
         "blockcheck": normalize_blockcheck(raw.get("blockcheck")),
         "folders": normalize_folders(raw.get("folders")),
+        "profile_identity": normalize_profile_identity(raw.get("profile_identity")),
     }
