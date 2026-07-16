@@ -1157,6 +1157,86 @@ class BuiltinProfileCatalogTests(unittest.TestCase):
         )
         self.assertNotIn("157.144.0.0/16", entries)
 
+    def test_frantech_solutions_profiles_have_shipped_ipset(self) -> None:
+        expected_keys = {
+            "winws2|ipset=ipset-frantech.txt|tcp=80,443-65535",
+            "winws2|ipset=ipset-frantech.txt|udp=443-65535",
+        }
+        catalog = parse_preset_text(
+            ALL_PROFILES_PATH.read_text(encoding="utf-8"),
+            engine="winws2",
+            source_name=ALL_PROFILES_PATH.name,
+        )
+        catalog_profiles = [
+            profile
+            for profile in catalog.profiles
+            if str(profile.name or "").startswith("FranTech Solutions ")
+        ]
+        self.assertEqual(len(catalog_profiles), 2)
+        self.assertEqual(
+            {_profile_catalog_key("winws2", profile) for profile in catalog_profiles},
+            expected_keys,
+        )
+
+        builtin_path = PUBLIC_ROOT / "src" / "presets" / "builtin" / "winws2" / "Default v1 (game filter).txt"
+        builtin = parse_preset_text(
+            builtin_path.read_text(encoding="utf-8"),
+            engine="winws2",
+            source_name=builtin_path.name,
+        )
+        builtin_profiles = [
+            profile
+            for profile in builtin.profiles
+            if str(profile.name or "").startswith("FranTech Solutions ")
+        ]
+        self.assertEqual(len(builtin_profiles), 2)
+        self.assertEqual(
+            {_profile_catalog_key("winws2", profile) for profile in builtin_profiles},
+            expected_keys,
+        )
+        strategies = {
+            str(profile.name): profile.strategy.strategy_lines
+            for profile in builtin_profiles
+        }
+        self.assertEqual(
+            strategies,
+            {
+                "FranTech Solutions TCP": [
+                    "--out-range=-d8",
+                    "--lua-desync=hostfakesplit:host=ozon.ru:tcp_ts=-1000:tcp_md5:repeats=4",
+                ],
+                "FranTech Solutions UDP": [
+                    "--out-range=-d8",
+                    "--lua-desync=fake:blob=stun_pat:repeats=6",
+                ],
+            },
+        )
+
+        list_path = PRIVATE_ROOT / "dist" / "lists" / "ipset-frantech.txt"
+        raw_lines = list_path.read_text(encoding="utf-8").splitlines()
+        entries = [
+            line.strip()
+            for line in raw_lines
+            if line.strip() and not line.lstrip().startswith("#")
+        ]
+        self.assertEqual(raw_lines[0], "# https://ipinfo.io/AS53667")
+        self.assertEqual(len(entries), 78)
+        self.assertEqual(len(entries), len(set(entries)))
+        networks = [ipaddress.ip_network(entry, strict=True) for entry in entries]
+        self.assertEqual(sum(network.version == 4 for network in networks), 43)
+        self.assertEqual(sum(network.version == 6 for network in networks), 35)
+        self.assertTrue(
+            {
+                "209.141.32.0/19",
+                "23.183.81.0/24",
+                "198.251.90.0/24",
+                "209.141.39.0/24",
+                "2a09:7500::/29",
+                "2605:6400:c000::/34",
+                "2a14:7581:d104::/48",
+            }.issubset(entries)
+        )
+
     def test_railway_profiles_have_shipped_ipset(self) -> None:
         expected_keys = {
             "winws2|ipset=ipset-railway.txt|tcp=80,443-65535",
