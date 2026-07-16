@@ -131,6 +131,7 @@ def classify_profile_folder(text: object) -> str:
             "railway",
             "usa google",
             "warp",
+            "worldstream",
         ),
     ):
         return "hosters"

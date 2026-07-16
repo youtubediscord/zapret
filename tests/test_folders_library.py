@@ -113,6 +113,7 @@ class FolderDefaultsTests(unittest.TestCase):
         self.assertEqual(classify_profile_folder("fastly --ipset=lists/ipset-fastly.txt"), "hosters")
         self.assertEqual(classify_profile_folder("frantech --ipset=lists/ipset-frantech.txt"), "hosters")
         self.assertEqual(classify_profile_folder("novoserve --ipset=lists/ipset-novoserve.txt"), "hosters")
+        self.assertEqual(classify_profile_folder("worldstream --ipset=lists/ipset-worldstream.txt"), "hosters")
         self.assertEqual(classify_profile_folder("ovh --ipset=lists/ipset-ovh.txt"), "hosters")
         self.assertEqual(classify_profile_folder("railway --ipset=lists/ipset-railway.txt"), "hosters")
         self.assertEqual(classify_profile_folder("hetzner --ipset=lists/ipset-hetzner.txt"), "hosters")
