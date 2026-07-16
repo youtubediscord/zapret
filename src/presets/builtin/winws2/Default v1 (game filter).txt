@@ -189,24 +189,6 @@
 
 --new
 
---name=Twitter/X
---filter-tcp=80,443
---hostlist=lists/twitter.txt
---out-range=-d8
---payload=tls_client_hello
---lua-desync=hostfakesplit:host=ozon.ru:tcp_ts=-1000:tcp_md5:repeats=4
-
---new
-
---name=Twitter Images (twimg.com)
---filter-tcp=80,443
---hostlist=lists/twimg.txt
---out-range=-d8
---payload=tls_client_hello
---lua-desync=hostfakesplit:host=ozon.ru:tcp_ts=-1000:tcp_md5:repeats=4
-
---new
-
 --name=Telegram
 --filter-tcp=80,443-65535
 --ipset=lists/ipset-telegram.txt
@@ -280,6 +262,14 @@
 
 --new
 
+--name=Roblox TCP
+--filter-tcp=80,443-65535
+--hostlist=lists/roblox.txt
+--out-range=-d8
+--lua-desync=pass
+
+--new
+
 --name=Ubisoft
 --filter-tcp=80,443-65535
 --hostlist=lists/ubisoft.txt
@@ -323,17 +313,6 @@
 
 --new
 
---name=rutracker.org
---filter-tcp=80,443
---hostlist=lists/rutracker.txt
---out-range=-d10
---payload=tls_client_hello
---lua-desync=send:repeats=2
---lua-desync=syndata:blob=stun_pat
---lua-desync=hostfakesplit_multi:hosts=google.com,vimeo.com:tcp_ts=-1000:tcp_md5:repeats=2
-
---new
-
 --name=rutor.info (.is)
 --filter-tcp=80,443
 --hostlist=lists/rutor.txt
@@ -369,46 +348,6 @@
 --filter-tcp=80,443
 --hostlist=lists/whatsapp.txt
 --out-range=-d10
---payload=tls_client_hello
---lua-desync=send:repeats=2
---lua-desync=syndata:blob=stun_pat
---lua-desync=hostfakesplit_multi:hosts=google.com,vimeo.com:tcp_ts=-1000:tcp_md5:repeats=2
-
---new
-
---name=js.rbxcdn.com
---filter-tcp=80-65535
---hostlist=lists/js-rbxcdn-com.txt
---out-range=-d8
---payload=tls_client_hello
---lua-desync=multisplit:seqovl=681:seqovl_pattern=stun_pat
-
---new
-
---name=tr.rbxcdn.com
---filter-tcp=443-65535
---hostlist=lists/tr-rbxcdn-com.txt
---out-range=-n5
---payload=tls_client_hello
---lua-desync=send:repeats=2
---lua-desync=syndata:blob=stun_pat
---lua-desync=multisplit:seqovl=1000:seqovl_pattern=stun_pat
-
---new
-
---name=css.rbxcdn.com
---filter-tcp=80-65535
---hostlist=lists/css-rbxcdn-com.txt
---out-range=-d8
---payload=tls_client_hello
---lua-desync=multisplit:seqovl=681:seqovl_pattern=stun_pat
-
---new
-
---name=Roblox TCP
---filter-tcp=80,443-65535
---hostlist=lists/roblox.txt
---out-range=-d5
 --payload=tls_client_hello
 --lua-desync=send:repeats=2
 --lua-desync=syndata:blob=stun_pat
@@ -473,42 +412,14 @@
 
 --new
 
---name=Russia blacklist TCP 443
---filter-tcp=443
---hostlist=lists/russia-blacklist.txt
---out-range=-d10
---payload=tls_client_hello
---lua-desync=multidisorder:pos=1,host+2,sld+2,sld+5,sniext+1,sniext+2,endhost-2:seqovl=1
-
---new
-
 --name=Cloudflare TCP
 --filter-tcp=80,443-65535
 --ipset=lists/ipset-cloudflare.txt
---out-range=-d10
+--out-range=-d8
 --payload=all
 --lua-desync=send:repeats=2
 --lua-desync=syndata:blob=stun_pat
-
---new
-
---name=Cloudflare legacy TCP
---filter-tcp=80,443-65535
---ipset=lists/cloudflare-ipset.txt
---out-range=-d10
---payload=tls_client_hello
---lua-desync=send:repeats=2
---lua-desync=syndata:blob=stun_pat
-
---new
-
---name=Cloudflare IPv6 legacy TCP
---filter-tcp=80,443-65535
---ipset=lists/cloudflare-ipset_v6.txt
---out-range=-d10
---payload=tls_client_hello
---lua-desync=fake:blob=tls_google:repeats=6:tcp_ts=-600000
---lua-desync=fakedsplit:pattern=0x00:repeats=6:tcp_ts=-600000
+--lua-desync=hostfakesplit_multi:hosts=google.com,vimeo.com:tcp_ts=-1000:tcp_md5:repeats=2
 
 --new
 
@@ -527,8 +438,7 @@
 --ipset=lists/ipset-ovh.txt
 --out-range=-d10
 --payload=tls_client_hello
---lua-desync=fake:blob=tls_google:repeats=6:tcp_ts=-600000
---lua-desync=fakedsplit:pattern=0x00:repeats=6:tcp_ts=-600000
+--lua-desync=hostfakesplit:host=ozon.ru:tcp_ts=-1000:tcp_md5:repeats=4
 
 --new
 
@@ -560,16 +470,18 @@
 --filter-tcp=80,443-65535
 --ipset=lists/ipset-frantech.txt
 --out-range=-d8
---lua-desync=hostfakesplit:host=ozon.ru:tcp_ts=-1000:tcp_md5:repeats=4
+--lua-desync=send:repeats=2
+--lua-desync=syndata:blob=stun_pat
+--lua-desync=hostfakesplit_multi:hosts=google.com,vimeo.com:tcp_ts=-1000:tcp_md5:repeats=2
 
 --new
 
 --name=Fastly TCP
 --filter-tcp=80,443-65535
 --ipset=lists/ipset-fastly.txt
---out-range=-d8
+--out-range=-n10
 --payload=tls_client_hello
---lua-desync=multisplit:pos=1,host+2,sld+2,sld+5,sniext+1,sniext+2,endhost-2:seqovl=1
+--lua-desync=hostfakesplit:host=ozon.ru:tcp_ts=-1000:tcp_md5:repeats=4
 
 --new
 
@@ -578,7 +490,7 @@
 --ipset=lists/ipset-railway.txt
 --out-range=-d8
 --payload=tls_client_hello
---lua-desync=multisplit:pos=1,host+2,sld+2,sld+5,sniext+1,sniext+2,endhost-2:seqovl=1
+--lua-desync=hostfakesplit:host=ozon.ru:tcp_ts=-1000:tcp_md5:repeats=4
 
 --new
 
@@ -587,17 +499,7 @@
 --ipset=lists/ipset-usa-google.txt
 --out-range=-d8
 --payload=tls_client_hello
---lua-desync=multisplit:pos=1,host+2,sld+2,sld+5,sniext+1,sniext+2,endhost-2:seqovl=1
-
---new
-
---name=Cloudflare alt TCP
---filter-tcp=80,443-65535
---ipset=lists/ipset-cloudflare1.txt
---out-range=-d10
---payload=tls_client_hello
---lua-desync=fake:blob=tls_google:repeats=6:tcp_ts=-600000
---lua-desync=fakedsplit:pattern=0x00:repeats=6:tcp_ts=-600000
+--lua-desync=hostfakesplit:host=ozon.ru:tcp_ts=-1000:tcp_md5:repeats=4
 
 --new
 
