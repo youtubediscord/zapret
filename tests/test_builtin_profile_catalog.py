@@ -983,6 +983,52 @@ class BuiltinProfileCatalogTests(unittest.TestCase):
         )
         self.assertNotIn("2.57.242.0/24", entries)
 
+    def test_roblox_profiles_have_updated_shipped_ipset(self) -> None:
+        expected_keys = {
+            "winws2|ipset=ipset-roblox.txt|tcp=80,443-65535",
+            "winws2|ipset=ipset-roblox.txt|udp=443-65535",
+        }
+        catalog = parse_preset_text(
+            ALL_PROFILES_PATH.read_text(encoding="utf-8"),
+            engine="winws2",
+            source_name=ALL_PROFILES_PATH.name,
+        )
+        catalog_keys = {
+            _profile_catalog_key("winws2", profile)
+            for profile in catalog.profiles
+            if str(profile.name or "").startswith("Roblox ")
+        }
+        self.assertTrue(expected_keys.issubset(catalog_keys))
+
+        list_path = PRIVATE_ROOT / "dist" / "lists" / "ipset-roblox.txt"
+        entries = [
+            line.strip()
+            for line in list_path.read_text(encoding="utf-8").splitlines()
+            if line.strip() and not line.lstrip().startswith("#")
+        ]
+        self.assertEqual(len(entries), 59)
+        self.assertEqual(len(entries), len(set(entries)))
+        networks = [ipaddress.ip_network(entry, strict=True) for entry in entries]
+        self.assertEqual(sum(network.version == 4 for network in networks), 47)
+        self.assertEqual(sum(network.version == 6 for network in networks), 12)
+        self.assertTrue(
+            {
+                "128.116.0.0/17",
+                "103.140.28.0/23",
+                "205.201.62.0/24",
+                "2620:135:6000::/40",
+                "2620:2b:e000::/48",
+                "2620:135:6041::/48",
+            }.issubset(entries)
+        )
+        self.assertTrue(
+            {
+                "18.165.0.0/16",
+                "103.140.0.0/16",
+                "2602:801:1000::/48",
+            }.isdisjoint(entries)
+        )
+
     def test_novoserve_profiles_have_shipped_ipset(self) -> None:
         expected_keys = {
             "winws2|ipset=ipset-novoserve.txt|tcp=80,443-65535",
