@@ -27,6 +27,10 @@ ACCEPTED_LEGACY_CLOUDFLARE_TCP_PROFILES = {
     ("Default v1 (game filter).txt", "Cloudflare IPv6 legacy TCP"),
     ("Default v1 (game filter).txt", "Cloudflare alt TCP"),
 }
+# Default v1 намеренно направляет весь Amazon AS16509 через ipset.
+ACCEPTED_IPSET_AMAZON_TCP_PROFILES = {
+    ("Default v1 (game filter).txt", "Amazon TCP"),
+}
 ACCEPTED_WIDER_PROFILE_KEYS = {
     "winws2|hostlist=discord.txt|tcp=80,443-65535",
     "winws2|hostlist=facebook.txt|tcp=80,443-65535",
@@ -248,6 +252,76 @@ class BuiltinProfileCatalogTests(unittest.TestCase):
                 actual = (lists_root / file_name).read_text(encoding="utf-8").splitlines()
                 self.assertEqual(actual, domains)
 
+    def test_amazon_as16509_ranges_are_shipped_and_default_v1_uses_ipset(self) -> None:
+        expected_profile_keys = {
+            "winws2|ipset=ipset-amazon.txt|tcp=80,443-65535",
+            "winws2|ipset=ipset-amazon.txt|udp=443-65535",
+        }
+        all_profiles = parse_preset_text(
+            ALL_PROFILES_PATH.read_text(encoding="utf-8"),
+            engine="winws2",
+            source_name=ALL_PROFILES_PATH.name,
+        )
+        catalog_profiles = [
+            profile
+            for profile in all_profiles.profiles
+            if profile.match.ipset_lines == ["--ipset=lists/ipset-amazon.txt"]
+        ]
+        self.assertEqual(len(catalog_profiles), 2)
+        self.assertEqual(
+            {_profile_catalog_key("winws2", profile) for profile in catalog_profiles},
+            expected_profile_keys,
+        )
+
+        preset_path = PUBLIC_ROOT / "src" / "presets" / "builtin" / "winws2" / "Default v1 (game filter).txt"
+        preset = parse_preset_text(
+            preset_path.read_text(encoding="utf-8"),
+            engine="winws2",
+            source_name=preset_path.name,
+        )
+        amazon_profiles = [
+            profile
+            for profile in preset.profiles
+            if str(profile.name or "").strip() in {"Amazon TCP", "Amazon UDP"}
+        ]
+        self.assertEqual(len(amazon_profiles), 2)
+        self.assertEqual(
+            {_profile_catalog_key("winws2", profile) for profile in amazon_profiles},
+            expected_profile_keys,
+        )
+        amazon_tcp = next(
+            profile for profile in amazon_profiles if str(profile.name or "").strip() == "Amazon TCP"
+        )
+        self.assertEqual(amazon_tcp.match.hostlist_lines, [])
+        self.assertEqual(amazon_tcp.match.ipset_lines, ["--ipset=lists/ipset-amazon.txt"])
+        self.assertEqual(
+            amazon_tcp.strategy.strategy_lines,
+            [
+                "--out-range=-d10",
+                "--payload=tls_client_hello",
+                "--lua-desync=fake:blob=tls_google:repeats=6:tcp_ts=-600000",
+                "--lua-desync=fakedsplit:pattern=0x00:repeats=6:tcp_ts=-600000",
+            ],
+        )
+
+        ipset_path = PRIVATE_ROOT / "dist" / "lists" / "ipset-amazon.txt"
+        ipset_lines = ipset_path.read_text(encoding="utf-8").splitlines()
+        self.assertEqual(ipset_lines[0], "# https://ipinfo.io/AS16509")
+        entries = [line.strip() for line in ipset_lines if line.strip() and not line.lstrip().startswith("#")]
+        self.assertEqual(len(entries), 7317)
+        self.assertEqual(len(entries), len(set(entries)))
+        self.assertTrue(
+            {
+                "3.0.0.0/10",
+                "184.192.0.0/10",
+                "2406:da00::/24",
+                "2600:1f20:c000::/36",
+            }.issubset(entries)
+        )
+        for entry in entries:
+            with self.subTest(entry=entry):
+                ipaddress.ip_network(entry, strict=False)
+
     def test_winws2_service_tcp_profiles_use_hostlists_in_builtin_presets(self) -> None:
         expected_hostlists = {
             "Amazon TCP": "--hostlist=lists/amazon.txt",
@@ -276,6 +350,14 @@ class BuiltinProfileCatalogTests(unittest.TestCase):
                     continue
                 if name == "Amazon TCP":
                     has_amazon_tcp = True
+                    if (path.name, name) in ACCEPTED_IPSET_AMAZON_TCP_PROFILES:
+                        if profile.match.filter_lines != ["--filter-tcp=80,443-65535"]:
+                            offenders.append(f"{path.name} profile {profile.index}: {name}: неправильный TCP filter")
+                        if profile.match.hostlist_lines:
+                            offenders.append(f"{path.name} profile {profile.index}: {name}: остался hostlist")
+                        if profile.match.ipset_lines != ["--ipset=lists/ipset-amazon.txt"]:
+                            offenders.append(f"{path.name} profile {profile.index}: {name}: нет Amazon ipset")
+                        continue
                 if name == "EpicGames & Fortnite":
                     has_epicgames = True
                 if name.startswith("Cloudflare") and "TCP" in name:

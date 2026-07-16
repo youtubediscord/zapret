@@ -1,5 +1,5 @@
 # Preset: Default v1 (game filter)
-# BuiltinVersion: 2.27
+# BuiltinVersion: 2.28
 # IconColor: #a8c5ff
 
 --lua-init=@lua/zapret-lib.lua
@@ -578,7 +578,7 @@
 
 --name=Amazon TCP
 --filter-tcp=80,443-65535
---hostlist=lists/amazon.txt
+--ipset=lists/ipset-amazon.txt
 --out-range=-d10
 --payload=tls_client_hello
 --lua-desync=fake:blob=tls_google:repeats=6:tcp_ts=-600000
