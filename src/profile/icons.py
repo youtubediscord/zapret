@@ -84,6 +84,7 @@ _ICON_ALIASES: dict[str, str] = {
     "cloudflare1": "cloudflare",
     "com-cloudflarecp": "cloudflare",
     "cloudfront": "amazon",
+    "usa-google": "google",
     "txrevive": "cloudflare",
     "lol-ru": "lol",
     "lol-euw": "lol",

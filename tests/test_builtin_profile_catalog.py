@@ -855,6 +855,52 @@ class BuiltinProfileCatalogTests(unittest.TestCase):
         self.assertEqual(sum(network.version == 4 for network in networks), 100)
         self.assertEqual(sum(network.version == 6 for network in networks), 79)
 
+    def test_usa_google_profiles_have_shipped_ipset(self) -> None:
+        preset = parse_preset_text(
+            ALL_PROFILES_PATH.read_text(encoding="utf-8"),
+            engine="winws2",
+            source_name=ALL_PROFILES_PATH.name,
+        )
+        expected_keys = {
+            "winws2|ipset=ipset-usa-google.txt|tcp=80,443-65535",
+            "winws2|ipset=ipset-usa-google.txt|udp=443-65535",
+        }
+        actual_keys = {
+            _profile_catalog_key("winws2", profile)
+            for profile in preset.profiles
+            if str(profile.name or "").startswith("USA Google ")
+        }
+
+        self.assertEqual(actual_keys, expected_keys)
+
+        builtin_path = PUBLIC_ROOT / "src" / "presets" / "builtin" / "winws2" / "Default v1 (game filter).txt"
+        builtin = parse_preset_text(
+            builtin_path.read_text(encoding="utf-8"),
+            engine="winws2",
+            source_name=builtin_path.name,
+        )
+        builtin_keys = {
+            _profile_catalog_key("winws2", profile)
+            for profile in builtin.profiles
+            if str(profile.name or "").startswith("USA Google ")
+        }
+        self.assertEqual(builtin_keys, expected_keys)
+
+        list_path = PRIVATE_ROOT / "dist" / "lists" / "ipset-usa-google.txt"
+        raw_lines = list_path.read_text(encoding="utf-8").splitlines()
+        entries = [
+            line.strip()
+            for line in raw_lines
+            if line.strip() and not line.lstrip().startswith("#")
+        ]
+
+        self.assertEqual(raw_lines[0], "# https://ipinfo.io/AS396982")
+        self.assertEqual(len(entries), 200)
+        self.assertEqual(len(entries), len(set(entries)))
+        networks = [ipaddress.ip_network(entry, strict=False) for entry in entries]
+        self.assertEqual(sum(network.version == 4 for network in networks), 100)
+        self.assertEqual(sum(network.version == 6 for network in networks), 100)
+
     def test_builtin_presets_do_not_put_wide_discord_tcp_filter_on_other_lists(self) -> None:
         template_keys = _all_profile_keys()
         offenders: list[str] = []

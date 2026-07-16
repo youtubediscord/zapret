@@ -1,5 +1,5 @@
 # Preset: Default v1 (game filter)
-# BuiltinVersion: 2.26
+# BuiltinVersion: 2.27
 # IconColor: #a8c5ff
 
 --lua-init=@lua/zapret-lib.lua
@@ -557,6 +557,15 @@
 
 --new
 
+--name=USA Google TCP
+--filter-tcp=80,443-65535
+--ipset=lists/ipset-usa-google.txt
+--out-range=-d8
+--payload=tls_client_hello
+--lua-desync=multisplit:pos=1,host+2,sld+2,sld+5,sniext+1,sniext+2,endhost-2:seqovl=1
+
+--new
+
 --name=Cloudflare alt TCP
 --filter-tcp=80,443-65535
 --ipset=lists/ipset-cloudflare1.txt
@@ -649,6 +658,15 @@
 --ipset=lists/ipset-datacamp.txt
 --out-range=-d8
 --lua-desync=fake:blob=stun_pat:repeats=6
+
+--new
+
+--name=USA Google UDP
+--filter-udp=443-65535
+--ipset=lists/ipset-usa-google.txt
+--out-range=-n8
+--payload=all
+--lua-desync=fake:repeats=6:blob=fake_default_quic
 
 --new
 
