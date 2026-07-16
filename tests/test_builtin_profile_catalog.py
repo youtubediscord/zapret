@@ -937,6 +937,82 @@ class BuiltinProfileCatalogTests(unittest.TestCase):
         self.assertEqual(sum(network.version == 4 for network in networks), 100)
         self.assertEqual(sum(network.version == 6 for network in networks), 79)
 
+    def test_novoserve_profiles_have_shipped_ipset(self) -> None:
+        expected_keys = {
+            "winws2|ipset=ipset-novoserve.txt|tcp=80,443-65535",
+            "winws2|ipset=ipset-novoserve.txt|udp=443-65535",
+        }
+        catalog = parse_preset_text(
+            ALL_PROFILES_PATH.read_text(encoding="utf-8"),
+            engine="winws2",
+            source_name=ALL_PROFILES_PATH.name,
+        )
+        catalog_profiles = [
+            profile
+            for profile in catalog.profiles
+            if str(profile.name or "").startswith("NovoServe ")
+        ]
+        self.assertEqual(len(catalog_profiles), 2)
+        self.assertEqual(
+            {_profile_catalog_key("winws2", profile) for profile in catalog_profiles},
+            expected_keys,
+        )
+
+        builtin_path = PUBLIC_ROOT / "src" / "presets" / "builtin" / "winws2" / "Default v1 (game filter).txt"
+        builtin = parse_preset_text(
+            builtin_path.read_text(encoding="utf-8"),
+            engine="winws2",
+            source_name=builtin_path.name,
+        )
+        builtin_profiles = [
+            profile
+            for profile in builtin.profiles
+            if str(profile.name or "").startswith("NovoServe ")
+        ]
+        self.assertEqual(len(builtin_profiles), 2)
+        self.assertEqual(
+            {_profile_catalog_key("winws2", profile) for profile in builtin_profiles},
+            expected_keys,
+        )
+        strategies = {
+            str(profile.name): profile.strategy.strategy_lines
+            for profile in builtin_profiles
+        }
+        self.assertEqual(
+            strategies,
+            {
+                "NovoServe TCP": [
+                    "--out-range=-d8",
+                    "--lua-desync=hostfakesplit:host=ozon.ru:tcp_ts=-1000:tcp_md5:repeats=4",
+                ],
+                "NovoServe UDP": [
+                    "--out-range=-d8",
+                    "--lua-desync=fake:blob=stun_pat:repeats=6",
+                ],
+            },
+        )
+
+        list_path = PRIVATE_ROOT / "dist" / "lists" / "ipset-novoserve.txt"
+        raw_lines = list_path.read_text(encoding="utf-8").splitlines()
+        entries = [
+            line.strip()
+            for line in raw_lines
+            if line.strip() and not line.lstrip().startswith("#")
+        ]
+        self.assertEqual(raw_lines[0], "# https://ipinfo.io/AS204601")
+        self.assertEqual(len(entries), 101)
+        self.assertEqual(len(entries), len(set(entries)))
+        networks = [ipaddress.ip_network(entry, strict=False) for entry in entries]
+        self.assertEqual(sum(network.version == 4 for network in networks), 100)
+        self.assertEqual(sum(network.version == 6 for network in networks), 1)
+        self.assertTrue(
+            {
+                "45.81.224.0/22",
+                "185.213.210.0/24",
+                "2a07:5980::/29",
+            }.issubset(entries)
+        )
+
     def test_usa_google_profiles_have_shipped_ipset(self) -> None:
         preset = parse_preset_text(
             ALL_PROFILES_PATH.read_text(encoding="utf-8"),

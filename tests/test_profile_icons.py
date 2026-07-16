@@ -166,6 +166,15 @@ class ProfileIconTests(unittest.TestCase):
         self.assertEqual(icon.icon_name, "fa5s.cloud")
         self.assertEqual(icon.color, "#60A5FA")
 
+    def test_novoserve_profile_uses_hoster_icon(self) -> None:
+        icon = resolve_profile_icon(
+            "NovoServe TCP",
+            ("--filter-tcp=80,443-65535", "--ipset=lists/ipset-novoserve.txt"),
+        )
+
+        self.assertEqual(icon.icon_name, "fa5s.server")
+        self.assertEqual(icon.color, "#2563EB")
+
     def test_usa_google_profile_uses_google_icon(self) -> None:
         icon = resolve_profile_icon(
             "USA Google TCP",

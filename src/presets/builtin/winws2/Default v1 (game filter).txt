@@ -1,5 +1,5 @@
 # Preset: Default v1 (game filter)
-# BuiltinVersion: 2.28
+# BuiltinVersion: 2.29
 # IconColor: #a8c5ff
 
 --lua-init=@lua/zapret-lib.lua
@@ -557,6 +557,14 @@
 
 --new
 
+--name=NovoServe TCP
+--filter-tcp=80,443-65535
+--ipset=lists/ipset-novoserve.txt
+--out-range=-d8
+--lua-desync=hostfakesplit:host=ozon.ru:tcp_ts=-1000:tcp_md5:repeats=4
+
+--new
+
 --name=USA Google TCP
 --filter-tcp=80,443-65535
 --ipset=lists/ipset-usa-google.txt
@@ -656,6 +664,14 @@
 --name=Datacamp UDP
 --filter-udp=443-65535
 --ipset=lists/ipset-datacamp.txt
+--out-range=-d8
+--lua-desync=fake:blob=stun_pat:repeats=6
+
+--new
+
+--name=NovoServe UDP
+--filter-udp=443-65535
+--ipset=lists/ipset-novoserve.txt
 --out-range=-d8
 --lua-desync=fake:blob=stun_pat:repeats=6
 
