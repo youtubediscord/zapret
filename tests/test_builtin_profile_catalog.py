@@ -1092,6 +1092,71 @@ class BuiltinProfileCatalogTests(unittest.TestCase):
             }.issubset(entries)
         )
 
+    def test_default_v1_uses_single_facebook_ipset_profile(self) -> None:
+        expected_key = "winws2|ipset=ipset-facebook.txt|tcp=80,443"
+        catalog = parse_preset_text(
+            ALL_PROFILES_PATH.read_text(encoding="utf-8"),
+            engine="winws2",
+            source_name=ALL_PROFILES_PATH.name,
+        )
+        facebook_catalog_keys = {
+            _profile_catalog_key("winws2", profile)
+            for profile in catalog.profiles
+            if str(profile.name or "") == "Facebook"
+        }
+        self.assertIn(expected_key, facebook_catalog_keys)
+
+        builtin_path = PUBLIC_ROOT / "src" / "presets" / "builtin" / "winws2" / "Default v1 (game filter).txt"
+        builtin_text = builtin_path.read_text(encoding="utf-8")
+        builtin = parse_preset_text(
+            builtin_text,
+            engine="winws2",
+            source_name=builtin_path.name,
+        )
+        meta_profiles = [
+            profile
+            for profile in builtin.profiles
+            if str(profile.name or "") in {"Facebook", "Instagram"}
+        ]
+        self.assertEqual(len(meta_profiles), 1)
+        self.assertEqual(str(meta_profiles[0].name), "Facebook")
+        self.assertEqual(_profile_catalog_key("winws2", meta_profiles[0]), expected_key)
+        self.assertEqual(
+            meta_profiles[0].strategy.strategy_lines,
+            [
+                "--out-range=-d10",
+                "--payload=tls_client_hello",
+                "--lua-desync=hostfakesplit_multi:hosts=google.com,vimeo.com:tcp_ts=-1000:tcp_md5:repeats=2",
+            ],
+        )
+        self.assertNotIn("--hostlist=lists/facebook.txt", builtin_text)
+        self.assertNotIn("--hostlist=lists/instagram.txt", builtin_text)
+
+        list_path = PRIVATE_ROOT / "dist" / "lists" / "ipset-facebook.txt"
+        raw_lines = list_path.read_text(encoding="utf-8").splitlines()
+        entries = [
+            line.strip()
+            for line in raw_lines
+            if line.strip() and not line.lstrip().startswith("#")
+        ]
+        self.assertEqual(raw_lines[0], "# https://ipinfo.io/AS32934")
+        self.assertEqual(len(entries), 202)
+        self.assertEqual(len(entries), len(set(entries)))
+        networks = [ipaddress.ip_network(entry, strict=True) for entry in entries]
+        self.assertEqual(sum(network.version == 4 for network in networks), 101)
+        self.assertEqual(sum(network.version == 6 for network in networks), 101)
+        self.assertTrue(
+            {
+                "57.144.0.0/14",
+                "163.70.151.0/24",
+                "129.134.28.0/23",
+                "2a03:2880::/32",
+                "2620:0:1c00::/40",
+                "2a03:2880:f213::/48",
+            }.issubset(entries)
+        )
+        self.assertNotIn("157.144.0.0/16", entries)
+
     def test_railway_profiles_have_shipped_ipset(self) -> None:
         expected_keys = {
             "winws2|ipset=ipset-railway.txt|tcp=80,443-65535",

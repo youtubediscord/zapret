@@ -1,5 +1,5 @@
 # Preset: Default v1 (game filter)
-# BuiltinVersion: 2.32
+# BuiltinVersion: 2.33
 # IconColor: #a8c5ff
 
 --lua-init=@lua/zapret-lib.lua
@@ -436,16 +436,7 @@
 
 --name=Facebook
 --filter-tcp=80,443
---hostlist=lists/facebook.txt
---out-range=-d10
---payload=tls_client_hello
---lua-desync=hostfakesplit_multi:hosts=google.com,vimeo.com:tcp_ts=-1000:tcp_md5:repeats=2
-
---new
-
---name=Instagram
---filter-tcp=80,443
---hostlist=lists/instagram.txt
+--ipset=lists/ipset-facebook.txt
 --out-range=-d10
 --payload=tls_client_hello
 --lua-desync=hostfakesplit_multi:hosts=google.com,vimeo.com:tcp_ts=-1000:tcp_md5:repeats=2
