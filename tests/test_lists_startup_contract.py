@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ipaddress
 import inspect
 import tempfile
 import unittest
@@ -8,6 +9,38 @@ from unittest.mock import patch
 
 
 class ListsStartupContractTests(unittest.TestCase):
+    def test_embedded_ipset_ru_contains_storm_networks_as43298(self) -> None:
+        from lists.core.embedded_defaults import get_ipset_ru_base_text
+
+        expected = {
+            "185.13.160.0/24",
+            "185.71.64.0/24",
+            "185.71.65.0/24",
+            "185.71.66.0/24",
+            "185.71.67.0/24",
+            "185.121.243.0/24",
+            "193.84.78.0/24",
+            "193.84.90.0/24",
+            "2a06:a180:20::/48",
+            "2a06:a180:21::/48",
+            "2a06:a180:22::/48",
+        }
+        lines = get_ipset_ru_base_text().splitlines()
+        entries = {
+            line.strip()
+            for line in lines
+            if line.strip() and not line.lstrip().startswith("#")
+        }
+
+        self.assertIn("# https://ipinfo.io/AS43298", lines)
+        self.assertLess(
+            lines.index("# https://ipinfo.io/AS43298"),
+            lines.index("# DNS"),
+        )
+        self.assertLessEqual(expected, entries)
+        for entry in expected:
+            self.assertEqual(str(ipaddress.ip_network(entry, strict=True)), entry)
+
     def test_fast_required_files_check_does_not_import_layered_rebuild_at_module_load(self) -> None:
         from lists import file_manager
 
