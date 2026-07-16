@@ -157,6 +157,15 @@ class ProfileIconTests(unittest.TestCase):
         self.assertEqual(icon.icon_name, "simple:digitalocean:DO")
         self.assertEqual(icon.color, "#0080FF")
 
+    def test_fastly_profile_uses_hoster_icon(self) -> None:
+        icon = resolve_profile_icon(
+            "Fastly TCP",
+            ("--filter-tcp=80,443-65535", "--ipset=lists/ipset-fastly.txt"),
+        )
+
+        self.assertEqual(icon.icon_name, "simple:fastly:FS")
+        self.assertEqual(icon.color, "#FF282D")
+
     def test_datacamp_profile_uses_hoster_icon(self) -> None:
         icon = resolve_profile_icon(
             "Datacamp TCP",
