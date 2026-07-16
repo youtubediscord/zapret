@@ -937,6 +937,52 @@ class BuiltinProfileCatalogTests(unittest.TestCase):
         self.assertEqual(sum(network.version == 4 for network in networks), 100)
         self.assertEqual(sum(network.version == 6 for network in networks), 79)
 
+    def test_ovh_profiles_have_updated_shipped_ipset(self) -> None:
+        expected_keys = {
+            "winws2|ipset=ipset-ovh.txt|tcp=80,443-65535",
+            "winws2|ipset=ipset-ovh.txt|udp=443-65535",
+        }
+        catalog = parse_preset_text(
+            ALL_PROFILES_PATH.read_text(encoding="utf-8"),
+            engine="winws2",
+            source_name=ALL_PROFILES_PATH.name,
+        )
+        catalog_profiles = [
+            profile
+            for profile in catalog.profiles
+            if str(profile.name or "").startswith("OVH ")
+        ]
+        self.assertEqual(len(catalog_profiles), 2)
+        self.assertEqual(
+            {_profile_catalog_key("winws2", profile) for profile in catalog_profiles},
+            expected_keys,
+        )
+
+        list_path = PRIVATE_ROOT / "dist" / "lists" / "ipset-ovh.txt"
+        raw_lines = list_path.read_text(encoding="utf-8").splitlines()
+        entries = [
+            line.strip()
+            for line in raw_lines
+            if line.strip() and not line.lstrip().startswith("#")
+        ]
+        self.assertEqual(raw_lines[0], "# https://ipinfo.io/AS16276")
+        self.assertEqual(len(entries), 142)
+        self.assertEqual(len(entries), len(set(entries)))
+        networks = [ipaddress.ip_network(entry, strict=True) for entry in entries]
+        self.assertEqual(sum(network.version == 4 for network in networks), 100)
+        self.assertEqual(sum(network.version == 6 for network in networks), 42)
+        self.assertTrue(
+            {
+                "51.254.0.0/15",
+                "5.135.0.0/16",
+                "213.186.32.0/19",
+                "2001:41d0::/32",
+                "2001:41d0:ab13::/48",
+                "2607:5300:603::/48",
+            }.issubset(entries)
+        )
+        self.assertNotIn("2.57.242.0/24", entries)
+
     def test_novoserve_profiles_have_shipped_ipset(self) -> None:
         expected_keys = {
             "winws2|ipset=ipset-novoserve.txt|tcp=80,443-65535",
