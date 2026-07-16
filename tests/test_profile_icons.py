@@ -166,6 +166,15 @@ class ProfileIconTests(unittest.TestCase):
         self.assertEqual(icon.icon_name, "simple:fastly:FS")
         self.assertEqual(icon.color, "#FF282D")
 
+    def test_akamai_profile_uses_hoster_icon(self) -> None:
+        icon = resolve_profile_icon(
+            "Akamai TCP",
+            ("--filter-tcp=80,443-65535", "--ipset=lists/ipset-akamai.txt"),
+        )
+
+        self.assertEqual(icon.icon_name, "fa5s.cloud")
+        self.assertEqual(icon.color, "#0096D6")
+
     def test_frantech_solutions_profile_uses_hoster_icon(self) -> None:
         icon = resolve_profile_icon(
             "FranTech Solutions TCP",

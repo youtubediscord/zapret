@@ -1184,6 +1184,87 @@ class BuiltinProfileCatalogTests(unittest.TestCase):
             }.issubset(entries)
         )
 
+    def test_akamai_profiles_have_shipped_ipset(self) -> None:
+        expected_keys = {
+            "winws2|ipset=ipset-akamai.txt|tcp=80,443-65535",
+            "winws2|ipset=ipset-akamai.txt|udp=443-65535",
+        }
+        catalog = parse_preset_text(
+            ALL_PROFILES_PATH.read_text(encoding="utf-8"),
+            engine="winws2",
+            source_name=ALL_PROFILES_PATH.name,
+        )
+        catalog_profiles = [
+            profile
+            for profile in catalog.profiles
+            if str(profile.name or "").startswith("Akamai ")
+        ]
+        self.assertEqual(len(catalog_profiles), 2)
+        self.assertEqual(
+            {_profile_catalog_key("winws2", profile) for profile in catalog_profiles},
+            expected_keys,
+        )
+
+        builtin_path = PUBLIC_ROOT / "src" / "presets" / "builtin" / "winws2" / "Default v1 (game filter).txt"
+        builtin = parse_preset_text(
+            builtin_path.read_text(encoding="utf-8"),
+            engine="winws2",
+            source_name=builtin_path.name,
+        )
+        builtin_profiles = [
+            profile
+            for profile in builtin.profiles
+            if str(profile.name or "").startswith("Akamai ")
+        ]
+        self.assertEqual(len(builtin_profiles), 2)
+        self.assertEqual(
+            {_profile_catalog_key("winws2", profile) for profile in builtin_profiles},
+            expected_keys,
+        )
+        strategies = {
+            str(profile.name): profile.strategy.strategy_lines
+            for profile in builtin_profiles
+        }
+        self.assertEqual(
+            strategies,
+            {
+                "Akamai TCP": [
+                    "--out-range=-n10",
+                    "--payload=tls_client_hello",
+                    "--lua-desync=hostfakesplit:host=ozon.ru:tcp_ts=-1000:tcp_md5:repeats=4",
+                ],
+                "Akamai UDP": [
+                    "--out-range=-n8",
+                    "--payload=all",
+                    "--lua-desync=fake:repeats=6:blob=fake_default_quic",
+                ],
+            },
+        )
+
+        list_path = PRIVATE_ROOT / "dist" / "lists" / "ipset-akamai.txt"
+        raw_lines = list_path.read_text(encoding="utf-8").splitlines()
+        entries = [
+            line.strip()
+            for line in raw_lines
+            if line.strip() and not line.lstrip().startswith("#")
+        ]
+        self.assertEqual(raw_lines[0], "# https://ipinfo.io/AS16625")
+        self.assertEqual(len(entries), 104)
+        self.assertEqual(len(entries), len(set(entries)))
+        networks = [ipaddress.ip_network(entry, strict=True) for entry in entries]
+        self.assertEqual(sum(network.version == 4 for network in networks), 102)
+        self.assertEqual(sum(network.version == 6 for network in networks), 2)
+        self.assertTrue(
+            {
+                "23.37.32.0/20",
+                "23.8.0.0/18",
+                "104.121.0.0/19",
+                "2.19.64.0/20",
+                "2406:3000:35::/48",
+                "2600:1406:1600::/48",
+            }.issubset(entries)
+        )
+
     def test_default_v1_uses_single_facebook_ipset_profile(self) -> None:
         expected_key = "winws2|ipset=ipset-facebook.txt|tcp=80,443"
         catalog = parse_preset_text(

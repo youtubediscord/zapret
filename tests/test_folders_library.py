@@ -107,6 +107,7 @@ class FolderDefaultsTests(unittest.TestCase):
         self.assertEqual(classify_profile_folder("cloudflare --ipset=lists/ipset-cloudflare.txt"), "hosters")
         self.assertEqual(classify_profile_folder("amazon --ipset=lists/ipset-amazon.txt"), "amazon")
         self.assertEqual(classify_profile_folder("cloudfront.net --hostlist=lists/cloudfront.txt"), "amazon")
+        self.assertEqual(classify_profile_folder("akamai --ipset=lists/ipset-akamai.txt"), "hosters")
         self.assertEqual(classify_profile_folder("datacamp --ipset=lists/ipset-datacamp.txt"), "hosters")
         self.assertEqual(classify_profile_folder("digitalocean --ipset=lists/ipset-digitalocean.txt"), "hosters")
         self.assertEqual(classify_profile_folder("fastly --ipset=lists/ipset-fastly.txt"), "hosters")

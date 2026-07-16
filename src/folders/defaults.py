@@ -118,6 +118,7 @@ def classify_profile_folder(text: object) -> str:
     if _has_any_token(
         value,
         (
+            "akamai",
             "cloudflare",
             "datacamp",
             "digitalocean",

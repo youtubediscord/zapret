@@ -41,6 +41,7 @@ _KNOWN_ICONS: dict[str, ProfileIconSpec] = {
     "microsoft-store": ProfileIconSpec("fa5b.microsoft", "#00BCF2"),
     "anydesk": ProfileIconSpec("simple:anydesk:AD", "#EF443B"),
     "speedtest": ProfileIconSpec("simple:speedtest:ST", "#141526"),
+    "akamai": ProfileIconSpec("fa5s.cloud", "#0096D6"),
     "cloudflare": ProfileIconSpec("simple:cloudflare:CF", "#F38020"),
     "datacamp": ProfileIconSpec("fa5s.cloud", "#60A5FA"),
     "digitalocean": ProfileIconSpec("simple:digitalocean:DO", "#0080FF"),
@@ -106,6 +107,7 @@ _ICON_ALIASES: dict[str, str] = {
 }
 
 _NAMED_COLORS: dict[str, str] = {
+    "akamai": "#0096D6",
     "cloudflare": "#F38020",
     "datacamp": "#60A5FA",
     "digitalocean": "#0080FF",
