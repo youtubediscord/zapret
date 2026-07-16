@@ -114,7 +114,7 @@ def classify_profile_folder(text: object) -> str:
         )
     ):
         return "games"
-    if any(token in value for token in ("cloudflare", "datacamp", "digitalocean", "hetzner", "novoserve", "ovh", "usa google", "warp")):
+    if any(token in value for token in ("cloudflare", "datacamp", "digitalocean", "google cloud", "hetzner", "novoserve", "ovh", "usa google", "warp")):
         return "hosters"
     if any(token in value for token in ("timeweb", "zapretkvn")):
         return "zapretkvn"

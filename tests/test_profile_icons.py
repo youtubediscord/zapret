@@ -175,9 +175,9 @@ class ProfileIconTests(unittest.TestCase):
         self.assertEqual(icon.icon_name, "fa5s.server")
         self.assertEqual(icon.color, "#2563EB")
 
-    def test_usa_google_profile_uses_google_icon(self) -> None:
+    def test_google_cloud_profile_uses_google_icon(self) -> None:
         icon = resolve_profile_icon(
-            "USA Google TCP",
+            "Google Cloud TCP",
             ("--filter-tcp=80,443-65535", "--ipset=lists/ipset-usa-google.txt"),
         )
 

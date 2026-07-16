@@ -1013,7 +1013,7 @@ class BuiltinProfileCatalogTests(unittest.TestCase):
             }.issubset(entries)
         )
 
-    def test_usa_google_profiles_have_shipped_ipset(self) -> None:
+    def test_google_cloud_profiles_have_shipped_usa_google_ipset(self) -> None:
         preset = parse_preset_text(
             ALL_PROFILES_PATH.read_text(encoding="utf-8"),
             engine="winws2",
@@ -1023,12 +1023,20 @@ class BuiltinProfileCatalogTests(unittest.TestCase):
             "winws2|ipset=ipset-usa-google.txt|tcp=80,443-65535",
             "winws2|ipset=ipset-usa-google.txt|udp=443-65535",
         }
+        catalog_profiles = [
+            profile
+            for profile in preset.profiles
+            if str(profile.name or "").startswith("Google Cloud ")
+        ]
         actual_keys = {
             _profile_catalog_key("winws2", profile)
-            for profile in preset.profiles
-            if str(profile.name or "").startswith("USA Google ")
+            for profile in catalog_profiles
         }
 
+        self.assertEqual(
+            {str(profile.name) for profile in catalog_profiles},
+            {"Google Cloud TCP", "Google Cloud UDP"},
+        )
         self.assertEqual(actual_keys, expected_keys)
 
         builtin_path = PUBLIC_ROOT / "src" / "presets" / "builtin" / "winws2" / "Default v1 (game filter).txt"
@@ -1037,11 +1045,19 @@ class BuiltinProfileCatalogTests(unittest.TestCase):
             engine="winws2",
             source_name=builtin_path.name,
         )
+        builtin_profiles = [
+            profile
+            for profile in builtin.profiles
+            if str(profile.name or "").startswith("Google Cloud ")
+        ]
         builtin_keys = {
             _profile_catalog_key("winws2", profile)
-            for profile in builtin.profiles
-            if str(profile.name or "").startswith("USA Google ")
+            for profile in builtin_profiles
         }
+        self.assertEqual(
+            {str(profile.name) for profile in builtin_profiles},
+            {"Google Cloud TCP", "Google Cloud UDP"},
+        )
         self.assertEqual(builtin_keys, expected_keys)
 
         list_path = PRIVATE_ROOT / "dist" / "lists" / "ipset-usa-google.txt"
