@@ -727,6 +727,60 @@ class BuiltinProfileCatalogTests(unittest.TestCase):
         for entry in entries:
             ipaddress.ip_network(entry, strict=False)
 
+    def test_cloudflare_profiles_have_shipped_ipset(self) -> None:
+        preset = parse_preset_text(
+            ALL_PROFILES_PATH.read_text(encoding="utf-8"),
+            engine="winws2",
+            source_name=ALL_PROFILES_PATH.name,
+        )
+        expected_keys = {
+            "winws2|ipset=ipset-cloudflare.txt|tcp=80,443-65535",
+            "winws2|ipset=ipset-cloudflare.txt|udp=443-65535",
+        }
+        actual_keys = {
+            _profile_catalog_key("winws2", profile)
+            for profile in preset.profiles
+            if profile.match.ipset_lines == ["--ipset=lists/ipset-cloudflare.txt"]
+        }
+
+        self.assertEqual(actual_keys, expected_keys)
+
+        list_path = PRIVATE_ROOT / "dist" / "lists" / "ipset-cloudflare.txt"
+        entries = [
+            line.strip()
+            for line in list_path.read_text(encoding="utf-8").splitlines()
+            if line.strip() and not line.lstrip().startswith("#")
+        ]
+        supplied_ranges = {
+            "152.114.0.0/17",
+            "150.48.128.0/18",
+            "152.114.128.0/18",
+            "204.195.192.0/18",
+            "104.18.32.0/19",
+            *(f"104.21.{octet}.0/19" for octet in (0, 32, 64, 96, 192)),
+            "162.159.128.0/19",
+            "172.65.0.0/19",
+            "172.65.32.0/19",
+            *(f"104.16.{octet}.0/20" for octet in range(0, 256, 16)),
+            *(f"104.17.{octet}.0/20" for octet in range(0, 256, 16)),
+            *(
+                f"104.18.{octet}.0/20"
+                for octet in (0, 16, 32, 64, 80, 96, 112, 128, 144, 160, 176, 192, 208, 224, 240)
+            ),
+            *(f"104.19.{octet}.0/20" for octet in range(0, 256, 16)),
+            *(f"104.20.{octet}.0/20" for octet in (0, 16, 32, 48)),
+            *(f"104.21.{octet}.0/20" for octet in (0, 16, 32, 48, 64, 80, 96, 112, 192, 208, 224)),
+            *(f"104.24.{octet}.0/20" for octet in (0, 16, 32, 48, 64, 80, 128, 144, 160)),
+        }
+
+        self.assertEqual(len(supplied_ranges), 100)
+        self.assertLessEqual(supplied_ranges, set(entries))
+        # Было 30 строк; три из 100 переданных сетей уже присутствовали.
+        self.assertEqual(len(entries), 127)
+        self.assertEqual(len(entries), len(set(entries)))
+        for entry in entries:
+            ipaddress.ip_network(entry, strict=False)
+
     def test_digitalocean_profiles_have_shipped_ipset(self) -> None:
         preset = parse_preset_text(
             ALL_PROFILES_PATH.read_text(encoding="utf-8"),
