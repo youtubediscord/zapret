@@ -1,5 +1,5 @@
 # Preset: Default v1 (game filter)
-# BuiltinVersion: 2.31
+# BuiltinVersion: 2.32
 # IconColor: #a8c5ff
 
 --lua-init=@lua/zapret-lib.lua
@@ -574,6 +574,15 @@
 
 --new
 
+--name=Railway TCP
+--filter-tcp=80,443-65535
+--ipset=lists/ipset-railway.txt
+--out-range=-d8
+--payload=tls_client_hello
+--lua-desync=multisplit:pos=1,host+2,sld+2,sld+5,sniext+1,sniext+2,endhost-2:seqovl=1
+
+--new
+
 --name=Google Cloud TCP
 --filter-tcp=80,443-65535
 --ipset=lists/ipset-usa-google.txt
@@ -689,6 +698,15 @@
 --name=Fastly UDP
 --filter-udp=443-65535
 --ipset=lists/ipset-fastly.txt
+--out-range=-n8
+--payload=all
+--lua-desync=fake:repeats=6:blob=fake_default_quic
+
+--new
+
+--name=Railway UDP
+--filter-udp=443-65535
+--ipset=lists/ipset-railway.txt
 --out-range=-n8
 --payload=all
 --lua-desync=fake:repeats=6:blob=fake_default_quic

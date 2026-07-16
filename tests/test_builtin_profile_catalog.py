@@ -1092,6 +1092,96 @@ class BuiltinProfileCatalogTests(unittest.TestCase):
             }.issubset(entries)
         )
 
+    def test_railway_profiles_have_shipped_ipset(self) -> None:
+        expected_keys = {
+            "winws2|ipset=ipset-railway.txt|tcp=80,443-65535",
+            "winws2|ipset=ipset-railway.txt|udp=443-65535",
+        }
+        catalog = parse_preset_text(
+            ALL_PROFILES_PATH.read_text(encoding="utf-8"),
+            engine="winws2",
+            source_name=ALL_PROFILES_PATH.name,
+        )
+        catalog_profiles = [
+            profile
+            for profile in catalog.profiles
+            if str(profile.name or "").startswith("Railway ")
+        ]
+        self.assertEqual(len(catalog_profiles), 2)
+        self.assertEqual(
+            {_profile_catalog_key("winws2", profile) for profile in catalog_profiles},
+            expected_keys,
+        )
+
+        builtin_path = PUBLIC_ROOT / "src" / "presets" / "builtin" / "winws2" / "Default v1 (game filter).txt"
+        builtin = parse_preset_text(
+            builtin_path.read_text(encoding="utf-8"),
+            engine="winws2",
+            source_name=builtin_path.name,
+        )
+        builtin_profiles = [
+            profile
+            for profile in builtin.profiles
+            if str(profile.name or "").startswith("Railway ")
+        ]
+        self.assertEqual(len(builtin_profiles), 2)
+        self.assertEqual(
+            {_profile_catalog_key("winws2", profile) for profile in builtin_profiles},
+            expected_keys,
+        )
+        strategies = {
+            str(profile.name): profile.strategy.strategy_lines
+            for profile in builtin_profiles
+        }
+        self.assertEqual(
+            strategies,
+            {
+                "Railway TCP": [
+                    "--out-range=-d8",
+                    "--payload=tls_client_hello",
+                    "--lua-desync=multisplit:pos=1,host+2,sld+2,sld+5,sniext+1,sniext+2,endhost-2:seqovl=1",
+                ],
+                "Railway UDP": [
+                    "--out-range=-n8",
+                    "--payload=all",
+                    "--lua-desync=fake:repeats=6:blob=fake_default_quic",
+                ],
+            },
+        )
+
+        list_path = PRIVATE_ROOT / "dist" / "lists" / "ipset-railway.txt"
+        raw_lines = list_path.read_text(encoding="utf-8").splitlines()
+        entries = [
+            line.strip()
+            for line in raw_lines
+            if line.strip() and not line.lstrip().startswith("#")
+        ]
+        expected_entries = {
+            "66.33.22.0/23",
+            "66.33.23.0/24",
+            "69.46.46.0/24",
+            "152.55.176.0/22",
+            "152.55.180.0/22",
+            "152.55.184.0/22",
+            "162.220.232.0/23",
+            "162.220.234.0/23",
+            "208.77.244.0/23",
+            "208.77.246.0/23",
+            "2607:99c0::/40",
+            "2607:99c0:100::/40",
+            "2607:99c0:200::/40",
+            "2607:99c0:300::/40",
+            "2607:99c0:800::/40",
+            "2607:99c0:900::/40",
+            "2607:99c0:a00::/40",
+        }
+        self.assertEqual(raw_lines[0], "# https://bgp.he.net/AS400940")
+        self.assertEqual(len(entries), 17)
+        self.assertEqual(set(entries), expected_entries)
+        networks = [ipaddress.ip_network(entry, strict=True) for entry in entries]
+        self.assertEqual(sum(network.version == 4 for network in networks), 10)
+        self.assertEqual(sum(network.version == 6 for network in networks), 7)
+
     def test_google_cloud_profiles_have_shipped_usa_google_ipset(self) -> None:
         preset = parse_preset_text(
             ALL_PROFILES_PATH.read_text(encoding="utf-8"),

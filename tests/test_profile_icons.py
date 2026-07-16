@@ -166,6 +166,15 @@ class ProfileIconTests(unittest.TestCase):
         self.assertEqual(icon.icon_name, "simple:fastly:FS")
         self.assertEqual(icon.color, "#FF282D")
 
+    def test_railway_profile_uses_hoster_icon(self) -> None:
+        icon = resolve_profile_icon(
+            "Railway TCP",
+            ("--filter-tcp=80,443-65535", "--ipset=lists/ipset-railway.txt"),
+        )
+
+        self.assertEqual(icon.icon_name, "fa5s.train")
+        self.assertEqual(icon.color, "#A855F7")
+
     def test_datacamp_profile_uses_hoster_icon(self) -> None:
         icon = resolve_profile_icon(
             "Datacamp TCP",
