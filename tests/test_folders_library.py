@@ -117,6 +117,7 @@ class FolderDefaultsTests(unittest.TestCase):
         self.assertEqual(classify_profile_folder("ovh --ipset=lists/ipset-ovh.txt"), "hosters")
         self.assertEqual(classify_profile_folder("railway --ipset=lists/ipset-railway.txt"), "hosters")
         self.assertEqual(classify_profile_folder("hetzner --ipset=lists/ipset-hetzner.txt"), "hosters")
+        self.assertEqual(classify_profile_folder("Google TCP --ipset=lists/ipset-google.txt"), "hosters")
         self.assertEqual(classify_profile_folder("Google Cloud --ipset=lists/ipset-usa-google.txt"), "hosters")
         self.assertEqual(classify_profile_folder("timeweb --ipset=lists/ipset-timeweb.txt"), "zapretkvn")
         self.assertEqual(classify_profile_folder("zapretkvn --ipset=lists/ipset-zapretkvn.txt"), "zapretkvn")

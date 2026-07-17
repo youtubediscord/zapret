@@ -1579,6 +1579,80 @@ class BuiltinProfileCatalogTests(unittest.TestCase):
         self.assertEqual(sum(network.version == 4 for network in networks), 10)
         self.assertEqual(sum(network.version == 6 for network in networks), 7)
 
+    def test_google_profiles_have_shipped_ipset_and_default_v1_pass(self) -> None:
+        catalog = parse_preset_text(
+            ALL_PROFILES_PATH.read_text(encoding="utf-8"),
+            engine="winws2",
+            source_name=ALL_PROFILES_PATH.name,
+        )
+        expected_keys = {
+            "winws2|ipset=ipset-google.txt|tcp=80,443-65535",
+            "winws2|ipset=ipset-google.txt|udp=443-65535",
+        }
+        google_profiles = [
+            profile
+            for profile in catalog.profiles
+            if str(profile.name or "") in {"Google TCP", "Google UDP"}
+        ]
+
+        self.assertEqual(
+            {str(profile.name) for profile in google_profiles},
+            {"Google TCP", "Google UDP"},
+        )
+        self.assertEqual(
+            {_profile_catalog_key("winws2", profile) for profile in google_profiles},
+            expected_keys,
+        )
+
+        google_service_profiles = [
+            profile
+            for profile in catalog.profiles
+            if str(profile.name or "") == "Google (сервисы)"
+        ]
+        self.assertEqual(len(google_service_profiles), 1)
+        self.assertEqual(
+            google_service_profiles[0].match.hostlist_lines,
+            ["--hostlist=lists/google.txt"],
+        )
+        self.assertEqual(google_service_profiles[0].match.ipset_lines, [])
+
+        builtin_path = PUBLIC_ROOT / "src" / "presets" / "builtin" / "winws2" / "Default v1 (game filter).txt"
+        builtin = parse_preset_text(
+            builtin_path.read_text(encoding="utf-8"),
+            engine="winws2",
+            source_name=builtin_path.name,
+        )
+        self.assertNotIn(
+            "Google (сервисы)",
+            {str(profile.name or "") for profile in builtin.profiles},
+        )
+        builtin_google_profiles = [
+            profile
+            for profile in builtin.profiles
+            if str(profile.name or "") == "Google TCP"
+        ]
+        self.assertEqual(len(builtin_google_profiles), 1)
+        self.assertEqual(
+            _profile_catalog_key("winws2", builtin_google_profiles[0]),
+            "winws2|ipset=ipset-google.txt|tcp=80,443-65535",
+        )
+        self.assertEqual(
+            builtin_google_profiles[0].strategy.strategy_lines,
+            ["--out-range=-d8", "--lua-desync=pass"],
+        )
+
+        list_path = PRIVATE_ROOT / "dist" / "lists" / "ipset-google.txt"
+        entries = [
+            line.strip()
+            for line in list_path.read_text(encoding="utf-8").splitlines()
+            if line.strip() and not line.lstrip().startswith("#")
+        ]
+        self.assertEqual(len(entries), 200)
+        self.assertEqual(len(entries), len(set(entries)))
+        networks = [ipaddress.ip_network(entry, strict=True) for entry in entries]
+        self.assertEqual(sum(network.version == 4 for network in networks), 100)
+        self.assertEqual(sum(network.version == 6 for network in networks), 100)
+
     def test_google_cloud_profiles_have_shipped_usa_google_ipset(self) -> None:
         preset = parse_preset_text(
             ALL_PROFILES_PATH.read_text(encoding="utf-8"),

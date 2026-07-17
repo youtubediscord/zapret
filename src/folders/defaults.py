@@ -125,6 +125,7 @@ def classify_profile_folder(text: object) -> str:
             "fastly",
             "frantech",
             "google cloud",
+            "ipset-google",
             "hetzner",
             "novoserve",
             "ovh",
