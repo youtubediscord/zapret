@@ -197,6 +197,39 @@ class Winws2PresetSwitchTests(unittest.TestCase):
             )
         )
 
+    def test_fast_switch_uses_windivert_error_instead_of_version_header(self) -> None:
+        from winws_runtime.health.winws_exit_diagnosis import WinDivertDiagnosis
+        from winws_runtime.runners import zapret2_runner
+        from winws_runtime.runners.zapret2_runner import Winws2StrategyRunner
+
+        runner = object.__new__(Winws2StrategyRunner)
+        runner.last_error = None
+        output = "\n".join(
+            (
+                "github version v1.0.1 lua_compat_ver 6",
+                "Loading hostlist /lists/youtube.txt",
+                "windivert: error opening filter: The service cannot be started, "
+                "either because it is disabled or because it has no enabled devices associated with it.",
+            )
+        )
+        diagnosis = WinDivertDiagnosis(
+            cause="Служба драйвера WinDivert (Monkey) отключена в системе",
+            solution="Выполните аварийную очистку драйвера и повторите запуск",
+            exit_code=34,
+            win32_error=1058,
+        )
+
+        with (
+            patch.object(zapret2_runner, "diagnose_winws_exit", return_value=diagnosis),
+            patch.object(zapret2_runner, "log"),
+        ):
+            runner._set_spawn_exit_error(34, output)
+
+        self.assertNotIn("github version", str(runner.last_error))
+        self.assertIn("WinDivert", str(runner.last_error))
+        self.assertIn("код ошибки Windows 1058", str(runner.last_error))
+        self.assertIn("код завершения процесса 34", str(runner.last_error))
+
     def test_runner_state_allows_handoff_start_from_running(self) -> None:
         from winws_runtime.runners.preset_runner_support import PresetRunnerState, PresetRunnerStateMachine
 

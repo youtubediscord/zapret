@@ -44,6 +44,56 @@ class WinDivertDiagnosis:
     win32_error: Optional[int] = None # Mapped Win32 error (may differ from exit_code)
 
 
+def format_winws_exit_diagnosis(
+    diagnosis: WinDivertDiagnosis,
+    *,
+    exe_name: str = "winws",
+) -> str:
+    """Собирает подробную, но понятную ошибку для верхнего InfoBar.
+
+    Код завершения процесса Windows иногда обрезает до одного байта: например,
+    WinDivert возвращает 1058, а ``winws2.exe`` завершается с кодом 34. Поэтому
+    пользователю важно показать оба значения и не подменять причину первой
+    служебной строкой вывода ``winws``.
+    """
+    executable = str(exe_name or "winws").strip() or "winws"
+    cause = str(getattr(diagnosis, "cause", "") or "").strip().rstrip(".")
+    solution = str(getattr(diagnosis, "solution", "") or "").strip().rstrip(".")
+
+    try:
+        exit_code = int(getattr(diagnosis, "exit_code", 0))
+    except (TypeError, ValueError):
+        exit_code = 0
+    try:
+        raw_win32_error = getattr(diagnosis, "win32_error", None)
+        win32_error = int(raw_win32_error) if raw_win32_error is not None else None
+    except (TypeError, ValueError):
+        win32_error = None
+
+    code_parts: list[str] = []
+    if win32_error is not None:
+        if exit_code and exit_code != win32_error:
+            code_parts.append(f"код ошибки Windows {win32_error}")
+            code_parts.append(f"код завершения процесса {exit_code}")
+        else:
+            code_parts.append(f"код ошибки {win32_error}")
+    elif exit_code:
+        code_parts.append(f"код завершения процесса {exit_code}")
+
+    message = f"{executable} не запустился"
+    if cause:
+        message = f"{message}. Найдена причина: {cause}"
+    if code_parts:
+        message = f"{message} ({'; '.join(code_parts)})"
+    if solution:
+        message = f"{message}. Что сделать: {solution}"
+
+    auto_fix = str(getattr(diagnosis, "auto_fix", "") or "").strip()
+    if auto_fix:
+        message = f"[AUTOFIX:{auto_fix}]{message}"
+    return message
+
+
 def _diagnosis_from_table(code: int, *, severity: str = "critical") -> WinDivertDiagnosis:
     """Базовый диагноз из единой таблицы кодов (без динамических уточнений)."""
     record = WINDIVERT_ERROR_TABLE[code]
@@ -426,16 +476,26 @@ def _check_windivert_files() -> List[str]:
     """Return list of missing critical WinDivert files."""
     import os
     try:
-        from config.config import WINDIVERT_FOLDER
+        from config.config import EXE_FOLDER
 
     except ImportError:
         return []
 
-    required = ["WinDivert.dll", "WinDivert64.sys"]
-    missing = []
-    for f in required:
-        if not os.path.exists(os.path.join(WINDIVERT_FOLDER, f)):
-            missing.append(f)
+    # В поставке ZapretGUI драйвер обычно переименован в Monkey64.sys. Старое
+    # имя WinDivert64.sys тоже поддерживаем, но наличие обоих файлов сразу не
+    # требуется. Раньше здесь импортировалась несуществующая константа
+    # WINDIVERT_FOLDER, из-за чего проверка целиком и незаметно пропускалась.
+    required_groups = (
+        ("WinDivert.dll", ("WinDivert.dll",)),
+        (
+            "драйвер WinDivert (Monkey64.sys или WinDivert64.sys)",
+            ("Monkey64.sys", "WinDivert64.sys"),
+        ),
+    )
+    missing: List[str] = []
+    for label, candidates in required_groups:
+        if not any(os.path.isfile(os.path.join(EXE_FOLDER, name)) for name in candidates):
+            missing.append(label)
     return missing
 
 

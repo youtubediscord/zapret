@@ -226,22 +226,12 @@ def check_common_crash_causes(process_name: str = EXE_NAME_WINWS1) -> Optional[s
 
     # ✅ ПРОВЕРКА 3: Целостность файлов WinDivert
     try:
-        from config.config import WINDIVERT_FOLDER
+        # Та же проверка, которую использует диагностика кода завершения.
+        # Важно учитывать переименованный Monkey64.sys и не требовать сразу
+        # все варианты имён драйвера.
+        from winws_runtime.health.winws_exit_diagnosis import _check_windivert_files
 
-        import os
-
-        required_files = {
-            'WinDivert.dll': 'Основная библиотека',
-            'Monkey64.sys': 'Переименованный драйвер WinDivert',
-            'WinDivert64.sys': 'Драйвер для 64-bit систем',
-            'WinDivert32.sys': 'Драйвер для 32-bit систем'
-        }
-        missing_files = []
-
-        for file, description in required_files.items():
-            file_path = os.path.join(WINDIVERT_FOLDER, file)
-            if not os.path.exists(file_path):
-                missing_files.append(f"{file} ({description})")
+        missing_files = _check_windivert_files()
 
         if missing_files:
             suggestions.append("  Отсутствуют критические файлы WinDivert:")

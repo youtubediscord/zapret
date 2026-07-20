@@ -265,8 +265,10 @@ class StrategyRunnerBase(ABC):
         self.last_error = message
         log(message, "ERROR")
         self.notify_launch_error(message)
-        details = str(getattr(self, "_last_spawn_stderr", "") or "").strip()
-        self.publish_runner_failure(launch_method=launch_method, error=details or message)
+        # Runtime state и UI получают то же человеко-понятное сообщение. Сырой
+        # вывод winws остаётся в журнале и в _last_spawn_stderr, но больше не
+        # создаёт второе уведомление со строкой версии вместо причины ошибки.
+        self.publish_runner_failure(launch_method=launch_method, error=message)
 
     def _create_startup_info(self):
         """Creates STARTUPINFO for hidden process launch"""

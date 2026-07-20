@@ -238,6 +238,30 @@ class SpawnFailureClassifierTests(unittest.TestCase):
 
 
 class Winws2QuietRetryPublicationTests(unittest.TestCase):
+    def test_final_failure_publishes_human_message_not_raw_winws_header(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            runner = _make_winws2_runner(tmp_dir)
+            runner.last_error = (
+                "winws2 не запустился. Найдена причина: служба WinDivert отключена "
+                "(код ошибки Windows 1058; код завершения процесса 34)"
+            )
+            runner._last_spawn_stderr = (
+                "github version v1.0.1 lua_compat_ver 6\n"
+                "windivert: error opening filter"
+            )
+
+            with patch("winws_runtime.runners.runner_base.log"):
+                runner._publish_final_launch_failure(
+                    launch_method="zapret2_mode",
+                    fallback_message="winws2 не запустился",
+                )
+
+        runner._runner_failure_callback.assert_called_once_with(
+            launch_method="zapret2_mode",
+            error=runner.last_error,
+        )
+        self.assertNotIn("github version", runner._runner_failure_callback.call_args.kwargs["error"])
+
     def test_transient_dll_init_retry_success_stays_quiet(self) -> None:
         """AC1: first attempt fails with 0xC0000142, retry succeeds — no user-facing noise."""
         with tempfile.TemporaryDirectory() as tmp_dir:

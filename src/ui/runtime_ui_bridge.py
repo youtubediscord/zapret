@@ -71,7 +71,7 @@ class RuntimeUiBridge:
             self._notify(
                 advisory_notification(
                     level="warning" if is_windows_server_wlanapi else "error",
-                    title="Windows Server обнаружена" if is_windows_server_wlanapi else "Ошибка",
+                    title="Windows Server обнаружена" if is_windows_server_wlanapi else "Ошибка запуска Zapret",
                     content=text,
                     source="launch.dpi_error",
                     presentation="infobar",

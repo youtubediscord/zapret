@@ -33,7 +33,8 @@ from .preset_runner_support import (
 )
 from winws_runtime.health.process_health_check import (
     check_common_crash_causes,
-    diagnose_startup_error
+    diagnose_startup_error,
+    format_winws_exit_diagnosis,
 )
 from winws_runtime.runtime.system_ops import get_process_pids_by_name
 
@@ -463,8 +464,10 @@ class Winws1StrategyRunner(StrategyRunnerBase):
 
             diag = diagnose_winws_exit(exit_code, stderr_output)
             if diag:
-                prefix = f"[AUTOFIX:{diag.auto_fix}]" if diag.auto_fix else ""
-                self._set_last_error(f"{prefix}{diag.cause}. {diag.solution}", notify=False)
+                self._set_last_error(
+                    format_winws_exit_diagnosis(diag, exe_name=EXE_NAME_WINWS1),
+                    notify=False,
+                )
                 log(f"Diagnosis: {diag.cause} | Fix: {diag.solution} | auto_fix={diag.auto_fix}", "INFO")
             else:
                 first_line = ""

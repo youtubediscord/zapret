@@ -34,7 +34,9 @@ from .preset_runner_support import (
 )
 from .constants import CREATE_NO_WINDOW
 from winws_runtime.health.process_health_check import (
-    diagnose_startup_error
+    diagnose_startup_error,
+    diagnose_winws_exit,
+    format_winws_exit_diagnosis,
 )
 from winws_runtime.runtime.system_ops import (
     find_stale_windivert_delete_pending_services_runtime,
@@ -422,6 +424,32 @@ class Winws2StrategyRunner(StrategyRunnerBase):
                 return line
         return lines[0] if lines else ""
 
+    def _set_spawn_exit_error(self, exit_code: int, output: str) -> None:
+        """Сохраняет для UI реальную причину, а не заголовок вывода winws2."""
+        diagnosis = diagnose_winws_exit(exit_code, output)
+        if diagnosis is not None:
+            message = format_winws_exit_diagnosis(diagnosis, exe_name=ENGINE_WINWS2)
+            self._set_last_error(message, notify=False)
+            log(
+                "Diagnosis: "
+                f"{diagnosis.cause} | Fix: {diagnosis.solution} | "
+                f"win32_error={diagnosis.win32_error} | exit_code={diagnosis.exit_code} | "
+                f"auto_fix={diagnosis.auto_fix}",
+                "INFO",
+            )
+            return
+
+        summary = self._summarize_startup_output(output)
+        if summary:
+            self._set_last_error(
+                f"{ENGINE_WINWS2} завершился сразу (код {exit_code}): {summary[:300]}",
+                notify=False,
+            )
+        elif self._should_retry_fast_switch_spawn_exit_code(int(exit_code or -1)):
+            self._set_last_error(self._format_windows_process_init_failure(exit_code), notify=False)
+        else:
+            self._set_last_error(f"{ENGINE_WINWS2} завершился сразу (код {exit_code})", notify=False)
+
     @staticmethod
     def _launch_args_files_exist(launch_args: tuple[str, ...]) -> bool:
         if not launch_args:
@@ -698,7 +726,10 @@ class Winws2StrategyRunner(StrategyRunnerBase):
                     check=False,
                 )
             except subprocess.TimeoutExpired:
-                message = "Preset dry-run timeout"
+                message = (
+                    "Проверка пресета через winws2 не завершилась за 6 секунд. "
+                    "Процесс проверки завис — перезапустите программу и повторите запуск"
+                )
                 self._last_spawn_exit_code = 124
                 self._last_spawn_stderr = message
                 log(message, "WARNING")
@@ -740,10 +771,10 @@ class Winws2StrategyRunner(StrategyRunnerBase):
                 continue
             break
 
-        first_line = next((line.strip() for line in output.splitlines() if line.strip()), "")
+        output_summary = self._summarize_startup_output(output)
         log(
             f"Preset dry-run failed before winws2 start (code: {self._last_spawn_exit_code})"
-            + (f": {first_line[:300]}" if first_line else ""),
+            + (f": {output_summary[:300]}" if output_summary else ""),
             "WARNING",
         )
         self._set_runner_state_locked(
@@ -754,11 +785,15 @@ class Winws2StrategyRunner(StrategyRunnerBase):
             reason="dry_run_failed_before_spawn",
             publish_failure=False,
         )
-        if first_line:
-            self._set_last_error(f"Preset dry-run failed: {first_line[:200]}", notify=False)
+        if output_summary:
+            self._set_last_error(
+                f"Проверка пресета через winws2 не прошла (код {self._last_spawn_exit_code}): "
+                f"{output_summary[:300]}",
+                notify=False,
+            )
         else:
             self._set_last_error(
-                f"Preset dry-run failed (код {self._last_spawn_exit_code})",
+                f"Проверка пресета через winws2 не прошла (код {self._last_spawn_exit_code})",
                 notify=False,
             )
         return False
@@ -990,44 +1025,10 @@ class Winws2StrategyRunner(StrategyRunnerBase):
                 publish_failure=False,
             )
 
-            if not preset_switch:
-                from winws_runtime.health.process_health_check import diagnose_winws_exit
-
-                diag = diagnose_winws_exit(exit_code, stderr_output)
-                if diag:
-                    prefix = f"[AUTOFIX:{diag.auto_fix}]" if diag.auto_fix else ""
-                    self._set_last_error(f"{prefix}{diag.cause}. {diag.solution}", notify=False)
-                    log(f"Diagnosis: {diag.cause} | Fix: {diag.solution} | auto_fix={diag.auto_fix}", "INFO")
-                else:
-                    first_line = ""
-                    try:
-                        first_line = (stderr_output or "").strip().splitlines()[0].strip()
-                    except Exception:
-                        first_line = ""
-                    if first_line:
-                        self._set_last_error(
-                            f"{ENGINE_WINWS2} завершился сразу (код {exit_code}): {first_line[:200]}",
-                            notify=False,
-                        )
-                    elif self._should_retry_fast_switch_spawn_exit_code(int(exit_code or -1)):
-                        self._set_last_error(self._format_windows_process_init_failure(exit_code), notify=False)
-                    else:
-                        self._set_last_error(f"{ENGINE_WINWS2} завершился сразу (код {exit_code})", notify=False)
-            else:
-                first_line = ""
-                try:
-                    first_line = (stderr_output or "").strip().splitlines()[0].strip()
-                except Exception:
-                    first_line = ""
-                if first_line:
-                    self._set_last_error(f"Preset switch failed: {first_line[:200]}", notify=False)
-                elif self._should_retry_fast_switch_spawn_exit_code(int(exit_code or -1)):
-                    self._set_last_error(
-                        self._format_windows_process_init_failure(exit_code),
-                        notify=False,
-                    )
-                else:
-                    self._set_last_error(f"Preset switch failed (код {exit_code})", notify=False)
+            # Обычный старт и быстрое переключение обязаны выдавать одинаково
+            # подробный диагноз. В выводе winws2 первой идёт строка версии, а
+            # настоящая ошибка WinDivert обычно находится в конце.
+            self._set_spawn_exit_error(int(exit_code), stderr_output)
 
             self._clear_process_state_locked()
             if artifact.preset_path and not preset_switch:

@@ -1,9 +1,52 @@
 import unittest
 import inspect
+from pathlib import Path
+import tempfile
 from unittest.mock import Mock, call, patch
 
 
 class WinDivertServiceRecoveryTests(unittest.TestCase):
+    def test_packaged_monkey_driver_is_accepted_as_windivert_file(self) -> None:
+        from config import config as app_config
+        from winws_runtime.health.winws_exit_diagnosis import _check_windivert_files
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            exe_dir = Path(tmp_dir)
+            (exe_dir / "WinDivert.dll").write_bytes(b"dll")
+            (exe_dir / "Monkey64.sys").write_bytes(b"driver")
+
+            with patch.object(app_config, "EXE_FOLDER", str(exe_dir)):
+                self.assertEqual(_check_windivert_files(), [])
+
+            (exe_dir / "Monkey64.sys").unlink()
+            with patch.object(app_config, "EXE_FOLDER", str(exe_dir)):
+                missing = _check_windivert_files()
+
+        self.assertEqual(
+            missing,
+            ["драйвер WinDivert (Monkey64.sys или WinDivert64.sys)"],
+        )
+
+    def test_detailed_diagnosis_explains_windows_and_process_codes(self) -> None:
+        from winws_runtime.health.winws_exit_diagnosis import (
+            WinDivertDiagnosis,
+            format_winws_exit_diagnosis,
+        )
+
+        diagnosis = WinDivertDiagnosis(
+            cause="Служба драйвера WinDivert (Monkey) отключена в системе",
+            solution="Выполните аварийную очистку драйвера и повторите запуск",
+            exit_code=34,
+            win32_error=1058,
+        )
+
+        message = format_winws_exit_diagnosis(diagnosis, exe_name="winws2")
+
+        self.assertIn("Найдена причина", message)
+        self.assertIn("код ошибки Windows 1058", message)
+        self.assertIn("код завершения процесса 34", message)
+        self.assertIn("Что сделать", message)
+
     def test_regular_runner_stop_does_not_delete_monkey_service(self) -> None:
         from winws_runtime.runners import runner_base
 

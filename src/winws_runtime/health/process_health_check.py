@@ -54,6 +54,7 @@ from winws_runtime.health.winws_exit_diagnosis import (  # noqa: F401
     _find_disabled_windivert_driver_service,
     _probe_service_disabled_cause,
     diagnose_winws_exit,
+    format_winws_exit_diagnosis,
 )
 from winws_runtime.health.windivert_auto_fix import (  # noqa: F401
     _fix_cleanup_driver,
@@ -89,6 +90,7 @@ __all__ = [
     "describe_windivert_error",
     "diagnose_startup_error",
     "diagnose_winws_exit",
+    "format_winws_exit_diagnosis",
     "execute_windivert_auto_fix",
     "get_last_crash_info",
     "validate_command_line_length",
