@@ -174,6 +174,13 @@ class BuildResourceLayoutTests(unittest.TestCase):
             sys.modules.pop("nuitka_builder", None)
             sys.path[:] = old_path
 
+    def test_builders_do_not_delete_unrelated_runtime_or_nuitka_caches(self) -> None:
+        pyinstaller = (PRIVATE_ROOT / "build_zapret" / "pyinstaller_builder.py").read_text(encoding="utf-8")
+
+        self.assertNotIn("def cleanup_pyinstaller_temp", pyinstaller)
+        self.assertNotIn("tempfile.gettempdir()", pyinstaller)
+        self.assertIn("main.build Nuitka сохранён", pyinstaller)
+
     def test_release_builder_defaults_to_nuitka(self) -> None:
         gui = (PRIVATE_ROOT / "build_zapret" / "build_release_gui.py").read_text(encoding="utf-8")
         cli = (PRIVATE_ROOT / "build_zapret" / "build_release_cli.py").read_text(encoding="utf-8")
@@ -183,6 +190,16 @@ class BuildResourceLayoutTests(unittest.TestCase):
         self.assertIn('value="pyinstaller"', gui)
         self.assertIn('choices=["pyinstaller", "nuitka"]', cli)
         self.assertIn('default="nuitka"', cli)
+        self.assertIn("Запуск из исходников запрещён", gui)
+        self.assertIn("Запуск приложения из исходников запрещён", cli)
+
+    def test_ci_and_builder_document_only_internal_exe_launch(self) -> None:
+        ci = (PRIVATE_ROOT / "build_zapret" / "ci_build.py").read_text(encoding="utf-8")
+        readme = (PRIVATE_ROOT / "build_zapret" / "README.md").read_text(encoding="utf-8")
+
+        self.assertIn("out_dir = artifact_root / RUNTIME_DIR_NAME", ci)
+        self.assertIn("<корень установки>\\_internal\\Zapret.exe", readme)
+        self.assertIn("Запуск самого приложения из Python-исходников запрещён", readme)
 
     def test_cli_uses_nuitka_by_default_and_normalizes_old_flat_target(self) -> None:
         build_path = PRIVATE_ROOT / "build_zapret"
