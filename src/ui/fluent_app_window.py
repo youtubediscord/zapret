@@ -10,10 +10,9 @@ from qfluentwidgets import (
 )
 from qfluentwidgets import NavigationWidget
 from PyQt6.QtWidgets import QApplication, QWidget, QLabel
-from PyQt6.QtGui import QIcon, QPixmap, QPainter, QColor
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtGui import QPixmap, QPainter, QColor
+from PyQt6.QtCore import Qt
 
-from app.app_icon_resources import resolve_existing_app_icon_path
 from config.build_info import APP_VERSION
 
 from log.log import log
@@ -36,10 +35,7 @@ class ZapretFluentWindow(FluentWindow):
             f"{(_time.perf_counter() - t_super) * 1000:.0f}ms",
         )
         self.setWindowTitle(f"Zapret2 v{APP_VERSION}")
-
-        self._app_icon = None
-        self._app_icon_deferred_started = False
-        self._schedule_app_icon_after_interactive()
+        self._sync_titlebar_icon_from_application()
 
         # Theme mode (DARK/LIGHT) is set in main.py via _sync_theme_mode_to_qfluent()
         # before the window is created, so no hardcoded setTheme(DARK) here.
@@ -58,30 +54,17 @@ class ZapretFluentWindow(FluentWindow):
         self.stackedWidget.setProperty("isTransparent", is_transparent)
         self.stackedWidget.setStyle(QApplication.style())
 
-    def _schedule_app_icon_after_interactive(self) -> None:
-        try:
-            self.startup_interactive_ready.connect(lambda *_args: QTimer.singleShot(0, self._apply_app_icon_deferred))
-        except Exception:
-            QTimer.singleShot(1500, self._apply_app_icon_deferred)
-
-    def _apply_app_icon_deferred(self) -> None:
-        """Ставит иконку после первого показа окна, чтобы не задерживать старт."""
-        if self._app_icon_deferred_started:
+    def _sync_titlebar_icon_from_application(self) -> None:
+        """Показывает уже готовый общий значок в окончательной верхней панели."""
+        app = QApplication.instance()
+        title_bar = getattr(self, "titleBar", None)
+        set_icon = getattr(title_bar, "setIcon", None)
+        if app is None or not callable(set_icon):
             return
-        self._app_icon_deferred_started = True
 
-        t_icon = _time.perf_counter()
-        icon_path = resolve_existing_app_icon_path()
-        if icon_path:
-            self._app_icon = QIcon(icon_path)
-            self.setWindowIcon(self._app_icon)
-            app = QApplication.instance()
-            if app:
-                app.setWindowIcon(self._app_icon)
-        emit_startup_metric(
-            "StartupFluentWindowIconDeferred",
-            f"{(_time.perf_counter() - t_icon) * 1000:.0f}ms",
-        )
+        icon = app.windowIcon()
+        if not icon.isNull():
+            set_icon(icon)
 
     # ------------------------------------------------------------------
     # Background tint (Mica + semi-transparent Qt background layer)

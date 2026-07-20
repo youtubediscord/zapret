@@ -104,7 +104,7 @@ class GuiAutostartContractTests(unittest.TestCase):
         from autostart import scheduled_task_api
 
         scheduler = _FakeScheduler()
-        exe_path = r"C:\Program Files\Zapret\Zapret.exe"
+        exe_path = r"C:\Program Files\Zapret\_internal\Zapret.exe"
 
         with patch.object(
             scheduled_task_api,
@@ -149,6 +149,17 @@ class GuiAutostartContractTests(unittest.TestCase):
         self.assertIs(registered_def, definition)
         self.assertEqual(flags, scheduled_task_api.TASK_CREATE_OR_UPDATE)
         self.assertEqual(logon_type, scheduled_task_api.TASK_LOGON_INTERACTIVE_TOKEN)
+
+    def test_rejects_flat_or_source_autostart_target(self) -> None:
+        from autostart import scheduled_task_api
+
+        with patch.object(scheduled_task_api, "_connect_scheduler") as connect_scheduler:
+            result = scheduled_task_api.create_or_update_autostart_task(
+                r"C:\Program Files\Zapret\Zapret.exe"
+            )
+
+        self.assertFalse(result)
+        connect_scheduler.assert_not_called()
 
     def test_enable_gui_autostart_creates_task_and_removes_legacy_shortcut(self) -> None:
         from autostart.public import enable_gui_autostart

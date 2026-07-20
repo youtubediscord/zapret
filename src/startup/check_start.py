@@ -1,13 +1,30 @@
 #startup/check_start.py
 import os
+import re
 import sys
 import winreg
 
 # Импортируем константы из конфига
 from app_notifications import advisory_notification, notification_action
-from config.config import BIN_FOLDER, MAIN_DIRECTORY
+from config.config import MAIN_DIRECTORY
 
+from startup.windows_version_guard import current_windows_support
 from utils.windows_process_probe import iter_process_records_winapi
+
+
+def _application_root_path() -> str:
+    """Возвращает пользовательский путь установки без деталей среды Python."""
+    return os.path.abspath(MAIN_DIRECTORY)
+
+
+def _path_is_inside(path: str, directory: str) -> bool:
+    """Проверяет вложенность путей без ложных совпадений по общему префиксу."""
+    try:
+        normalized_path = os.path.normcase(os.path.abspath(path))
+        normalized_directory = os.path.normcase(os.path.abspath(directory))
+        return os.path.commonpath((normalized_path, normalized_directory)) == normalized_directory
+    except (OSError, ValueError):
+        return False
 
 def check_system_commands() -> tuple[bool, str]:
     """
@@ -133,46 +150,43 @@ def check_mitmproxy() -> tuple[bool, str]:
     
     return False, ""
     
-def check_if_in_archive():
-    """
-    Проверяет, находится ли EXE-файл в временной директории.
-    """
-    exe_path = os.path.abspath(sys.executable)
+def check_if_application_root_is_temporary() -> bool:
+    """Проверяет, находится ли установленная программа во временной папке."""
+    application_path = _application_root_path()
 
     try:
         try:
             from log.log import log
 
-            log(f"Executable path: {exe_path}", level="CHECK_START")
+            log(f"Application path: {application_path}", level="CHECK_START")
         except ImportError:
-            print(f"DEBUG: Executable path: {exe_path}")
+            print(f"DEBUG: Application path: {application_path}")
 
-        system32_path = os.path.abspath(os.path.join(os.environ.get("WINDIR", ""), "System32"))
+        windows_dir = os.environ.get("WINDIR", "")
+        system32_path = os.path.join(windows_dir, "System32") if windows_dir else ""
         temp_env = os.environ.get("TEMP", "")
         tmp_env = os.environ.get("TMP", "")
         temp_dirs = [temp_env, tmp_env, system32_path]
         
-        is_in_temp = False
         for temp_dir in temp_dirs:
-            if temp_dir and exe_path.lower().startswith(os.path.abspath(temp_dir).lower()):
+            if temp_dir and _path_is_inside(application_path, temp_dir):
                 try:
                     from log.log import log
 
-                    log(f"EXE запущен из временной директории: {temp_dir}", level="⚠ WARNING")
+                    log(f"Программа запущена из временной директории: {temp_dir}", level="⚠ WARNING")
                 except ImportError:
-                    print(f"WARNING: EXE запущен из временной директории: {temp_dir}")
-                is_in_temp = True
-                break
-        
-        return is_in_temp
+                    print(f"WARNING: Программа запущена из временной директории: {temp_dir}")
+                return True
+
+        return False
         
     except Exception as e:
         try:
             from log.log import log
 
-            log(f"Ошибка при проверке расположения EXE: {str(e)}", level="DEBUG")
+            log(f"Ошибка при проверке расположения программы: {str(e)}", level="DEBUG")
         except ImportError:
-            print(f"DEBUG: Ошибка при проверке расположения EXE: {str(e)}")
+            print(f"DEBUG: Ошибка при проверке расположения программы: {str(e)}")
         return False
 
 def is_in_onedrive(path: str) -> bool:
@@ -180,11 +194,11 @@ def is_in_onedrive(path: str) -> bool:
     True, если путь находится в каталоге OneDrive
     (учитывается как пользовательский, так и корпоративный вариант).
     """
-    path_lower = os.path.abspath(path).lower()
+    path_lower = os.path.normcase(os.path.abspath(path))
 
     # 1) Самый надёжный способ – сравнить с переменной окружения ONEDRIVE
     onedrive_env = os.environ.get("ONEDRIVE")
-    if onedrive_env and path_lower.startswith(os.path.abspath(onedrive_env).lower()):
+    if onedrive_env and _path_is_inside(path, onedrive_env):
         return True
 
     # 2) Резерв – ищем «onedrive» в любом сегменте пути
@@ -195,33 +209,24 @@ def check_path_for_onedrive() -> tuple[bool, str]:
     """
     Проверяет OneDrive в путях без сохранения старого результата.
     """
-    current_path = os.path.abspath(MAIN_DIRECTORY)
-    exe_path = os.path.abspath(sys.executable)
+    path = _application_root_path()
+    if is_in_onedrive(path):
+        err = (
+            f"Путь содержит каталог OneDrive:\n{path}\n\n"
+            "OneDrive часто блокирует доступ к файлам и может вызывать ошибки.\n"
+            "Переместите программу в любую локальную папку "
+            "(например, C:\\zapret) и запустите её снова."
+        )
+        try:
+            from log.log import log
 
-    paths_to_check = [current_path, exe_path, BIN_FOLDER]
+            log(f"ERROR: Обнаружен OneDrive в пути: {path}", level="❌ ERROR")
+        except ImportError:
+            print(f"ERROR: Обнаружен OneDrive в пути: {path}")
 
-    for path in paths_to_check:
-        if is_in_onedrive(path):
-            err = (
-                f"Путь содержит каталог OneDrive:\n{path}\n\n"
-                "OneDrive часто блокирует доступ к файлам и может вызывать ошибки.\n"
-                "Переместите программу в любую локальную папку "
-                "(например, C:\\zapret) и запустите её снова."
-            )
-            try:
-                from log.log import log
-
-                log(f"ERROR: Обнаружен OneDrive в пути: {path}", level="❌ ERROR")
-            except ImportError:
-                print(f"ERROR: Обнаружен OneDrive в пути: {path}")
-            
-            return True, err
+        return True, err
 
     return False, ""
-
-import re
-
-from startup.windows_version_guard import current_windows_support
 
 def check_windows_version() -> tuple[bool, str]:
     """
@@ -274,27 +279,22 @@ def contains_special_chars(path: str) -> bool:
 
 def check_path_for_special_chars():
     """Проверяет пути программы на наличие специальных символов."""
-    current_path = os.path.abspath(MAIN_DIRECTORY)
-    exe_path = os.path.abspath(sys.executable)
-    
-    paths_to_check = [current_path, exe_path, BIN_FOLDER]
-    
-    for path in paths_to_check:
-        if contains_special_chars(path):
-            error_message = (
-                f"Путь содержит специальные символы: {path}\n\n"
-                "Программа может работать некорректно, если в пути есть пробелы или специальные знаки.\n"
-                "Рекомендуется переместить программу в папку (или корень диска) без пробелов/спецсимволов "
-                "(например, C:\\zapret или D:\\zapret) и запустить её снова."
-            )
-            try:
-                from log.log import log
+    path = _application_root_path()
+    if contains_special_chars(path):
+        error_message = (
+            f"Путь содержит специальные символы: {path}\n\n"
+            "Программа может работать некорректно, если в пути есть пробелы или специальные знаки.\n"
+            "Рекомендуется переместить программу в папку (или корень диска) без пробелов/спецсимволов "
+            "(например, C:\\zapret или D:\\zapret) и запустить её снова."
+        )
+        try:
+            from log.log import log
 
-                log(f"ERROR: Путь содержит специальные символы: {path}", level="❌ ERROR")
-            except ImportError:
-                print(f"ERROR: Путь содержит специальные символы: {path}")
-            
-            return True, error_message
+            log(f"ERROR: Путь содержит специальные символы: {path}", level="❌ ERROR")
+        except ImportError:
+            print(f"ERROR: Путь содержит специальные символы: {path}")
+
+        return True, error_message
 
     return False, ""
 
@@ -333,7 +333,7 @@ def collect_startup_notifications() -> list[dict]:
             )
         )
 
-    if check_if_in_archive():
+    if check_if_application_root_is_temporary():
         notifications.append(
             advisory_notification(
                 level="warning",

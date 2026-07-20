@@ -413,6 +413,7 @@ class StartupRuntimeSetupTests(unittest.TestCase):
                 return True
 
         with (
+            patch.object(entry, "require_packaged_application"),
             patch.object(entry, "shell_bootstrap", return_value=False),
             patch.object(entry, "application_bootstrap", return_value=App()),
             patch.object(entry, "is_qt_event_diagnostic_enabled", return_value=False),

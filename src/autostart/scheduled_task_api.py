@@ -21,6 +21,7 @@ from __future__ import annotations
 import ntpath
 import os
 
+from config.runtime_layout import RUNTIME_DIR_NAME, RUNTIME_EXE_NAME
 from log.log import log
 
 
@@ -74,9 +75,27 @@ def _current_user_id() -> str:
     return f"{domain}\\{user}" if domain else user
 
 
+def _canonical_app_working_directory(exe_path: str) -> str:
+    """Возвращает корень установки только для канонического runtime exe."""
+    normalized = ntpath.normpath(str(exe_path or "").strip())
+    runtime_dir = ntpath.dirname(normalized)
+    app_root = ntpath.dirname(runtime_dir)
+    if (
+        ntpath.basename(normalized).casefold() != RUNTIME_EXE_NAME.casefold()
+        or ntpath.basename(runtime_dir).casefold() != RUNTIME_DIR_NAME.casefold()
+        or not app_root
+    ):
+        raise ValueError(
+            "Автозапуск разрешён только для установленного "
+            f"{RUNTIME_DIR_NAME}\\{RUNTIME_EXE_NAME}: {exe_path}"
+        )
+    return app_root
+
+
 def _register_autostart_task(exe_path: str, task_name: str) -> None:
     """Вся COM-работа в отдельной функции: её локальные COM-объекты
     освобождаются до CoUninitialize в вызывающем коде."""
+    working_directory = _canonical_app_working_directory(exe_path)
     scheduler = _connect_scheduler()
     folder = scheduler.GetFolder(_TASK_FOLDER)
     task_def = scheduler.NewTask(0)
@@ -96,9 +115,7 @@ def _register_autostart_task(exe_path: str, task_name: str) -> None:
     action = task_def.Actions.Create(TASK_ACTION_EXEC)
     action.Path = exe_path
     action.Arguments = AUTOSTART_TASK_ARGS
-    work_dir = ntpath.dirname(exe_path)
-    if work_dir:
-        action.WorkingDirectory = work_dir
+    action.WorkingDirectory = working_directory
 
     principal = task_def.Principal
     principal.RunLevel = TASK_RUNLEVEL_HIGHEST

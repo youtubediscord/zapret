@@ -21,11 +21,13 @@ class BuildResourceLayoutTests(unittest.TestCase):
         self.assertTrue(private_template.exists(), private_template)
         self.assertFalse(public_template.exists(), public_template)
 
-    def test_inno_installs_profile_templates_from_private_resources(self) -> None:
+    def test_inno_installs_profile_templates_from_prepared_stage(self) -> None:
         iss = self._read_inno_script()
 
-        self.assertIn(r'{#PRIVATERESOURCES}\profile\templates\*.txt', iss)
-        self.assertNotIn(r'{#PUBLICSRC}\profile\templates\*.txt', iss)
+        self.assertIn(r'{#SOURCEPATH}\profile\templates\*.txt', iss)
+        self.assertNotIn("PUBLICSRC", iss)
+        self.assertNotIn("PRIVATERESOURCES", iss)
+        self.assertNotIn("PROJECTPATH", iss)
 
     def test_inno_copies_lists_to_base_without_nested_base_or_user_dirs(self) -> None:
         iss = self._read_inno_script()
@@ -188,7 +190,7 @@ class BuildResourceLayoutTests(unittest.TestCase):
         self.assertIn('self.build_method_var = tk.StringVar(value="nuitka")', gui)
         self.assertIn('value="nuitka"', gui)
         self.assertIn('value="pyinstaller"', gui)
-        self.assertIn('choices=["pyinstaller", "nuitka"]', cli)
+        self.assertIn('choices=["nuitka", "pyinstaller"]', cli)
         self.assertIn('default="nuitka"', cli)
         self.assertIn("Запуск из исходников запрещён", gui)
         self.assertIn("Запуск приложения из исходников запрещён", cli)
@@ -198,8 +200,27 @@ class BuildResourceLayoutTests(unittest.TestCase):
         readme = (PRIVATE_ROOT / "build_zapret" / "README.md").read_text(encoding="utf-8")
 
         self.assertIn("out_dir = artifact_root / RUNTIME_DIR_NAME", ci)
+        self.assertIn('choices=["nuitka", "pyinstaller"]', ci)
+        self.assertIn('default="nuitka"', ci)
+        self.assertIn("target_dir=out_dir", ci)
         self.assertIn("<корень установки>\\_internal\\Zapret.exe", readme)
         self.assertIn("Запуск самого приложения из Python-исходников запрещён", readme)
+
+    def test_public_windows_workflow_uses_same_internal_layout_and_nuitka_default(self) -> None:
+        workflow = (PUBLIC_ROOT / ".github" / "workflows" / "windows-release.yml").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("default: nuitka", workflow)
+        self.assertIn("- nuitka", workflow)
+        self.assertIn("- pyinstaller", workflow)
+        self.assertIn("ZAPRET_BUILD_METHOD: ${{ github.event.inputs.builder || 'nuitka' }}", workflow)
+        self.assertIn('$runtimeTarget = Join-Path $artifactRoot "_internal"', workflow)
+        self.assertIn('Join-Path $runtimeTarget "Zapret.exe"', workflow)
+        self.assertIn("path: artifact/", workflow)
+        self.assertNotIn("cd src", workflow)
+        self.assertNotIn("src/dist/Zapret/", workflow)
+        self.assertNotIn("--paths . main.py", workflow)
 
     def test_cli_uses_nuitka_by_default_and_normalizes_old_flat_target(self) -> None:
         build_path = PRIVATE_ROOT / "build_zapret"
@@ -255,7 +276,8 @@ class BuildResourceLayoutTests(unittest.TestCase):
         self.assertIn("target_dir = DIST_RUNTIME_DIR", nuitka)
         self.assertIn("contents_directory='.'", pyinstaller)
         self.assertIn("replace_runtime_output(dist_dir, target_dir)", nuitka)
-        self.assertIn("replace_runtime_output(source_runtime_dir, DIST_RUNTIME_DIR)", pyinstaller)
+        self.assertIn("target_dir = Path(target_dir or DIST_RUNTIME_DIR).resolve()", pyinstaller)
+        self.assertIn("replace_runtime_output(source_runtime_dir, target_dir)", pyinstaller)
         self.assertIn("runtime_stage = stage_root / RUNTIME_DIR_NAME", gui)
         self.assertNotIn("_nuitka_runtime", gui)
         self.assertNotIn("_nuitka_runtime", installer)
@@ -435,6 +457,21 @@ class BuildResourceLayoutTests(unittest.TestCase):
                 runtime_root.mkdir()
                 (runtime_root / "Zapret.exe").write_bytes(b"exe")
                 (runtime_root / "python314.dll").write_bytes(b"dll")
+                for dir_name in (
+                    "bin",
+                    "exe",
+                    "json",
+                    "lists",
+                    "lua",
+                    "sos",
+                    "windivert.filter",
+                    "themes",
+                ):
+                    directory = source_root / dir_name
+                    directory.mkdir()
+                    (directory / "required.dat").write_bytes(b"resource")
+                generated_source_list = source_root / "lists" / "other.txt"
+                generated_source_list.write_text("source must stay untouched", encoding="utf-8")
 
                 builder._source_root = lambda: source_root
                 builder._built_runtime_root = lambda: runtime_root
@@ -449,6 +486,61 @@ class BuildResourceLayoutTests(unittest.TestCase):
                 self.assertTrue((stage_root / "_internal" / "python314.dll").is_file())
                 self.assertFalse((stage_root / "Zapret.exe").exists())
                 self.assertFalse((stage_root / "python314.dll").exists())
+                self.assertEqual(
+                    generated_source_list.read_text(encoding="utf-8"),
+                    "source must stay untouched",
+                )
+                self.assertTrue((stage_root / "presets" / "winws2_builtin").is_dir())
+                self.assertTrue(any((stage_root / "presets" / "winws2_builtin").glob("*.txt")))
+                self.assertTrue((stage_root / "presets" / "winws1_builtin").is_dir())
+                self.assertTrue(any((stage_root / "presets" / "winws1_builtin").glob("*.txt")))
+                self.assertTrue((stage_root / "profile" / "strategy_catalogs" / "winws2").is_dir())
+                self.assertTrue((stage_root / "profile" / "templates").is_dir())
+                self.assertTrue((stage_root / "json" / "hosts_catalog").is_dir())
+                self.assertTrue((stage_root / "ico" / "windows11_fluent" / "sidebar").is_dir())
+        finally:
+            sys.modules.pop("build_release_cli", None)
+            sys.path[:] = old_path
+
+    def test_installer_stage_rejects_missing_required_resource_directory(self) -> None:
+        build_path = PRIVATE_ROOT / "build_zapret"
+        old_path = list(sys.path)
+        sys.path.insert(0, str(build_path))
+        try:
+            sys.modules.pop("build_release_cli", None)
+            import build_release_cli
+
+            options = build_release_cli.BuildOptions(
+                channel="dev",
+                version="1.2.3.4",
+                notes="test",
+                build_method="nuitka",
+                fast_exe=False,
+                fast_exe_dest=None,
+                publish_telegram=False,
+                telegram_use_socks=False,
+                skip_github=True,
+                github_nonfatal=False,
+                skip_ssh=True,
+                run_installer=False,
+            )
+            builder = build_release_cli.ConsoleReleaseBuilder(options)
+
+            with tempfile.TemporaryDirectory() as temp_dir:
+                temp_root = Path(temp_dir)
+                source_root = temp_root / "source"
+                runtime_root = temp_root / "runtime"
+                stage_root = temp_root / "stage"
+                source_root.mkdir()
+                runtime_root.mkdir()
+                (runtime_root / "Zapret.exe").write_bytes(b"exe")
+
+                builder._source_root = lambda: source_root
+                builder._built_runtime_root = lambda: runtime_root
+                builder._installer_stage_root = lambda: stage_root
+
+                with self.assertRaisesRegex(FileNotFoundError, "обязательный каталог"):
+                    builder._prepare_installer_source_root()
         finally:
             sys.modules.pop("build_release_cli", None)
             sys.path[:] = old_path
@@ -460,9 +552,31 @@ class BuildResourceLayoutTests(unittest.TestCase):
         self.assertIn(r'Source: "{#SOURCEPATH}\ico\Zapret2.ico"; DestDir: "{app}\ico"', iss)
         self.assertIn(r'Source: "{#SOURCEPATH}\ico\ZapretDevLogo4.ico"; DestDir: "{app}\ico"', iss)
         self.assertIn(
-            r'Source: "{#PUBLICSRC}\ico\windows11_fluent\sidebar\*.svg"; DestDir: "{app}\ico\windows11_fluent\sidebar"',
+            r'Source: "{#SOURCEPATH}\ico\windows11_fluent\sidebar\*.svg"; DestDir: "{app}\ico\windows11_fluent\sidebar"',
             iss,
         )
+
+    def test_inno_reads_all_required_resources_only_from_prepared_stage(self) -> None:
+        iss = self._read_inno_script()
+
+        expected_sources = (
+            r'{#SOURCEPATH}\profile\strategy_catalogs\winws2\*.txt',
+            r'{#SOURCEPATH}\profile\strategy_catalogs\winws1\*.txt',
+            r'{#SOURCEPATH}\profile\templates\*.txt',
+            r'{#SOURCEPATH}\presets\winws2_builtin\*.txt',
+            r'{#SOURCEPATH}\presets\winws1_builtin\*.txt',
+            r'{#SOURCEPATH}\json\hosts_catalog\*',
+            r'{#SOURCEPATH}\ico\windows11_fluent\sidebar\*.svg',
+        )
+        for source in expected_sources:
+            self.assertIn(source, iss)
+
+        builder = (PRIVATE_ROOT / "build_zapret" / "build_release_gui.py").read_text(encoding="utf-8")
+        self.assertIn("def _copy_installer_managed_resources", builder)
+        self.assertIn("PUBLIC_SRC / \"presets\" / \"builtin\" / \"winws2\"", builder)
+        self.assertIn("PRIVATE_ROOT / \"resources\" / \"profile\" / \"templates\"", builder)
+        self.assertNotIn("f'/DPUBLICSRC=", builder)
+        self.assertNotIn("f'/DPRIVATERESOURCES=", builder)
 
     def test_installer_stage_copies_only_required_ico_resources(self) -> None:
         builder = (PRIVATE_ROOT / "build_zapret" / "build_release_gui.py").read_text(encoding="utf-8")

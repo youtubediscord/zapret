@@ -10,19 +10,6 @@ class TrayWindowPort:
 
     _window: Any
 
-    def set_window_icon(self, icon) -> None:
-        self._window.setWindowIcon(icon)
-
-    def set_application_icon_from_path(self, icon_path: str) -> None:
-        from PyQt6.QtGui import QIcon
-        from PyQt6.QtWidgets import QApplication
-
-        app_icon = QIcon(str(icon_path or ""))
-        self.set_window_icon(app_icon)
-        app = QApplication.instance()
-        if app is not None:
-            app.setWindowIcon(app_icon)
-
     def create_menu(self):
         from qfluentwidgets import RoundMenu
 

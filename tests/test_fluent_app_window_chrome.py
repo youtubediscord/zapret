@@ -53,10 +53,14 @@ class FluentAppWindowChromeTests(unittest.TestCase):
         self.assertEqual(search_widget._search.property("screenReaderStateText"), "Глобальный поиск по ZapretGUI")
         self.assertIn("страницу, preset или profile", search_widget._search.accessibleDescription())
 
-    def test_window_icon_file_lookup_lives_outside_ui_window(self) -> None:
+    def test_window_only_renders_application_owned_icon(self) -> None:
         source = inspect.getsource(ZapretFluentWindow)
 
-        self.assertIn("resolve_existing_app_icon_path", source)
+        self.assertIn("_sync_titlebar_icon_from_application", source)
+        self.assertIn("app.windowIcon()", source)
+        self.assertNotIn("resolve_existing_app_icon_path", source)
+        self.assertNotIn("setWindowIcon", source)
+        self.assertNotIn("singleShot", source)
         self.assertNotIn("os.path.exists", source)
         self.assertNotIn("ICON_DEV_PATH", source)
         self.assertNotIn("ICON_PATH", source)

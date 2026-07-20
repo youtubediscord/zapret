@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import inspect
 import unittest
+from unittest.mock import Mock, patch
 
 
 class StartupBootstrapMetricsTests(unittest.TestCase):
@@ -23,6 +24,7 @@ class StartupBootstrapMetricsTests(unittest.TestCase):
         self.assertIn("StartupQtRuntimeReadyHooks", source)
         self.assertIn("StartupQtCrashHandler", source)
         self.assertIn("StartupQtThemeMode", source)
+        self.assertIn("StartupQtApplicationIcon", source)
         self.assertIn("StartupQtAccent", source)
 
     def test_qt_runtime_defers_theme_module_import_for_accent_signal(self) -> None:
@@ -40,6 +42,51 @@ class StartupBootstrapMetricsTests(unittest.TestCase):
         source = inspect.getsource(qt_runtime.application_bootstrap)
 
         self.assertNotIn("_install_non_transient_scrollbars_style", source)
+
+    def test_application_icon_has_one_early_owner(self) -> None:
+        from app.feature_facades.tray import TrayFeature
+        from main import qt_runtime
+        from main.tray_window_port import TrayWindowPort
+        import tray_commands
+        from ui.fluent_app_window import ZapretFluentWindow
+
+        bootstrap_source = inspect.getsource(qt_runtime.application_bootstrap)
+        owner_source = inspect.getsource(qt_runtime._apply_application_icon)
+        window_source = inspect.getsource(ZapretFluentWindow)
+        tray_source = inspect.getsource(TrayFeature._init_manager)
+        tray_port_source = inspect.getsource(TrayWindowPort)
+        tray_resolver_source = inspect.getsource(tray_commands.resolve_tray_icon_path)
+
+        self.assertIn("_apply_application_icon(app)", bootstrap_source)
+        self.assertIn("app.setWindowIcon(icon)", owner_source)
+        self.assertIn("_sync_titlebar_icon_from_application", window_source)
+        self.assertNotIn("setWindowIcon", window_source)
+        self.assertNotIn("setWindowIcon", tray_source)
+        self.assertNotIn("setWindowIcon", tray_port_source)
+        self.assertNotIn("set_application_icon_from_path", tray_source)
+        self.assertNotIn("set_application_icon_from_path", tray_port_source)
+        self.assertIn("resolve_existing_app_icon_path", tray_resolver_source)
+        self.assertNotIn("ICON_DEV_PATH", tray_resolver_source)
+        self.assertNotIn("ICON_PATH", tray_resolver_source)
+
+    def test_application_icon_owner_sets_valid_icon_once(self) -> None:
+        from main import qt_runtime
+
+        app = Mock()
+        icon = Mock()
+        icon.isNull.return_value = False
+        with (
+            patch(
+                "app.app_icon_resources.resolve_existing_app_icon_path",
+                return_value=r"C:\Zapret\Dev\ico\ZapretDevLogo4.ico",
+            ),
+            patch("PyQt6.QtGui.QIcon", return_value=icon) as icon_factory,
+        ):
+            result = qt_runtime._apply_application_icon(app)
+
+        icon_factory.assert_called_once_with(r"C:\Zapret\Dev\ico\ZapretDevLogo4.ico")
+        app.setWindowIcon.assert_called_once_with(icon)
+        self.assertEqual(result, r"C:\Zapret\Dev\ico\ZapretDevLogo4.ico")
 
     def test_qt_runtime_does_not_read_windows_accent_during_startup(self) -> None:
         from main import qt_runtime
@@ -89,8 +136,7 @@ class StartupBootstrapMetricsTests(unittest.TestCase):
                 inspect.getsource(deferred_launch_method_logger),
                 inspect.getsource(WindowStartupMixin._continue_startup_after_ui_ready),
                 inspect.getsource(ZapretFluentWindow.__init__),
-                inspect.getsource(ZapretFluentWindow._schedule_app_icon_after_interactive),
-                inspect.getsource(ZapretFluentWindow._apply_app_icon_deferred),
+                inspect.getsource(ZapretFluentWindow._sync_titlebar_icon_from_application),
             )
         )
 
@@ -98,9 +144,9 @@ class StartupBootstrapMetricsTests(unittest.TestCase):
         self.assertIn("StartupWindowLaunchMethod", source)
         self.assertNotIn("get_strategy_launch_method", constructor_source)
         self.assertIn("StartupFluentWindowSuper", source)
-        self.assertIn("StartupFluentWindowIconDeferred", source)
-        self.assertIn("startup_interactive_ready.connect", source)
-        self.assertIn("self._app_icon_deferred_started", source)
+        self.assertIn("_sync_titlebar_icon_from_application", source)
+        self.assertNotIn("StartupFluentWindowIconDeferred", source)
+        self.assertNotIn("self._app_icon_deferred_started", source)
 
     def test_application_controller_logs_runtime_and_attach_substeps(self) -> None:
         from main.application_controller import ApplicationController

@@ -1,9 +1,18 @@
-name: Build Zapret.exe
+name: Build Zapret runtime
 
 on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      builder:
+        description: Сборщик runtime
+        required: true
+        default: nuitka
+        type: choice
+        options:
+          - nuitka
+          - pyinstaller
 
 jobs:
   build:
@@ -11,6 +20,7 @@ jobs:
     env:
       PYTHONUTF8: "1"
       PYTHONIOENCODING: "utf-8"
+      ZAPRET_BUILD_METHOD: ${{ github.event.inputs.builder || 'nuitka' }}
 
     steps:
       - uses: actions/checkout@v4
@@ -23,7 +33,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install pyinstaller PyQt6 PyQt6-Qt6 PyQt6-sip pywin32 psutil requests urllib3 PySocks tgcrypto qtawesome PyQt6-Fluent-Widgets wmi httpx packaging
+          python -m pip install nuitka pyinstaller PyQt6 PyQt6-Qt6 PyQt6-sip pywin32 psutil requests urllib3 PySocks tgcrypto qtawesome PyQt6-Fluent-Widgets wmi httpx packaging
 
       - name: Generate build files
         shell: python
@@ -46,16 +56,83 @@ jobs:
               "PREMIUM_API_BASE_URL=''\n",
               encoding="utf-8-sig")
 
-      - name: Build EXE
+      - name: Build canonical runtime
+        shell: pwsh
         run: |
-          cd src
-          python -m PyInstaller --noconfirm --name Zapret --console --uac-admin --onedir --paths . main.py
-          echo "Build complete"
-          dir dist\Zapret\Zapret.exe
+          $ErrorActionPreference = "Stop"
+          $env:PYTHONPATH = (Resolve-Path "src").Path
+          $modules = @(
+            python -c "from app.feature_facades import iter_lazy_feature_facade_modules; from ui.page_registry import iter_lazy_page_modules; print(*sorted(set(iter_lazy_feature_facade_modules()) | set(iter_lazy_page_modules())), sep='\n')"
+          )
+          if ($LASTEXITCODE -ne 0) {
+            throw "Не удалось получить список динамически загружаемых модулей"
+          }
+
+          $buildRoot = Join-Path $PWD "ci-build"
+          $artifactRoot = Join-Path $PWD "artifact"
+          $runtimeTarget = Join-Path $artifactRoot "_internal"
+          New-Item -ItemType Directory -Path $runtimeTarget -Force | Out-Null
+
+          if ($env:ZAPRET_BUILD_METHOD -eq "nuitka") {
+            $nuitkaArgs = @(
+              "-m", "nuitka",
+              "--standalone",
+              "--assume-yes-for-downloads",
+              "--windows-console-mode=disable",
+              "--windows-uac-admin",
+              "--follow-imports",
+              "--enable-plugin=pyqt6",
+              "--nofollow-import-to=numpy",
+              "--nofollow-import-to=PIL",
+              "--noinclude-dlls=opengl32sw.dll",
+              "--windows-icon-from-ico=src\ico\Zapret2.ico",
+              "--output-filename=Zapret.exe",
+              "--output-dir=$buildRoot\nuitka"
+            )
+            $nuitkaArgs += @($modules | ForEach-Object { "--include-module=$_" })
+            $nuitkaArgs += "src\main.py"
+            & python @nuitkaArgs
+            if ($LASTEXITCODE -ne 0) { throw "Nuitka завершилась с кодом $LASTEXITCODE" }
+            $runtimeSource = Join-Path $buildRoot "nuitka\main.dist"
+          }
+          elseif ($env:ZAPRET_BUILD_METHOD -eq "pyinstaller") {
+            $pyinstallerArgs = @(
+              "-m", "PyInstaller",
+              "--noconfirm",
+              "--clean",
+              "--name", "Zapret",
+              "--windowed",
+              "--uac-admin",
+              "--onedir",
+              "--contents-directory", ".",
+              "--paths", "src",
+              "--icon", "src\ico\Zapret2.ico",
+              "--workpath", "$buildRoot\pyinstaller-work",
+              "--distpath", "$buildRoot\pyinstaller-dist"
+            )
+            $pyinstallerArgs += @($modules | ForEach-Object { "--hidden-import=$_" })
+            $pyinstallerArgs += "src\main.py"
+            & python @pyinstallerArgs
+            if ($LASTEXITCODE -ne 0) { throw "PyInstaller завершился с кодом $LASTEXITCODE" }
+            $runtimeSource = Join-Path $buildRoot "pyinstaller-dist\Zapret"
+          }
+          else {
+            throw "Неизвестный сборщик: $env:ZAPRET_BUILD_METHOD"
+          }
+
+          $builtExe = Join-Path $runtimeSource "Zapret.exe"
+          if (-not (Test-Path -LiteralPath $builtExe -PathType Leaf)) {
+            throw "Сборщик не создал ожидаемый файл: $builtExe"
+          }
+          Copy-Item -Path (Join-Path $runtimeSource "*") -Destination $runtimeTarget -Recurse -Force
+          if (-not (Test-Path -LiteralPath (Join-Path $runtimeTarget "Zapret.exe") -PathType Leaf)) {
+            throw "Не удалось подготовить artifact\_internal\Zapret.exe"
+          }
+          Write-Host "Готово: artifact\_internal\Zapret.exe ($env:ZAPRET_BUILD_METHOD)"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: Zapret-${{ github.sha }}
-          path: src/dist/Zapret/
+          path: artifact/
           retention-days: 30

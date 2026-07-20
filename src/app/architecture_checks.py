@@ -380,6 +380,19 @@ def check_tray_uses_window_port() -> list[Problem]:
     )
 
 
+def check_application_icon_has_single_owner(files: list[Path]) -> list[Problem]:
+    scopes = [
+        path
+        for path in files
+        if path.relative_to(REPO_ROOT).as_posix() != "src/main/qt_runtime.py"
+    ]
+    return _scan_lines(
+        scopes,
+        re.compile(r"\.setWindowIcon\s*\("),
+        "общий значок задаёт только main/qt_runtime.py до создания окна",
+    )
+
+
 def check_window_runtime_setup_is_thin() -> list[Problem]:
     path = SRC_ROOT / "main" / "window_runtime_setup.py"
     if not path.exists():
@@ -1241,6 +1254,7 @@ def run_checks() -> list[Problem]:
     problems.extend(check_window_feature_aliases_not_used(files))
     problems.extend(check_window_hidden_dependency_bags_not_used(files))
     problems.extend(check_tray_uses_window_port())
+    problems.extend(check_application_icon_has_single_owner(files))
     problems.extend(check_window_runtime_setup_is_thin())
     problems.extend(check_window_feature_deps_use_explicit_port())
     problems.extend(check_application_controller_uses_port_builders())

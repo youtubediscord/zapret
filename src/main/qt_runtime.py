@@ -13,6 +13,24 @@ from main.runtime_state import log_startup_metric as emit_startup_metric
 _QT_RUNTIME_READY = False
 
 
+def _apply_application_icon(app: QApplication) -> str:
+    """Один раз задаёт общий значок до создания главного окна."""
+    from PyQt6.QtGui import QIcon
+
+    from app.app_icon_resources import resolve_existing_app_icon_path
+
+    icon_path = resolve_existing_app_icon_path()
+    if not icon_path:
+        return ""
+
+    icon = QIcon(icon_path)
+    if icon.isNull():
+        return ""
+
+    app.setWindowIcon(icon)
+    return icon_path
+
+
 def _set_attr_if_exists(name: str, on: bool = True) -> None:
     attr = getattr(Qt.ApplicationAttribute, name, None)
     if attr is None:
@@ -175,6 +193,13 @@ def application_bootstrap() -> QApplication:
     emit_startup_metric(
         "StartupQtRuntimeEnsure",
         f"{(_time.perf_counter() - t_runtime) * 1000:.0f}ms",
+    )
+
+    t_icon = _time.perf_counter()
+    _apply_application_icon(app)
+    emit_startup_metric(
+        "StartupQtApplicationIcon",
+        f"{(_time.perf_counter() - t_icon) * 1000:.0f}ms",
     )
     try:
         app.setQuitOnLastWindowClosed(False)

@@ -5,6 +5,7 @@ import time as _time
 
 from PyQt6.QtCore import QTimer
 
+from config.runtime_layout import require_packaged_application
 from log.log import log
 
 from config.build_info import APP_VERSION
@@ -206,6 +207,11 @@ def _finish_event_loop_bootstrap(*, app, window, application_controller, start_i
 
 
 def main() -> None:
+    # Это вторая, внутренняя граница запуска. Верхний src/main.py проверяет
+    # её до импортов приложения, а здесь запрещаем обход через прямой вызов
+    # main.entry.main() из обычного Python.
+    require_packaged_application()
+
     log("=== ЗАПУСК ПРИЛОЖЕНИЯ ===", "🔹 main")
     log(APP_VERSION, "🔹 main")
 

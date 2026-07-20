@@ -41,7 +41,6 @@ class TrayFeature:
     def _init_manager(self):
         commands = self._commands()
         icon_path = commands.resolve_tray_icon_path()
-        self._deps.window_port.set_application_icon_from_path(icon_path)
         from config.build_info import APP_VERSION
         from tray import SystemTrayManager
 

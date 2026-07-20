@@ -18,6 +18,7 @@ from config.runtime_layout import (  # noqa: E402
     resolve_runtime_root,
 )
 from config import runtime_layout  # noqa: E402
+from core.paths import AppPaths  # noqa: E402
 
 
 class RuntimeLayoutTests(unittest.TestCase):
@@ -54,6 +55,24 @@ class RuntimeLayoutTests(unittest.TestCase):
             (Path("C:/Zapret/Dev") / RUNTIME_DIR_NAME).resolve(),
         )
 
+    def test_packaged_preset_paths_stay_inside_channel_install_root(self) -> None:
+        executable = Path("C:/Zapret/Dev") / RUNTIME_DIR_NAME / "Zapret.exe"
+        app_root = resolve_application_root(
+            executable=executable,
+            module_file=SRC_ROOT / "config" / "runtime_layout.py",
+            packaged=True,
+        )
+
+        engine_paths = AppPaths(user_root=app_root, local_root=app_root).engine_paths("winws2")
+
+        self.assertEqual(engine_paths.presets_root_dir, Path("C:/Zapret/Dev/presets").resolve())
+        self.assertEqual(engine_paths.user_presets_dir, Path("C:/Zapret/Dev/presets/winws2").resolve())
+        self.assertEqual(
+            engine_paths.builtin_presets_dir,
+            Path("C:/Zapret/Dev/presets/winws2_builtin").resolve(),
+        )
+        self.assertNotEqual(engine_paths.presets_root_dir, Path("C:/Zapret/presets").resolve())
+
     def test_flat_packaged_runtime_is_rejected(self) -> None:
         with self.assertRaisesRegex(RuntimeError, "Некорректная структура"):
             resolve_application_root(
@@ -87,6 +106,16 @@ class RuntimeLayoutTests(unittest.TestCase):
 
         self.assertLess(gate, process_start)
         self.assertLess(gate, crash_handler)
+
+    def test_internal_application_entrypoint_repeats_packaged_runtime_gate(self) -> None:
+        entry_source = (SRC_ROOT / "main" / "entry.py").read_text(encoding="utf-8")
+
+        main_body = entry_source.split("def main() -> None:", 1)[1]
+        self.assertIn("require_packaged_application()", main_body)
+        self.assertLess(
+            main_body.index("require_packaged_application()"),
+            main_body.index('log("=== ЗАПУСК ПРИЛОЖЕНИЯ ==="'),
+        )
 
     def test_runtime_helpers_do_not_fall_back_to_source_launch(self) -> None:
         admin_source = (SRC_ROOT / "startup" / "admin_check.py").read_text(encoding="utf-8")
