@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
+import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 
 PUBLIC_ROOT = Path(__file__).resolve().parents[1]
@@ -102,17 +105,16 @@ class BuildResourceLayoutTests(unittest.TestCase):
         self.assertNotIn("packages_to_include = [", builder)
 
     def test_nuitka_dynamic_modules_cover_facades_and_lazy_pages(self) -> None:
-        build_path = PRIVATE_ROOT / "build_zapret"
         old_path = list(sys.path)
-        sys.path.insert(0, str(build_path))
+        sys.path.insert(0, str(PRIVATE_ROOT))
         try:
-            sys.modules.pop("nuitka_builder", None)
-            import nuitka_builder
+            sys.modules.pop("build_zapret.nuitka_builder", None)
+            from build_zapret import nuitka_builder
 
             modules = nuitka_builder._lazy_project_modules()
             nuitka_builder._validate_lazy_project_modules(modules)
         finally:
-            sys.modules.pop("nuitka_builder", None)
+            sys.modules.pop("build_zapret.nuitka_builder", None)
             sys.path[:] = old_path
 
         self.assertIn("app.feature_facades.appearance", modules)
@@ -120,14 +122,12 @@ class BuildResourceLayoutTests(unittest.TestCase):
         self.assertIn("presets.ui.control.zapret1.page", modules)
 
     def test_both_builders_cover_the_same_dynamic_application_modules(self) -> None:
-        build_path = PRIVATE_ROOT / "build_zapret"
         old_path = list(sys.path)
-        sys.path.insert(0, str(build_path))
+        sys.path.insert(0, str(PRIVATE_ROOT))
         try:
-            sys.modules.pop("nuitka_builder", None)
-            sys.modules.pop("pyinstaller_builder", None)
-            import nuitka_builder
-            import pyinstaller_builder
+            sys.modules.pop("build_zapret.nuitka_builder", None)
+            sys.modules.pop("build_zapret.pyinstaller_builder", None)
+            from build_zapret import nuitka_builder, pyinstaller_builder
 
             expected = set(nuitka_builder._lazy_project_modules())
             pyinstaller_hidden = set(pyinstaller_builder._hiddenimports_for_spec())
@@ -137,8 +137,8 @@ class BuildResourceLayoutTests(unittest.TestCase):
             self.assertIn("app.feature_facades.appearance", expected)
             self.assertIn("presets.ui.control.zapret2.page", expected)
         finally:
-            sys.modules.pop("nuitka_builder", None)
-            sys.modules.pop("pyinstaller_builder", None)
+            sys.modules.pop("build_zapret.nuitka_builder", None)
+            sys.modules.pop("build_zapret.pyinstaller_builder", None)
             sys.path[:] = old_path
 
     def test_nuitka_does_not_bundle_builder_or_full_qt_dependencies(self) -> None:
@@ -152,12 +152,11 @@ class BuildResourceLayoutTests(unittest.TestCase):
         self.assertIn('"--noinclude-dlls=opengl32sw.dll"', builder)
 
     def test_nuitka_clears_stale_dist_but_preserves_compilation_cache(self) -> None:
-        build_path = PRIVATE_ROOT / "build_zapret"
         old_path = list(sys.path)
-        sys.path.insert(0, str(build_path))
+        sys.path.insert(0, str(PRIVATE_ROOT))
         try:
-            sys.modules.pop("nuitka_builder", None)
-            import nuitka_builder
+            sys.modules.pop("build_zapret.nuitka_builder", None)
+            from build_zapret import nuitka_builder
 
             with tempfile.TemporaryDirectory() as temp_dir:
                 temp_path = Path(temp_dir)
@@ -173,7 +172,7 @@ class BuildResourceLayoutTests(unittest.TestCase):
                 self.assertTrue((build_cache / "cache.bin").is_file())
                 self.assertFalse(stale_dist.exists())
         finally:
-            sys.modules.pop("nuitka_builder", None)
+            sys.modules.pop("build_zapret.nuitka_builder", None)
             sys.path[:] = old_path
 
     def test_builders_do_not_delete_unrelated_runtime_or_nuitka_caches(self) -> None:
@@ -205,6 +204,152 @@ class BuildResourceLayoutTests(unittest.TestCase):
         self.assertIn("target_dir=out_dir", ci)
         self.assertIn("<корень установки>\\_internal\\Zapret.exe", readme)
         self.assertIn("Запуск самого приложения из Python-исходников запрещён", readme)
+
+    def test_documented_ci_module_command_has_one_package_import_graph(self) -> None:
+        environment = os.environ.copy()
+        environment.pop("PYTHONPATH", None)
+
+        help_result = subprocess.run(
+            [sys.executable, "-m", "build_zapret.ci_build", "--help"],
+            cwd=PRIVATE_ROOT,
+            env=environment,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=30,
+        )
+        self.assertEqual(help_result.returncode, 0, help_result.stdout + help_result.stderr)
+        self.assertIn("--method {nuitka,pyinstaller}", help_result.stdout)
+
+        identity_result = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                (
+                    "import sys; import build_zapret.ci_build; "
+                    "assert 'paths' not in sys.modules; "
+                    "assert 'channel_constants' not in sys.modules; "
+                    "assert 'runtime_output' not in sys.modules; "
+                    "assert 'build_zapret.paths' in sys.modules; "
+                    "assert 'build_zapret.nuitka_builder' in sys.modules; "
+                    "assert 'build_zapret.pyinstaller_builder' in sys.modules"
+                ),
+            ],
+            cwd=PRIVATE_ROOT,
+            env=environment,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=30,
+        )
+        self.assertEqual(identity_result.returncode, 0, identity_result.stdout + identity_result.stderr)
+
+    def test_builder_core_uses_package_imports_without_build_dir_path_injection(self) -> None:
+        build_dir = PRIVATE_ROOT / "build_zapret"
+        core_files = (
+            "ci_build.py",
+            "nuitka_builder.py",
+            "pyinstaller_builder.py",
+            "runtime_output.py",
+            "write_build_info.py",
+            "github_release.py",
+            "ssh_deploy.py",
+        )
+        forbidden_imports = (
+            "from channel_constants import",
+            "from paths import",
+            "from runtime_output import",
+            "from build_local_config import",
+        )
+        for file_name in core_files:
+            source = (build_dir / file_name).read_text(encoding="utf-8")
+            for forbidden in forbidden_imports:
+                self.assertNotIn(forbidden, source, f"{file_name}: {forbidden}")
+
+        paths_source = (build_dir / "paths.py").read_text(encoding="utf-8")
+        package_source = (build_dir / "__init__.py").read_text(encoding="utf-8")
+        gui_source = (build_dir / "build_release_gui.py").read_text(encoding="utf-8")
+        self.assertNotIn("for p in (PUBLIC_SRC, BUILD_DIR)", paths_source)
+        self.assertNotIn("github_release import", package_source)
+        self.assertNotIn("build_local_config import", package_source)
+        self.assertNotIn("setup_github_imports", gui_source)
+        self.assertNotIn("setup_ssh_imports", gui_source)
+
+    def test_ci_dispatches_both_builders_without_touching_real_outputs(self) -> None:
+        old_path = list(sys.path)
+        sys.path.insert(0, str(PRIVATE_ROOT))
+        try:
+            sys.modules.pop("build_zapret.ci_build", None)
+            from build_zapret import ci_build
+
+            calls: list[str] = []
+
+            def produce(name: str, *, target_dir: Path) -> Path:
+                calls.append(name)
+                target_dir.mkdir(parents=True, exist_ok=True)
+                exe = target_dir / "Zapret.exe"
+                exe.write_bytes(name.encode("ascii"))
+                return exe
+
+            def fake_nuitka(*_args, target_dir: Path, **_kwargs) -> Path:
+                return produce("nuitka", target_dir=target_dir)
+
+            def fake_pyinstaller(*_args, target_dir: Path, **_kwargs) -> Path:
+                return produce("pyinstaller", target_dir=target_dir)
+
+            with tempfile.TemporaryDirectory() as temp_dir:
+                root = Path(temp_dir)
+                common = [
+                    "--channel",
+                    "dev",
+                    "--version",
+                    "1.2.3.4",
+                ]
+                with (
+                    patch.object(ci_build, "apply_zapret_proxy_env", None),
+                    patch.object(ci_build, "write_build_info"),
+                    patch.object(ci_build, "run_nuitka", side_effect=fake_nuitka),
+                    patch.object(ci_build, "run_pyinstaller", side_effect=fake_pyinstaller),
+                    patch.object(
+                        ci_build,
+                        "create_spec_file",
+                        side_effect=lambda *_args, **_kwargs: calls.append("spec"),
+                    ),
+                ):
+                    with patch.object(
+                        sys,
+                        "argv",
+                        ["ci_build", *common, "--out", str(root / "default")],
+                    ):
+                        self.assertEqual(ci_build.main(), 0)
+                    with patch.object(
+                        sys,
+                        "argv",
+                        [
+                            "ci_build",
+                            *common,
+                            "--method",
+                            "pyinstaller",
+                            "--out",
+                            str(root / "pyinstaller"),
+                        ],
+                    ):
+                        self.assertEqual(ci_build.main(), 0)
+
+                self.assertEqual(calls, ["nuitka", "spec", "pyinstaller"])
+                self.assertEqual(
+                    (root / "default" / "_internal" / "Zapret.exe").read_bytes(),
+                    b"nuitka",
+                )
+                self.assertEqual(
+                    (root / "pyinstaller" / "_internal" / "Zapret.exe").read_bytes(),
+                    b"pyinstaller",
+                )
+        finally:
+            sys.modules.pop("build_zapret.ci_build", None)
+            sys.path[:] = old_path
 
     def test_public_windows_workflow_uses_same_internal_layout_and_nuitka_default(self) -> None:
         workflow = (PUBLIC_ROOT / ".github" / "workflows" / "windows-release.yml").read_text(
@@ -293,12 +438,11 @@ class BuildResourceLayoutTests(unittest.TestCase):
         self.assertIn('Type: filesandordirs; Name: "{app}\\src"', installer)
 
     def test_both_builders_use_strict_atomic_runtime_normalization(self) -> None:
-        build_path = PRIVATE_ROOT / "build_zapret"
         old_path = list(sys.path)
-        sys.path.insert(0, str(build_path))
+        sys.path.insert(0, str(PRIVATE_ROOT))
         try:
-            sys.modules.pop("runtime_output", None)
-            import runtime_output
+            sys.modules.pop("build_zapret.runtime_output", None)
+            from build_zapret import runtime_output
 
             with tempfile.TemporaryDirectory() as temp_dir:
                 root = Path(temp_dir)
@@ -327,7 +471,7 @@ class BuildResourceLayoutTests(unittest.TestCase):
 
                 self.assertEqual(produced.read_bytes(), b"new-exe")
         finally:
-            sys.modules.pop("runtime_output", None)
+            sys.modules.pop("build_zapret.runtime_output", None)
             sys.path[:] = old_path
 
     def test_fast_deploy_replaces_complete_internal_runtime(self) -> None:
@@ -472,6 +616,11 @@ class BuildResourceLayoutTests(unittest.TestCase):
                     (directory / "required.dat").write_bytes(b"resource")
                 generated_source_list = source_root / "lists" / "other.txt"
                 generated_source_list.write_text("source must stay untouched", encoding="utf-8")
+                source_before = {
+                    path.relative_to(source_root): path.read_bytes()
+                    for path in source_root.rglob("*")
+                    if path.is_file()
+                }
 
                 builder._source_root = lambda: source_root
                 builder._built_runtime_root = lambda: runtime_root
@@ -490,6 +639,12 @@ class BuildResourceLayoutTests(unittest.TestCase):
                     generated_source_list.read_text(encoding="utf-8"),
                     "source must stay untouched",
                 )
+                source_after = {
+                    path.relative_to(source_root): path.read_bytes()
+                    for path in source_root.rglob("*")
+                    if path.is_file()
+                }
+                self.assertEqual(source_after, source_before)
                 self.assertTrue((stage_root / "presets" / "winws2_builtin").is_dir())
                 self.assertTrue(any((stage_root / "presets" / "winws2_builtin").glob("*.txt")))
                 self.assertTrue((stage_root / "presets" / "winws1_builtin").is_dir())
@@ -500,6 +655,43 @@ class BuildResourceLayoutTests(unittest.TestCase):
                 self.assertTrue((stage_root / "ico" / "windows11_fluent" / "sidebar").is_dir())
         finally:
             sys.modules.pop("build_release_cli", None)
+            sys.path[:] = old_path
+
+    def test_installer_stage_rejects_any_overlap_with_read_roots(self) -> None:
+        old_path = list(sys.path)
+        sys.path.insert(0, str(PRIVATE_ROOT))
+        try:
+            sys.modules.pop("build_zapret.build_release_gui", None)
+            from build_zapret import build_release_gui
+
+            with tempfile.TemporaryDirectory() as temp_dir:
+                root = Path(temp_dir)
+                source_root = root / "source"
+                source_root.mkdir()
+                sentinel = source_root / "keep.txt"
+                sentinel.write_text("unchanged", encoding="utf-8")
+
+                with self.assertRaisesRegex(RuntimeError, "отдельной папкой"):
+                    build_release_gui._require_isolated_installer_stage(
+                        source_root / "stage",
+                        (source_root,),
+                    )
+                with self.assertRaisesRegex(RuntimeError, "отдельной папкой"):
+                    build_release_gui._require_isolated_installer_stage(
+                        root,
+                        (source_root,),
+                    )
+
+                builder = object.__new__(build_release_gui.BuildReleaseGUI)
+                builder._source_root = lambda: source_root
+                builder._built_runtime_root = lambda: root / "runtime"
+                builder._installer_stage_root = lambda: source_root
+                with self.assertRaisesRegex(RuntimeError, "отдельной папкой"):
+                    builder._prepare_installer_source_root()
+
+                self.assertEqual(sentinel.read_text(encoding="utf-8"), "unchanged")
+        finally:
+            sys.modules.pop("build_zapret.build_release_gui", None)
             sys.path[:] = old_path
 
     def test_installer_stage_rejects_missing_required_resource_directory(self) -> None:
@@ -592,16 +784,15 @@ class BuildResourceLayoutTests(unittest.TestCase):
         self.assertNotIn('"help"', builder)
 
     def test_pyinstaller_hiddenimports_include_lazy_feature_facades(self) -> None:
-        build_path = PRIVATE_ROOT / "build_zapret"
         old_path = list(sys.path)
-        sys.path.insert(0, str(build_path))
+        sys.path.insert(0, str(PRIVATE_ROOT))
         try:
-            sys.modules.pop("pyinstaller_builder", None)
-            import pyinstaller_builder
+            sys.modules.pop("build_zapret.pyinstaller_builder", None)
+            from build_zapret import pyinstaller_builder
 
             hiddenimports = pyinstaller_builder._hiddenimports_for_spec()
         finally:
-            sys.modules.pop("pyinstaller_builder", None)
+            sys.modules.pop("build_zapret.pyinstaller_builder", None)
             sys.path[:] = old_path
 
         self.assertIn("app.feature_facades.blockcheck", hiddenimports)
