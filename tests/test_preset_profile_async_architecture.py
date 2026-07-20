@@ -3357,8 +3357,8 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertIn("_start_logs_overview_worker", stats_source)
         self.assertNotIn(".list_logs(", refresh_source)
         self.assertNotIn(".build_stats(", stats_source)
-        self.assertIn("refresh_logs_fn=self._refresh_logs_list", runtime_source)
         self.assertIn("update_stats_fn=self._update_stats", runtime_source)
+        self.assertNotIn("refresh_logs_fn=", runtime_source)
 
         kwargs = build_logs_page_kwargs(
             page_name=PageName.LOGS,
@@ -3384,6 +3384,14 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertIn("_run_runtime_init_once", runtime_flush_source)
         self.assertIn("QTimer.singleShot", scheduled_source)
         self.assertIn("build_logs_secondary_panels_ui", ensure_source)
+
+    def test_logs_page_management_tab_is_built_only_when_opened(self) -> None:
+        build_source = inspect.getsource(LogsPage._build_ui)
+        switch_source = inspect.getsource(LogsPage._switch_tab)
+
+        self.assertNotIn("self._build_manage_tab", build_source)
+        self.assertIn("index == 2", switch_source)
+        self.assertIn("self._build_manage_tab", switch_source)
 
     def test_common_one_shot_worker_runtime_is_used_by_shared_pages(self) -> None:
         self.assertIsNotNone(importlib.util.find_spec("ui.one_shot_worker_runtime"))
@@ -4304,8 +4312,8 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertIn("open.stack", show_source)
         self.assertIn("open.switch", show_source)
         self.assertIn("open.navigation_sync", show_source)
-        self.assertIn("animate=False", show_source)
-        self.assertNotIn("animate=bool(first_show and use_nav_route)", show_source)
+        self.assertIn("animate=use_nav_route", show_source)
+        self.assertNotIn("animate=False", show_source)
         self.assertIn("ensure.cached.language", ensure_source)
         self.assertIn("ensure.created.language", ensure_source)
 
@@ -4345,6 +4353,27 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertFalse(stack.animation_seen_during_switch)
         self.assertTrue(stack.isAnimationEnabled)
 
+    def test_page_host_uses_qfluent_animation_for_navigation_switch(self) -> None:
+        page = object()
+
+        class _FakeStack:
+            def setCurrentWidget(self, _page, _need_pop_out=False):  # noqa: N802
+                raise AssertionError("animated navigation must use window.switchTo")
+
+        class _FakeWindow:
+            def __init__(self) -> None:
+                self.stackedWidget = _FakeStack()
+                self.switched_to = None
+
+            def switchTo(self, target):  # noqa: N802
+                self.switched_to = target
+
+        window = _FakeWindow()
+        host = WindowPageHost(window=window, page_factory=None)
+
+        self.assertTrue(host.set_stacked_widget_current_page(page, animate=True))
+        self.assertIs(window.switched_to, page)
+
     def test_page_host_does_not_switch_stack_when_page_is_already_current(self) -> None:
         page = object()
 
@@ -4375,7 +4404,7 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
 
         self.assertEqual(window.stackedWidget.switch_count, 0)
 
-    def test_page_host_defers_stack_repaint_restore_during_direct_switch(self) -> None:
+    def test_page_host_keeps_stack_repaint_enabled_during_direct_switch(self) -> None:
         class _FakeStack:
             def __init__(self) -> None:
                 self.isAnimationEnabled = True
@@ -4398,34 +4427,14 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
 
         stack = _FakeStack()
         host = WindowPageHost(window=type("Window", (), {"stackedWidget": stack})(), page_factory=None)
-        scheduled: list[tuple[int, object]] = []
+        self.assertTrue(host.set_stacked_widget_current_page(object(), animate=False))
 
-        with patch("ui.page_host.QTimer.singleShot", side_effect=lambda delay, callback: scheduled.append((delay, callback))):
-            self.assertTrue(host.set_stacked_widget_current_page(object(), animate=False))
-
-        self.assertFalse(stack.updates_seen_during_switch)
-        self.assertFalse(stack.updates_enabled)
-        self.assertEqual(
-            stack.calls,
-            [
-                ("updates", False),
-                ("switch", False),
-            ],
-        )
-        self.assertEqual(len(scheduled), 1)
-        delay_ms, callback = scheduled[0]
-        self.assertEqual(delay_ms, 0)
-
-        callback()
-
+        self.assertTrue(stack.updates_seen_during_switch)
         self.assertTrue(stack.updates_enabled)
         self.assertEqual(
             stack.calls,
             [
-                ("updates", False),
-                ("switch", False),
-                ("updates", True),
-                ("update", None),
+                ("switch", True),
             ],
         )
 

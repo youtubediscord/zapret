@@ -3,7 +3,6 @@ from __future__ import annotations
 import os
 import time
 
-from PyQt6.QtCore import QTimer
 from PyQt6.QtWidgets import QWidget
 
 from log.log import log
@@ -284,6 +283,9 @@ class WindowPageHost:
             except Exception:
                 pass
 
+        # Не выключаем updates у всего stack: если очередь Qt занята событиями
+        # runtime, отложенное включение оставляет окно визуально замороженным.
+        # Запасной прямой переход лишь синхронно отключает анимацию qfluent.
         previous_animation_enabled = getattr(stack, "isAnimationEnabled", None)
         animation_flag_known = isinstance(previous_animation_enabled, bool)
         if animation_flag_known:
@@ -293,23 +295,6 @@ class WindowPageHost:
             except Exception:
                 animation_flag_known = False
             self._log_optional_switch_step(page_name, "open.switch.disable_animation", step_started_at)
-
-        updates_were_enabled = True
-        updates_toggled = False
-        set_updates_enabled = getattr(stack, "setUpdatesEnabled", None)
-        if callable(set_updates_enabled):
-            try:
-                updates_were_enabled = bool(stack.updatesEnabled())
-            except Exception:
-                updates_were_enabled = True
-            if updates_were_enabled:
-                step_started_at = time.perf_counter()
-                try:
-                    set_updates_enabled(False)
-                    updates_toggled = True
-                except Exception:
-                    updates_toggled = False
-                self._log_optional_switch_step(page_name, "open.switch.disable_updates", step_started_at)
 
         try:
             step_started_at = time.perf_counter()
@@ -330,8 +315,6 @@ class WindowPageHost:
         except Exception:
             return False
         finally:
-            if updates_toggled:
-                self._schedule_stack_updates_restore(stack, set_updates_enabled, page_name)
             if animation_flag_known:
                 step_started_at = time.perf_counter()
                 try:
@@ -351,26 +334,6 @@ class WindowPageHost:
         if page_name is None:
             return
         self._log_step_timing(page_name, stage, started_at, extra=extra)
-
-    def _restore_stack_updates_after_switch(self, stack, set_updates_enabled, page_name: PageName | None) -> None:
-        step_started_at = time.perf_counter()
-        try:
-            set_updates_enabled(True)
-            update = getattr(stack, "update", None)
-            if callable(update):
-                update()
-        except Exception:
-            pass
-        self._log_optional_switch_step(page_name, "open.switch.restore_updates", step_started_at)
-
-    def _schedule_stack_updates_restore(self, stack, set_updates_enabled, page_name: PageName | None) -> None:
-        try:
-            QTimer.singleShot(
-                0,
-                lambda: self._restore_stack_updates_after_switch(stack, set_updates_enabled, page_name),
-            )
-        except Exception:
-            self._restore_stack_updates_after_switch(stack, set_updates_enabled, page_name)
 
     def ensure_page_in_stacked_widget(self, page: QWidget | None) -> None:
         stack = self._window.stackedWidget
@@ -477,7 +440,11 @@ class WindowPageHost:
         if self.current_page() is page:
             switched = True
         else:
-            switched = self.set_stacked_widget_current_page(page, animate=False, page_name=page_name)
+            switched = self.set_stacked_widget_current_page(
+                page,
+                animate=use_nav_route,
+                page_name=page_name,
+            )
         self._log_step_timing(page_name, "open.switch", step_started_at)
         if not switched:
             return False
