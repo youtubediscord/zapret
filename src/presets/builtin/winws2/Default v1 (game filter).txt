@@ -12,8 +12,7 @@
 --lua-init=@lua/fakemultidisorder.lua
 
 --ctrack-disable=0
---ipcache-lifetime=8400
---ipcache-hostname=1
+--ipcache-hostname=0
 
 --wf-tcp-out=80,443,1080,2053,2083,2087,2096,5050,8443,8080,45631
 --wf-udp-out=443-65535
@@ -226,17 +225,6 @@
 
 --new
 
---name=Tanki X
---filter-tcp=80,443,5050,8080
---hostlist=lists/tankix.txt
---out-range=-n8
---payload=all
---lua-desync=send:repeats=2
---lua-desync=syndata:blob=stun_pat
---lua-desync=hostfakesplit_multi:hosts=google.com,vimeo.com:tcp_ts=-1000:tcp_md5:repeats=2
-
---new
-
 --name=obsidian.md
 --filter-tcp=80,443
 --hostlist=lists/obsidian.txt
@@ -402,23 +390,12 @@
 
 --new
 
---name=18+ сайты
---filter-tcp=80,443
---hostlist=lists/porn.txt
---out-range=-d8
---payload=http_req,tls_client_hello
---lua-desync=hostfakesplit:host=ozon.ru:tcp_ts=-1000:tcp_md5:repeats=4
-
---new
-
 --name=Cloudflare TCP
 --filter-tcp=80,443-65535
 --ipset=lists/ipset-cloudflare.txt
 --out-range=-d8
 --payload=all
---lua-desync=send:repeats=2
---lua-desync=syndata:blob=stun_pat
---lua-desync=hostfakesplit_multi:hosts=google.com,vimeo.com:tcp_ts=-1000:tcp_md5:repeats=2
+--lua-desync=hostfakesplit:host=ozon.ru:tcp_ts=-1000:tcp_md5:repeats=4
 
 --new
 
@@ -432,12 +409,22 @@
 
 --new
 
+--name=WorldStream TCP
+--filter-tcp=80,443-65535
+--ipset=lists/ipset-worldstream.txt
+--out-range=-d8
+--lua-desync=hostfakesplit:host=ozon.ru:tcp_ts=-1000:tcp_md5:repeats=4
+
+--new
+
 --name=OVH TCP
 --filter-tcp=80,443-65535
 --ipset=lists/ipset-ovh.txt
 --out-range=-d10
---payload=tls_client_hello
---lua-desync=hostfakesplit:host=ozon.ru:tcp_ts=-1000:tcp_md5:repeats=4
+--payload=all
+--lua-desync=send:repeats=2
+--lua-desync=syndata:blob=stun_pat
+--lua-desync=hostfakesplit_multi:hosts=google.com,vimeo.com:tcp_ts=-1000:tcp_md5:repeats=2
 
 --new
 
@@ -460,14 +447,6 @@
 --name=NovoServe TCP
 --filter-tcp=80,443-65535
 --ipset=lists/ipset-novoserve.txt
---out-range=-d8
---lua-desync=hostfakesplit:host=ozon.ru:tcp_ts=-1000:tcp_md5:repeats=4
-
---new
-
---name=WorldStream TCP
---filter-tcp=80,443-65535
---ipset=lists/ipset-worldstream.txt
 --out-range=-d8
 --lua-desync=hostfakesplit:host=ozon.ru:tcp_ts=-1000:tcp_md5:repeats=4
 
@@ -524,8 +503,7 @@
 --ipset=lists/ipset-amazon.txt
 --out-range=-d10
 --payload=tls_client_hello
---lua-desync=fake:blob=tls_google:repeats=6:tcp_ts=-600000
---lua-desync=fakedsplit:pattern=0x00:repeats=6:tcp_ts=-600000
+--lua-desync=hostfakesplit:host=ozon.ru:tcp_ts=-1000:tcp_md5:repeats=4
 
 --new
 
@@ -584,7 +562,7 @@
 --ipset=lists/ipset-discord.txt
 --out-range=-n8
 --payload=all
---lua-desync=fake:blob=quic_google:repeats=12:ip_autottl=2,3-20:ip6_autottl=2,3-20:payload=all
+--lua-desync=fake:blob=stun_pat:repeats=4
 
 --new
 
@@ -607,14 +585,6 @@
 --name=NovoServe UDP
 --filter-udp=443-65535
 --ipset=lists/ipset-novoserve.txt
---out-range=-d8
---lua-desync=fake:blob=stun_pat:repeats=6
-
---new
-
---name=WorldStream UDP
---filter-udp=443-65535
---ipset=lists/ipset-worldstream.txt
 --out-range=-d8
 --lua-desync=fake:blob=stun_pat:repeats=6
 
@@ -667,15 +637,6 @@
 --name=Hetzner UDP
 --filter-udp=443-65535
 --ipset=lists/ipset-hetzner.txt
---out-range=-d8
---payload=all
---lua-desync=fake:blob=quic_google:ip_autottl=-2,3-20:ip6_autottl=-2,3-20:repeats=10:payload=all
-
---new
-
---name=Tanki X UDP
---filter-udp=443-65535
---hostlist=lists/tankix.txt
 --out-range=-d8
 --payload=all
 --lua-desync=fake:blob=quic_google:ip_autottl=-2,3-20:ip6_autottl=-2,3-20:repeats=10:payload=all

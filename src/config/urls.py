@@ -11,5 +11,3 @@ BOLVAN_URL = "https://github.com/bol-van/zapret-win-bundle"  # URL автора
 SUPPORT_DISCUSSIONS_URL = "https://github.com/youtubediscord/zapret/discussions"  # Основная ссылка поддержки
 BLOCKCHECK_DISCUSSIONS_URL = "https://github.com/youtubediscord/zapret/discussions/categories/blockcheck"  # Категория обращений по BlockCheck
 PROFILE_REQUEST_FORM_URL = "https://github.com/youtubediscord/zapret/issues/new?template=hostlist_ipset_request.yml"  # Форма заявки на hostlist/ipset
-
-OTHER_LIST_URL = "https://nozapret.ru/other.txt" 

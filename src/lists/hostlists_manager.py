@@ -13,12 +13,10 @@ import os
 from pathlib import Path
 
 from log.log import log
-from lists.core.files import write_text_file
 from lists.core.layered_files import rebuild_profile_list_file
-from lists.core.paths import get_list_base_path, get_list_final_path, get_list_user_path
+from lists.core.paths import get_list_final_path, get_list_user_path
 
 OTHER_PATH = get_list_final_path("other")
-OTHER_BASE_PATH = get_list_base_path("other")
 OTHER_USER_PATH = get_list_user_path("other")
 LISTS_ROOT = Path(OTHER_PATH).parent
 
@@ -44,26 +42,6 @@ def _count_effective_entries(path: str) -> int:
     return len(_read_effective_entries(path))
 
 
-def get_base_domains() -> list[str]:
-    """Возвращает базовые домены из системной базы установщика."""
-    base_domains = _read_effective_entries(OTHER_BASE_PATH)
-    if base_domains:
-        return base_domains
-
-    log("Не найдена системная база lists/base/other.txt", "ERROR")
-    return []
-
-
-def get_base_domains_set() -> set[str]:
-    """Возвращает set базовых доменов (lowercase)."""
-    return {d.strip().lower() for d in get_base_domains() if d and d.strip()}
-
-
-def get_user_domains() -> list[str]:
-    """Возвращает effective-строки (без комментариев) из lists/user/other.txt."""
-    return _read_effective_entries(OTHER_USER_PATH)
-
-
 def rebuild_other_files() -> bool:
     """Пересобирает other.txt из системной базы и пользовательских правок."""
     try:
@@ -71,19 +49,6 @@ def rebuild_other_files() -> bool:
         return bool(_read_effective_entries(OTHER_PATH))
     except Exception as exc:
         log(f"Ошибка rebuild_other_files: {exc}", "ERROR")
-        return False
-
-
-def reset_other_user_file() -> bool:
-    """Очищает lists/user/other.txt и пересобирает other.txt из системной базы."""
-    try:
-        write_text_file(OTHER_USER_PATH, "")
-        ok = rebuild_other_files()
-        if ok:
-            log("lists/user/other.txt очищен, other.txt пересобран из системной базы", "SUCCESS")
-        return ok
-    except Exception as exc:
-        log(f"Ошибка сброса my hostlist: {exc}", "ERROR")
         return False
 
 

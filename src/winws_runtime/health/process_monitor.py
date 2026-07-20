@@ -232,7 +232,7 @@ def check_common_crash_causes(process_name: str = EXE_NAME_WINWS1) -> Optional[s
 
         required_files = {
             'WinDivert.dll': 'Основная библиотека',
-            'Monkey64.sys': 'Основная библиотека',
+            'Monkey64.sys': 'Переименованный драйвер WinDivert',
             'WinDivert64.sys': 'Драйвер для 64-bit систем',
             'WinDivert32.sys': 'Драйвер для 32-bit систем'
         }
