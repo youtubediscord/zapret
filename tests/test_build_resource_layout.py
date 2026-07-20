@@ -80,8 +80,11 @@ class BuildResourceLayoutTests(unittest.TestCase):
             r'Name: "{commondesktop}\{#ShortcutName}"; Filename: "{app}\_internal\Zapret.exe"; Tasks: desktopicon',
             iss,
         )
-        self.assertIn("procedure RefreshPinnedTaskbarShortcutTarget;", iss)
-        self.assertIn("RefreshPinnedTaskbarShortcutTarget;", iss)
+        self.assertIn("function RefreshPinnedTaskbarShortcutTarget: Boolean;", iss)
+        self.assertIn(
+            "PinnedShortcutRelocationSafe := RefreshPinnedTaskbarShortcutTarget;",
+            iss,
+        )
         self.assertIn("CreateShellLink(", iss)
         self.assertIn("AppExe := ExpandConstant('{app}\\_internal\\Zapret.exe');", iss)
 
@@ -753,16 +756,39 @@ class BuildResourceLayoutTests(unittest.TestCase):
 
         self.assertIn("DisableDirPage=no", iss)
         self.assertIn("UsePreviousAppDir=yes", iss)
+        self.assertIn("function NormalizeInstallRoot(const Value: string): string;", iss)
         self.assertIn("function ReadPreviousInstallRoot: string;", iss)
+        self.assertIn("function IsRecognizedPreviousInstallRoot(const Value: string): Boolean;", iss)
+        self.assertIn("GetFileAttributesW(Root)", iss)
+        self.assertIn("((Attributes and $400) = 0)", iss)
         self.assertIn("function MigrateUserDataIfInstallRootChanged: Boolean;", iss)
         self.assertIn("PreviousInstallRoot + '\\settings'", iss)
         self.assertIn("PreviousInstallRoot + '\\lists\\user'", iss)
-        self.assertIn("PreviousInstallRoot + '\\presets'", iss)
-        self.assertIn("PreviousInstallRoot + '\\profile'", iss)
+        self.assertIn("function CopyExternalListFiles(const SourceListsDir, DestListsDir: string): Boolean;", iss)
+        self.assertIn("External list migrated as user data", iss)
+        self.assertIn("CopyExternalListFiles(PreviousInstallRoot + '\\lists', NewInstallRoot + '\\lists')", iss)
+        self.assertIn("PreviousInstallRoot + '\\presets\\winws1'", iss)
+        self.assertIn("PreviousInstallRoot + '\\presets\\winws2'", iss)
         self.assertIn("PreviousInstallRoot + '\\logs'", iss)
         self.assertIn("PreviousInstallRoot + '\\lua'", iss)
         self.assertIn("PreviousInstallRoot + '\\themes'", iss)
-        self.assertIn("previous directory was kept as a backup", iss)
+        self.assertNotIn(
+            "CopyDirectoryTree(PreviousInstallRoot + '\\profile'",
+            iss,
+        )
+        self.assertNotIn(
+            "CopyDirectoryTree(PreviousInstallRoot + '\\presets',",
+            iss,
+        )
+        self.assertNotIn(
+            "CopyDirectoryTree(PreviousInstallRoot + '\\strategy_scan_resume.json'",
+            iss,
+        )
+        self.assertIn("(FindRec.Attributes and $400) <> 0", iss)
+        self.assertIn("UserDataMigrationHasSkippedEntries := True;", iss)
+        self.assertIn("UserDataMigrationPerformed := True;", iss)
+        self.assertIn("MigratedFromRoot := PreviousInstallRoot;", iss)
+        self.assertIn("MigratedToRoot := NewInstallRoot;", iss)
         self.assertNotIn("RemoveDir(PreviousInstallRoot)", iss)
 
         source_lines = [line.strip() for line in iss.splitlines() if line.strip().startswith("Source:")]
@@ -773,6 +799,56 @@ class BuildResourceLayoutTests(unittest.TestCase):
 
         self.assertIn('Filename: "{app}\\_internal\\Zapret.exe"', iss)
         self.assertIn('WorkingDir: "{app}"', iss)
+
+    def test_inno_old_install_cleanup_is_explicit_and_runs_only_after_success(self) -> None:
+        iss = self._read_inno_script()
+
+        self.assertIn("CleanupPreviousInstallPage: TInputOptionWizardPage;", iss)
+        self.assertIn("CleanupPreviousInstallPage := CreateInputOptionPage(", iss)
+        self.assertIn("CleanupPreviousInstallPage.Values[0] := False;", iss)
+        self.assertIn("function ShouldSkipPage(PageID: Integer): Boolean;", iss)
+        self.assertIn("function ShouldOfferPreviousInstallCleanup: Boolean;", iss)
+        self.assertIn("function IsPreviousInstallCleanupSelected: Boolean;", iss)
+        self.assertIn("if IsAutoUpdate() or WizardSilent() or", iss)
+        self.assertIn("(not IsPreviousInstallCleanupSelected())", iss)
+        self.assertIn("UserDataMigrationHasSkippedEntries or", iss)
+
+        self.assertIn("function IsDeletablePreviousInstallRoot(const Value: string): Boolean;", iss)
+        self.assertIn("FileExists(Root + '\\_internal\\Zapret.exe')", iss)
+        self.assertIn("MatchingFileExists(Root + '\\unins*.exe')", iss)
+        self.assertIn("function IsProtectedInstallRoot(const Value: string): Boolean;", iss)
+        self.assertIn("PathsEqual(Root, ExpandConstant('{sd}\\Zapret'))", iss)
+        self.assertIn("не подтверждён успешный перенос данных", iss)
+        self.assertIn("not FileExists(NewInstallRoot + '\\_internal\\Zapret.exe')", iss)
+        self.assertIn("function TryGetDirectoryIdentity(const Directory: string; var Identity: string): Boolean;", iss)
+        self.assertIn("ExecAndCaptureOutput(", iss)
+        self.assertIn("'file queryFileID \"' + Directory + '\"'", iss)
+        self.assertIn("if not DifferentDirectoryIdentitiesVerified(PreviousInstallRoot, NewInstallRoot) then", iss)
+
+        self.assertIn("function RetargetGuiAutostartTask(const OldRoot, NewRoot: string): Boolean;", iss)
+        self.assertIn("'ZapretGUI Autostart'", iss)
+        self.assertIn("Action.WorkingDirectory := NewRoot;", iss)
+        self.assertIn("function PersistentServiceReferencesOldRoot(const OldRoot: string): Boolean;", iss)
+        self.assertIn("SYSTEM\\CurrentControlSet\\Services\\ZapretTelegramProxy", iss)
+        self.assertIn("if PersistentServiceReferencesOldRoot(PreviousInstallRoot) then", iss)
+        self.assertIn("function RemoveLegacyStartupShortcut: Boolean;", iss)
+        self.assertIn("'{userstartup}\\ZapretGUI.lnk'", iss)
+        self.assertIn("if not PinnedShortcutRelocationSafe then", iss)
+
+        post_install = iss.index("if (CurStep = ssPostInstall) then")
+        cleanup_call = iss.index("CleanupPreviousInstallIfRequested;", post_install)
+        delete_call = iss.index("DelTree(PreviousInstallRoot, True, True, True)")
+        self.assertLess(delete_call, post_install)
+        self.assertGreater(cleanup_call, post_install)
+
+    def test_inno_rejects_unsafe_or_nested_relocation_paths(self) -> None:
+        iss = self._read_inno_script()
+
+        self.assertIn("NewInstallRoot := NormalizeInstallRoot(WizardDirValue);", iss)
+        self.assertIn("if IsProtectedInstallRoot(NewInstallRoot) then", iss)
+        self.assertIn("IsNestedPath(NewInstallRoot, PreviousInstallRoot)", iss)
+        self.assertIn("IsNestedPath(PreviousInstallRoot, NewInstallRoot)", iss)
+        self.assertIn("Previous InstallLocation ignored", iss)
 
     def test_inno_reads_all_required_resources_only_from_prepared_stage(self) -> None:
         iss = self._read_inno_script()
