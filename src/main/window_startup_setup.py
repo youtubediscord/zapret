@@ -49,6 +49,7 @@ def attach_startup_deps_to_window(window, features) -> WindowStartupRuntime:
             tray_feature=features.tray,
             window_shell=window_shell,
             log_startup_metric=window.log_startup_metric,
+            migrate_gui_autostart=features.program_settings.ensure_gui_autostart_migrated,
         )
 
     def _continue_deferred_init() -> None:

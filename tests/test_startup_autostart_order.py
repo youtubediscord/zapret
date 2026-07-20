@@ -37,6 +37,7 @@ class StartupAutostartOrderTests(unittest.TestCase):
                 self.calls.append(f"autostart:{launch_method}")
 
         runtime = Runtime()
+        migrate_gui_autostart = Mock(return_value=False)
         coordinator = StartupCoordinator(
             runtime_feature=runtime,
             tray_feature=SimpleNamespace(init=Mock(), is_initialized=Mock(return_value=False)),
@@ -48,9 +49,10 @@ class StartupAutostartOrderTests(unittest.TestCase):
                 init_theme_manager=Mock(side_effect=lambda: runtime.calls.append("theme")),
             ),
             log_startup_metric=Mock(),
+            migrate_gui_autostart=migrate_gui_autostart,
         )
         scheduled: list[tuple[int, object]] = []
-        background_targets: list[object] = []
+        background_targets: list[tuple[str, object]] = []
 
         with (
             patch.object(startup_coordinator, "run_queued", side_effect=lambda callback: scheduled.append((0, callback))),
@@ -62,7 +64,7 @@ class StartupAutostartOrderTests(unittest.TestCase):
             patch.object(
                 startup_coordinator,
                 "start_daemon_thread",
-                side_effect=lambda _name, target: background_targets.append(target),
+                side_effect=lambda name, target: background_targets.append((str(name), target)),
             ),
             patch("settings.dpi.strategy_settings.get_strategy_launch_method", return_value="zapret2_mode"),
         ):
@@ -76,8 +78,14 @@ class StartupAutostartOrderTests(unittest.TestCase):
                 ["runtime_api", "runtime", "autostart:zapret2_mode", "theme", "process_monitor"],
             )
 
-            self.assertEqual(len(background_targets), 1)
-            background_targets[0]()
+            targets_by_name = dict(background_targets)
+            self.assertEqual(
+                set(targets_by_name),
+                {"GuiAutostartMigration", "StartupStep-core_startup"},
+            )
+            targets_by_name["GuiAutostartMigration"]()
+            migrate_gui_autostart.assert_called_once_with()
+            targets_by_name["StartupStep-core_startup"]()
             while scheduled:
                 _delay_ms, callback = scheduled.pop(0)
                 callback()

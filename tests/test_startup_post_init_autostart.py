@@ -37,6 +37,7 @@ class StartupPostInitAutostartTests(unittest.TestCase):
             tray_feature=SimpleNamespace(init=Mock(), is_initialized=Mock(return_value=False)),
             window_shell=window_shell,
             log_startup_metric=Mock(),
+            migrate_gui_autostart=Mock(return_value=False),
         )
         scheduled: list[tuple[int, object]] = []
 

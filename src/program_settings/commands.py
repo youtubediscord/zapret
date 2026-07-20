@@ -118,6 +118,12 @@ def set_gui_autostart_enabled(
         )
 
 
+def ensure_gui_autostart_migrated() -> bool:
+    from autostart.public import ensure_gui_autostart_migrated as migrate_gui_autostart
+
+    return bool(migrate_gui_autostart())
+
+
 def set_tray_close_mode(mode: str) -> str:
     from settings.store import get_tray_close_mode, set_tray_close_mode
 

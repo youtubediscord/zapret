@@ -68,11 +68,13 @@ class StartupCoordinator:
         tray_feature,
         window_shell: StartupWindowShell,
         log_startup_metric,
+        migrate_gui_autostart: Callable[[], bool],
     ):
         self.window_shell = window_shell
         self.runtime = runtime_feature
         self.tray = tray_feature
         self.log_startup_metric = log_startup_metric
+        self._migrate_gui_autostart = migrate_gui_autostart
         self.startup_tasks_completed = set()
 
         # Финализация старта теперь идёт по прямому жизненному циклу, а не через
@@ -411,9 +413,7 @@ class StartupCoordinator:
     def _run_gui_autostart_migration(self) -> None:
         """Переводит автозапуск GUI со старого ярлыка на задачу Планировщика."""
         try:
-            from autostart.public import ensure_gui_autostart_migrated
-
-            if ensure_gui_autostart_migrated():
+            if self._migrate_gui_autostart():
                 log("Автозапуск GUI мигрирован на задачу Планировщика", "INFO")
         except Exception as e:
             log(f"Ошибка миграции автозапуска GUI: {e}", "DEBUG")

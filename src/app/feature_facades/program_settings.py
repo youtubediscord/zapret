@@ -34,6 +34,9 @@ class ProgramSettingsFeature:
     def is_user_admin(self) -> bool:
         return bool(self._commands().is_user_admin())
 
+    def ensure_gui_autostart_migrated(self) -> bool:
+        return bool(self._commands().ensure_gui_autostart_migrated())
+
     def refresh_program_settings_snapshot(self):
         return self._commands().refresh_program_settings_snapshot(self.runtime_service)
 

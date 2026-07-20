@@ -40,20 +40,6 @@ class ZapretFluentWindow(FluentWindow):
         # Theme mode (DARK/LIGHT) is set in main.py via _sync_theme_mode_to_qfluent()
         # before the window is created, so no hardcoded setTheme(DARK) here.
 
-    def _updateStackedBackground(self) -> None:  # noqa: N802 (qfluentwidgets override)
-        """Чинит сломанный гвард библиотеки: там `bool(...) == None` всегда ложь,
-        из-за чего setStyle (полная переполировка стека, ~180ms) гонялся на каждом
-        переключении страницы. Нормализуем обе стороны к bool.
-        """
-        current = self.stackedWidget.currentWidget()
-        if current is None:
-            return
-        is_transparent = bool(current.property("isStackedTransparent"))
-        if bool(self.stackedWidget.property("isTransparent")) == is_transparent:
-            return
-        self.stackedWidget.setProperty("isTransparent", is_transparent)
-        self.stackedWidget.setStyle(QApplication.style())
-
     def _sync_titlebar_icon_from_application(self) -> None:
         """Показывает уже готовый общий значок в окончательной верхней панели."""
         app = QApplication.instance()

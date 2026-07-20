@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import inspect
 import unittest
+from types import SimpleNamespace
+from unittest.mock import Mock, patch
 
 from app.feature_facades.program_settings import ProgramSettingsFeature
 import program_settings.workers as program_settings_workers
@@ -69,6 +71,25 @@ class ProgramSettingsWorkerArchitectureTests(unittest.TestCase):
             "set_max_block_enabled",
         ):
             self.assertFalse(hasattr(ProgramSettingsFeature, method_name), method_name)
+
+    def test_gui_autostart_migration_runs_through_program_settings_feature(self) -> None:
+        commands = SimpleNamespace(
+            ensure_gui_autostart_migrated=Mock(return_value=True),
+        )
+        with patch.object(ProgramSettingsFeature, "_commands", staticmethod(lambda: commands)):
+            feature = ProgramSettingsFeature()
+
+            self.assertTrue(feature.ensure_gui_autostart_migrated())
+
+        commands.ensure_gui_autostart_migrated.assert_called_once_with()
+
+    def test_gui_autostart_migration_command_delegates_to_autostart_feature(self) -> None:
+        from program_settings.commands import ensure_gui_autostart_migrated
+
+        with patch("autostart.public.ensure_gui_autostart_migrated", return_value=True) as migrate:
+            self.assertTrue(ensure_gui_autostart_migrated())
+
+        migrate.assert_called_once_with()
 
 
 if __name__ == "__main__":

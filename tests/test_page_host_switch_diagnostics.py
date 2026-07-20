@@ -12,103 +12,77 @@ if str(PROJECT_SRC) not in sys.path:
 
 
 class SwitchDiagnosticsSafetyTests(unittest.TestCase):
-    """Диагностика переключения не имеет права ломать само переключение.
-
-    Регрессия 21.1.2.3: cProfile в этом приложении падает на импорте (наш пакет
-    src/profile затеняет stdlib profile), из-за чего первые 8 кликов по вкладкам
-    молча не открывали страницы.
-    """
-
-    def test_callback_runs_exactly_once_when_diagnostics_break(self) -> None:
-        from ui import page_host
-
-        calls: list[int] = []
-        with patch.object(page_host, "_SwitchTracer", side_effect=RuntimeError("boom")):
-            page_host._profile_switch_call("TEST", lambda: calls.append(1))
-
-        self.assertEqual(calls, [1])
-
-    def test_callback_runs_exactly_once_on_happy_path(self) -> None:
-        from ui import page_host
-
-        calls: list[int] = []
-        page_host._profile_switch_call("TEST", lambda: calls.append(1))
-
-        self.assertEqual(calls, [1])
-
-    def test_page_host_does_not_use_stdlib_cprofile(self) -> None:
+    def test_page_switch_has_no_synchronous_profiler_or_widget_tree_walk(self) -> None:
         from ui import page_host
 
         source = inspect.getsource(page_host)
 
-        self.assertNotIn("import cProfile", source)
-        self.assertNotIn("import pstats", source)
+        self.assertNotIn("sys.setprofile", source)
+        self.assertNotIn("_SwitchTracer", source)
+        self.assertNotIn("findChildren", source)
 
-    def test_stdlib_cprofile_is_broken_by_profile_package_shadow(self) -> None:
-        """Фиксируем сам факт конфликта: если он исчезнет (переименование пакета),
-        этот тест напомнит, что можно вернуться на stdlib cProfile."""
-        try:
-            import cProfile  # noqa: F401
-        except AttributeError:
-            return
-        self.skipTest("stdlib cProfile снова импортируется — конфликт пакета profile устранён")
+    def test_timing_failure_does_not_cancel_completed_switch(self) -> None:
+        from app.page_names import PageName
+        from ui.page_host import WindowPageHost
 
-    def test_tracer_reports_python_and_c_frames(self) -> None:
-        from ui.page_host import _SwitchTracer
+        calls = []
 
-        tracer = _SwitchTracer()
-        sys.setprofile(tracer)
-        try:
-            sorted([3, 1, 2])
-            sum(range(1000))
-        finally:
-            sys.setprofile(None)
+        class Window:
+            stackedWidget = object()
 
-        report = tracer.report()
-        self.assertIn("<C> ", report)
+            def switchTo(self, page):  # noqa: N802
+                calls.append(page)
+
+        host = WindowPageHost(Window(), page_factory=None)
+        page = object()
+
+        with patch("ui.page_host.log_page_timing", side_effect=RuntimeError("boom")):
+            self.assertTrue(
+                host.set_stacked_widget_current_page(
+                    page,
+                    page_name=PageName.ZAPRET2_USER_PRESETS,
+                )
+            )
+        self.assertEqual(calls, [page])
 
 
-class StackedBackgroundGuardTests(unittest.TestCase):
-    """Переполировка стека (setStyle ~180ms) не должна гоняться на каждом переключении.
-
-    Библиотечный гвард сравнивает bool с None и потому никогда не срабатывает;
-    наш override нормализует обе стороны к bool.
-    """
-
-    def _make_window(self, *, page_transparent, stack_transparent):
-        from types import SimpleNamespace
-        from unittest.mock import Mock
-
+class StackedBackgroundContractTests(unittest.TestCase):
+    def test_app_window_uses_stock_qfluent_background_update(self) -> None:
         from ui.fluent_app_window import ZapretFluentWindow
 
-        window = ZapretFluentWindow.__new__(ZapretFluentWindow)
-        window.stackedWidget = SimpleNamespace(
-            currentWidget=Mock(return_value=SimpleNamespace(property=Mock(return_value=page_transparent))),
-            property=Mock(return_value=stack_transparent),
-            setProperty=Mock(),
-            setStyle=Mock(),
-        )
-        return window
+        self.assertNotIn("_updateStackedBackground", ZapretFluentWindow.__dict__)
 
-    def test_no_restyle_when_state_unchanged_none_vs_none(self) -> None:
-        from ui.fluent_app_window import ZapretFluentWindow
+    def test_page_host_sets_explicit_qfluent_background_property(self) -> None:
+        from ui.page_host import WindowPageHost
 
-        window = self._make_window(page_transparent=None, stack_transparent=None)
-        ZapretFluentWindow._updateStackedBackground(window)
-        window.stackedWidget.setStyle.assert_not_called()
+        class Page:
+            def __init__(self) -> None:
+                self.properties = {}
 
-    def test_restyle_runs_on_real_state_change(self) -> None:
-        from ui.fluent_app_window import ZapretFluentWindow
+            def property(self, name):
+                return self.properties.get(name)
 
-        window = self._make_window(page_transparent=True, stack_transparent=None)
-        ZapretFluentWindow._updateStackedBackground(window)
-        window.stackedWidget.setStyle.assert_called_once()
+            def setProperty(self, name, value):  # noqa: N802
+                self.properties[name] = value
 
-    def test_override_exists_on_app_window(self) -> None:
-        from ui.fluent_app_window import ZapretFluentWindow
+        class Stack:
+            def __init__(self) -> None:
+                self.added = []
 
-        source = inspect.getsource(ZapretFluentWindow._updateStackedBackground)
-        self.assertIn("bool(", source)
+            def indexOf(self, _page):  # noqa: N802
+                return -1
+
+            def addWidget(self, page):  # noqa: N802
+                self.added.append(page)
+
+        page = Page()
+        stack = Stack()
+        host = WindowPageHost(type("Window", (), {"stackedWidget": stack})(), page_factory=None)
+
+        host.ensure_page_in_stacked_widget(page)
+
+        self.assertIs(page.property("isStackedTransparent"), False)
+        self.assertEqual(stack.added, [page])
 
 
 if __name__ == "__main__":

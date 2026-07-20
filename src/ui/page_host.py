@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 import time
 
 from PyQt6.QtWidgets import QWidget
@@ -23,117 +22,6 @@ from ui.window_ui_session import get_window_ui_session
 
 
 ANIMATED_NAV_REPEAT_SHOW_BUDGET_MS = 120
-
-
-SWITCH_PROFILE_AUTO_SAMPLES = 8
-SWITCH_PROFILE_MIN_LOG_MS = 40
-
-_switch_profile_samples_left = SWITCH_PROFILE_AUTO_SAMPLES
-
-
-def _switch_profile_forced() -> bool:
-    return str(os.environ.get("ZAPRET_SWITCH_PROFILE") or "").strip().lower() in {"1", "true", "yes", "on"}
-
-
-def _should_profile_switch() -> bool:
-    """Автосэмплинг: первые N переключений сессии профилируются без флагов."""
-    global _switch_profile_samples_left
-    if _switch_profile_forced():
-        return True
-    if _switch_profile_samples_left <= 0:
-        return False
-    _switch_profile_samples_left -= 1
-    return True
-
-
-class _SwitchTracer:
-    """Минимальный профайлер на sys.setprofile.
-
-    stdlib cProfile в этом приложении не работает: он делает `import profile`
-    и получает наш пакет src/profile вместо стандартного модуля
-    (AttributeError на profile.run). Поэтому считаем cumtime сами.
-    """
-
-    __slots__ = ("stats", "_stack")
-
-    def __init__(self) -> None:
-        self.stats: dict[str, list[float]] = {}
-        self._stack: list[tuple[str, float]] = []
-
-    @staticmethod
-    def _python_key(frame) -> str:
-        code = frame.f_code
-        file_name = code.co_filename.replace("\\", "/").rsplit("/", 1)[-1]
-        return f"{file_name}:{code.co_firstlineno}({code.co_qualname})"
-
-    @staticmethod
-    def _c_key(arg) -> str:
-        module = getattr(arg, "__module__", "") or "builtins"
-        return f"<C> {module}.{getattr(arg, '__qualname__', repr(arg))}"
-
-    def __call__(self, frame, event, arg):
-        now = time.perf_counter()
-        if event == "call":
-            self._stack.append((self._python_key(frame), now))
-        elif event == "c_call":
-            self._stack.append((self._c_key(arg), now))
-        elif event in ("return", "c_return", "c_exception"):
-            if not self._stack:
-                return
-            key, started_at = self._stack.pop()
-            entry = self.stats.get(key)
-            if entry is None:
-                self.stats[key] = [1, now - started_at]
-            else:
-                entry[0] += 1
-                entry[1] += now - started_at
-
-    def report(self, top_n: int = 12) -> str:
-        rows = sorted(self.stats.items(), key=lambda item: item[1][1], reverse=True)[:top_n]
-        return "\n".join(
-            f"  {cum * 1000:8.1f}ms  {int(calls):6d} calls  {key}"
-            for key, (calls, cum) in rows
-        )
-
-
-def _profile_switch_call(page_name, callback) -> None:
-    """Диагностика: раскладка Python-времени внутри setCurrentWidget.
-
-    C-остаток поверх Python-времени — это нативный layout/polish Qt. В лог
-    попадают только медленные переключения, чтобы не шуметь на быстрых.
-
-    Любая поломка профилировщика не должна мешать самому переключению:
-    callback выполняется ровно один раз при любом исходе диагностики.
-    """
-    import sys
-
-    tracer = None
-    try:
-        tracer = _SwitchTracer()
-        sys.setprofile(tracer)
-    except Exception as exc:
-        log(f"[SWITCH_PROFILE] диагностика недоступна: {exc}", "DEBUG")
-        tracer = None
-
-    started_at = time.perf_counter()
-    try:
-        callback()
-    finally:
-        if tracer is not None:
-            try:
-                sys.setprofile(None)
-            except Exception:
-                tracer = None
-
-    if tracer is None:
-        return
-    elapsed_ms = (time.perf_counter() - started_at) * 1000
-    if elapsed_ms < SWITCH_PROFILE_MIN_LOG_MS and not _switch_profile_forced():
-        return
-    try:
-        log(f"[SWITCH_PROFILE] {page_name} ({elapsed_ms:.0f}ms):\n{tracer.report()}", "INFO")
-    except Exception as exc:
-        log(f"[SWITCH_PROFILE] не удалось сформировать отчёт: {exc}", "DEBUG")
 
 
 class WindowPageHost:
@@ -162,55 +50,6 @@ class WindowPageHost:
         if elapsed_ms < int(threshold_ms):
             return
         log_page_timing(page_name, stage, elapsed_ms, extra=extra)
-
-    @staticmethod
-    def _widget_debug_name(widget) -> str:
-        if widget is None:
-            return "none"
-        try:
-            object_name = str(widget.objectName() or "").strip()
-            if object_name:
-                return object_name
-        except Exception:
-            pass
-        try:
-            return type(widget).__name__
-        except Exception:
-            return "unknown"
-
-    @staticmethod
-    def _widget_tree_counts(widget) -> tuple[int, int]:
-        if widget is None:
-            return 0, 0
-        try:
-            children = list(widget.findChildren(QWidget))
-        except Exception:
-            return 0, 0
-        visible = 0
-        for child in children:
-            try:
-                if child.isVisible():
-                    visible += 1
-            except Exception:
-                pass
-        return len(children), visible
-
-    @classmethod
-    def _switch_detail_extra(cls, stack, target_page) -> str:
-        try:
-            current_page = stack.currentWidget()
-        except Exception:
-            current_page = None
-        try:
-            stack_count = int(stack.count())
-        except Exception:
-            stack_count = 0
-        child_count, visible_count = cls._widget_tree_counts(target_page)
-        return (
-            f"from={cls._widget_debug_name(current_page)}, "
-            f"to={cls._widget_debug_name(target_page)}, "
-            f"children={child_count}, visible={visible_count}, stack={stack_count}"
-        )
 
     @staticmethod
     def _show_budget_ms(page_name: PageName, *, first_show: bool, use_nav_route: bool) -> int:
@@ -269,59 +108,18 @@ class WindowPageHost:
         self,
         page: QWidget | None,
         *,
-        animate: bool = True,
         page_name: PageName | None = None,
     ) -> bool:
-        stack = self._window.stackedWidget
         if page is None:
             return False
 
-        if animate:
-            try:
-                self._window.switchTo(page)
-                return True
-            except Exception:
-                pass
-
-        # Не выключаем updates у всего stack: если очередь Qt занята событиями
-        # runtime, отложенное включение оставляет окно визуально замороженным.
-        # Запасной прямой переход лишь синхронно отключает анимацию qfluent.
-        previous_animation_enabled = getattr(stack, "isAnimationEnabled", None)
-        animation_flag_known = isinstance(previous_animation_enabled, bool)
-        if animation_flag_known:
-            step_started_at = time.perf_counter()
-            try:
-                stack.isAnimationEnabled = False
-            except Exception:
-                animation_flag_known = False
-            self._log_optional_switch_step(page_name, "open.switch.disable_animation", step_started_at)
-
         try:
             step_started_at = time.perf_counter()
-            switch_extra = self._switch_detail_extra(stack, page)
-
-            def _set_current() -> None:
-                try:
-                    stack.setCurrentWidget(page, False)
-                except TypeError:
-                    stack.setCurrentWidget(page)
-
-            if _should_profile_switch():
-                _profile_switch_call(page_name, _set_current)
-            else:
-                _set_current()
-            self._log_optional_switch_step(page_name, "open.switch.set_current", step_started_at, extra=switch_extra)
+            self._window.switchTo(page)
+            self._log_optional_switch_step(page_name, "open.switch.qfluent", step_started_at)
             return True
         except Exception:
             return False
-        finally:
-            if animation_flag_known:
-                step_started_at = time.perf_counter()
-                try:
-                    stack.isAnimationEnabled = bool(previous_animation_enabled)
-                except Exception:
-                    pass
-                self._log_optional_switch_step(page_name, "open.switch.restore_animation", step_started_at)
 
     def _log_optional_switch_step(
         self,
@@ -333,13 +131,22 @@ class WindowPageHost:
     ) -> None:
         if page_name is None:
             return
-        self._log_step_timing(page_name, stage, started_at, extra=extra)
+        try:
+            self._log_step_timing(page_name, stage, started_at, extra=extra)
+        except Exception:
+            pass
 
     def ensure_page_in_stacked_widget(self, page: QWidget | None) -> None:
         stack = self._window.stackedWidget
         if page is None:
             return
         try:
+            # qfluentwidgets ожидает здесь именно bool. У ленивых страниц свойство
+            # раньше оставалось None, поэтому библиотека заново оформляла весь stack.
+            page.setProperty(
+                "isStackedTransparent",
+                bool(page.property("isStackedTransparent")),
+            )
             if stack.indexOf(page) < 0:
                 stack.addWidget(page)
         except Exception:
@@ -442,7 +249,6 @@ class WindowPageHost:
         else:
             switched = self.set_stacked_widget_current_page(
                 page,
-                animate=use_nav_route,
                 page_name=page_name,
             )
         self._log_step_timing(page_name, "open.switch", step_started_at)

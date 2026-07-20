@@ -3,6 +3,7 @@ from __future__ import annotations
 from program_settings.commands import (
     AutoDpiUpdateResult,
     ProgramSettingActionResult,
+    ensure_gui_autostart_migrated,
     is_auto_dpi_enabled,
     is_user_admin,
     set_auto_dpi_enabled,
@@ -26,6 +27,7 @@ __all__ = [
     "AutoDpiUpdateResult",
     "ProgramSettingActionResult",
     "attach_program_settings_runtime",
+    "ensure_gui_autostart_migrated",
     "is_auto_dpi_enabled",
     "is_user_admin",
     "load_program_settings_snapshot",

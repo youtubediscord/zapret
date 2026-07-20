@@ -68,6 +68,7 @@ class StartupRuntimeSetupTests(unittest.TestCase):
             tray_feature=tray,
             window_shell=window_shell,
             log_startup_metric=Mock(),
+            migrate_gui_autostart=Mock(return_value=False),
         )
         scheduled: list[tuple[int, object]] = []
         timer_delays: list[int] = []
@@ -171,6 +172,7 @@ class StartupRuntimeSetupTests(unittest.TestCase):
             tray_feature=tray,
             window_shell=window_shell,
             log_startup_metric=Mock(),
+            migrate_gui_autostart=Mock(return_value=False),
         )
         scheduled: list[tuple[int, object]] = []
         background_targets: list[object] = []
@@ -259,6 +261,7 @@ class StartupRuntimeSetupTests(unittest.TestCase):
             tray_feature=tray,
             window_shell=window_shell,
             log_startup_metric=Mock(),
+            migrate_gui_autostart=Mock(return_value=False),
         )
         scheduled: list[tuple[int, object]] = []
         background_targets: list[object] = []
@@ -2900,6 +2903,7 @@ class StartupRuntimeSetupTests(unittest.TestCase):
         )
         features = SimpleNamespace(
             premium=SimpleNamespace(prepare_subscription=Mock()),
+            program_settings=SimpleNamespace(ensure_gui_autostart_migrated=Mock(return_value=False)),
             runtime=SimpleNamespace(
                 init_launch_runtime_api=Mock(),
                 init_launch_runtime=Mock(),

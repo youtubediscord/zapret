@@ -4312,8 +4312,7 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertIn("open.stack", show_source)
         self.assertIn("open.switch", show_source)
         self.assertIn("open.navigation_sync", show_source)
-        self.assertIn("animate=use_nav_route", show_source)
-        self.assertNotIn("animate=False", show_source)
+        self.assertNotIn("animate=", show_source)
         self.assertIn("ensure.cached.language", ensure_source)
         self.assertIn("ensure.created.language", ensure_source)
 
@@ -4335,23 +4334,32 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
             40,
         )
 
-    def test_page_host_disables_qfluent_animation_for_direct_switch(self) -> None:
+    def test_page_host_never_disables_qfluent_animation(self) -> None:
+        page = object()
+
         class _FakeStack:
             def __init__(self) -> None:
                 self.isAnimationEnabled = True
                 self.animation_seen_during_switch = None
 
-            def setCurrentWidget(self, page, need_pop_out=False):
-                _ = page
-                _ = need_pop_out
-                self.animation_seen_during_switch = self.isAnimationEnabled
+        class _FakeWindow:
+            def __init__(self) -> None:
+                self.stackedWidget = _FakeStack()
 
-        stack = _FakeStack()
-        host = WindowPageHost(window=type("Window", (), {"stackedWidget": stack})(), page_factory=None)
+            def switchTo(self, target):  # noqa: N802
+                self.target = target
+                self.stackedWidget.animation_seen_during_switch = self.stackedWidget.isAnimationEnabled
 
-        self.assertTrue(host.set_stacked_widget_current_page(object(), animate=False))
-        self.assertFalse(stack.animation_seen_during_switch)
-        self.assertTrue(stack.isAnimationEnabled)
+        window = _FakeWindow()
+        host = WindowPageHost(window=window, page_factory=None)
+
+        self.assertTrue(host.set_stacked_widget_current_page(page))
+        self.assertIs(window.target, page)
+        self.assertTrue(window.stackedWidget.animation_seen_during_switch)
+        self.assertTrue(window.stackedWidget.isAnimationEnabled)
+        switch_source = inspect.getsource(WindowPageHost.set_stacked_widget_current_page)
+        self.assertNotIn("isAnimationEnabled", switch_source)
+        self.assertNotIn("setCurrentWidget", switch_source)
 
     def test_page_host_uses_qfluent_animation_for_navigation_switch(self) -> None:
         page = object()
@@ -4371,7 +4379,7 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         window = _FakeWindow()
         host = WindowPageHost(window=window, page_factory=None)
 
-        self.assertTrue(host.set_stacked_widget_current_page(page, animate=True))
+        self.assertTrue(host.set_stacked_widget_current_page(page))
         self.assertIs(window.switched_to, page)
 
     def test_page_host_does_not_switch_stack_when_page_is_already_current(self) -> None:
@@ -4407,7 +4415,6 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
     def test_page_host_keeps_stack_repaint_enabled_during_direct_switch(self) -> None:
         class _FakeStack:
             def __init__(self) -> None:
-                self.isAnimationEnabled = True
                 self.updates_enabled = True
                 self.updates_seen_during_switch = None
                 self.calls: list[tuple[str, bool | None]] = []
@@ -4425,14 +4432,21 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
             def update(self):
                 self.calls.append(("update", None))
 
-        stack = _FakeStack()
-        host = WindowPageHost(window=type("Window", (), {"stackedWidget": stack})(), page_factory=None)
-        self.assertTrue(host.set_stacked_widget_current_page(object(), animate=False))
+        class _FakeWindow:
+            def __init__(self) -> None:
+                self.stackedWidget = _FakeStack()
 
-        self.assertTrue(stack.updates_seen_during_switch)
-        self.assertTrue(stack.updates_enabled)
+            def switchTo(self, page):  # noqa: N802
+                self.stackedWidget.setCurrentWidget(page, False)
+
+        window = _FakeWindow()
+        host = WindowPageHost(window=window, page_factory=None)
+        self.assertTrue(host.set_stacked_widget_current_page(object()))
+
+        self.assertTrue(window.stackedWidget.updates_seen_during_switch)
+        self.assertTrue(window.stackedWidget.updates_enabled)
         self.assertEqual(
-            stack.calls,
+            window.stackedWidget.calls,
             [
                 ("switch", True),
             ],
@@ -4441,7 +4455,6 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
     def test_page_host_logs_slow_direct_switch_substeps(self) -> None:
         class _FakeStack:
             def __init__(self) -> None:
-                self.isAnimationEnabled = True
                 self.updates_enabled = True
 
             def setUpdatesEnabled(self, enabled):  # noqa: N802
@@ -4458,20 +4471,25 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
             def update(self):
                 pass
 
-        stack = _FakeStack()
-        host = WindowPageHost(window=type("Window", (), {"stackedWidget": stack})(), page_factory=None)
+        class _FakeWindow:
+            def __init__(self) -> None:
+                self.stackedWidget = _FakeStack()
+
+            def switchTo(self, page):  # noqa: N802
+                self.stackedWidget.setCurrentWidget(page, False)
+
+        host = WindowPageHost(window=_FakeWindow(), page_factory=None)
         events: list[str] = []
 
         with patch("ui.page_host.log_page_timing", side_effect=lambda _page, stage, *_args, **_kwargs: events.append(stage)):
             self.assertTrue(
                 host.set_stacked_widget_current_page(
                     object(),
-                    animate=False,
                     page_name=PageName.ZAPRET2_USER_PRESETS,
                 )
             )
 
-        self.assertIn("open.switch.set_current", events)
+        self.assertIn("open.switch.qfluent", events)
 
     def test_telegram_proxy_builds_secondary_tabs_lazily(self) -> None:
         setup_source = inspect.getsource(TelegramProxyPage._setup_ui)
