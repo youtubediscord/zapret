@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 
 from blockcheck.config import TCP_TARGET_MAX_COUNT, TCP_TARGETS_PER_PROVIDER
-from config.config import MAIN_DIRECTORY
+from config.runtime_layout import APPLICATION_PATHS
 from settings import store as settings_store
 
 logger = logging.getLogger(__name__)
@@ -24,7 +24,7 @@ def _iter_data_file_candidates(filename: str, filepath: str | Path | None = None
     if filepath is not None:
         return [Path(filepath)]
 
-    app_dir = Path(MAIN_DIRECTORY)
+    app_dir = APPLICATION_PATHS.root
 
     candidates: list[Path] = [
         app_dir / "blockcheck" / "data" / filename,

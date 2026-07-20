@@ -25,6 +25,7 @@ class UpdaterGithubCacheStorageTests(unittest.TestCase):
         self.assertEqual(normalized["updater"]["github_cache"], {})
 
     def test_github_cache_is_saved_outside_settings_json(self) -> None:
+        from config.runtime_layout import ApplicationPaths
         from settings import store as settings_store
         from updater import github_cache_storage
 
@@ -39,7 +40,10 @@ class UpdaterGithubCacheStorageTests(unittest.TestCase):
             root = Path(temp_dir)
             with (
                 patch("settings.store.MAIN_DIRECTORY", str(root)),
-                patch("updater.github_cache_storage.MAIN_DIRECTORY", str(root)),
+                patch(
+                    "updater.github_cache_storage.APPLICATION_PATHS",
+                    ApplicationPaths.from_root(root),
+                ),
             ):
                 settings_store.reset_settings()
                 github_cache_storage.save_github_cache(cache_payload)

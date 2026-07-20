@@ -7,9 +7,11 @@ from datetime import datetime
 from PyQt6.QtCore import QObject, pyqtSignal
 from utils.subproc import get_system32_path, get_syswow64_path
 from utils.windows_icmp import ping_ipv4_host_winapi
-from config.config import LOGS_FOLDER
+from config.runtime_layout import APPLICATION_PATHS
 
 from dns_checker import DNSChecker
+
+LOGS_FOLDER = str(APPLICATION_PATHS.logs_dir)
 
 class ConnectionTestWorker(QObject):
     """Рабочий поток для выполнения тестов соединения."""

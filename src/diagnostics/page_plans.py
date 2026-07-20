@@ -176,13 +176,13 @@ def build_cleanup_plan(*, has_worker: bool, thread_running: bool) -> ConnectionC
     )
 
 def prepare_support_request_for_connection(*, selection: str) -> ConnectionSupportPlan:
-    from config.config import LOGS_FOLDER
+    from config.runtime_layout import APPLICATION_PATHS
 
     from log.log import global_logger, LOG_FILE
 
     from support_request_bundle import prepare_support_request
 
-    temp_log_path = os.path.join(LOGS_FOLDER, "connection_test_temp.log")
+    temp_log_path = str(APPLICATION_PATHS.logs_dir / "connection_test_temp.log")
     try:
         result = prepare_support_request(
             bundle_prefix="connection_support",

@@ -6,16 +6,10 @@ import sys
 import traceback
 from types import TracebackType
 
-
-def _app_dir() -> str:
-    executable = getattr(sys, "executable", "") or ""
-    if executable:
-        return os.path.dirname(os.path.abspath(executable))
-    return os.getcwd()
-
+from config.runtime_layout import APPLICATION_PATHS
 
 def _crash_log_path() -> str:
-    return os.path.join(_app_dir(), "logs", "crashes", "early_startup_crash.log")
+    return str(APPLICATION_PATHS.crash_logs_dir / "early_startup_crash.log")
 
 
 def write_early_startup_crash(

@@ -11,7 +11,7 @@ try:
 except ImportError:  # pragma: no cover - WSL/static checks only
     winreg = None
 
-from config.config import MAIN_DIRECTORY
+from config.runtime_layout import APPLICATION_PATHS
 from settings.mode import (
     DEFAULT_LAUNCH_METHOD,
     ENGINE_WINWS1,
@@ -58,12 +58,13 @@ _DIRECT_PRESET_SELECTION_PATHS = {
     ENGINE_WINWS2: ("program", SELECTED_SOURCE_PRESET_FILE_NAME_KEY_WINWS2),
 }
 
+# Тесты подменяют только этот корень, чтобы не писать в живой settings.json.
+# В установленном приложении значение всегда приходит из APPLICATION_PATHS.
+MAIN_DIRECTORY = str(APPLICATION_PATHS.root)
+
 
 def _settings_root() -> Path:
-    base = str(MAIN_DIRECTORY or "").strip()
-    if not base:
-        raise RuntimeError("Не удалось определить папку программы для settings.json")
-    return Path(base)
+    return Path(MAIN_DIRECTORY)
 
 
 def get_settings_path() -> Path:

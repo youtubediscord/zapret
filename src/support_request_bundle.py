@@ -14,13 +14,14 @@ from pathlib import Path
 from typing import Iterable, Sequence
 
 from config.build_info import APP_VERSION
-from config.config import LOGS_FOLDER
+from config.runtime_layout import APPLICATION_PATHS
 
 from config.urls import SUPPORT_DISCUSSIONS_URL
 
 
 GITHUB_ATTACHMENT_LIMIT_BYTES = 25 * 1024 * 1024
 SUPPORT_ARCHIVE_MAX_BYTES = GITHUB_ATTACHMENT_LIMIT_BYTES - 1024 * 1024
+LOGS_FOLDER = str(APPLICATION_PATHS.logs_dir)
 
 
 @dataclass(slots=True)

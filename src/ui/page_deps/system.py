@@ -57,7 +57,7 @@ def build_premium_page_kwargs(*, page_name: PageName, premium_feature, ui_state_
 
 def build_winws_log_analyzer_page_kwargs(*, page_name: PageName) -> dict:
     _ = page_name
-    # Страница самодостаточна: путь к папке логов берёт из config.LOGS_FOLDER.
+    # Страница самодостаточна: путь к папке логов берёт из единого APPLICATION_PATHS.
     return {}
 
 

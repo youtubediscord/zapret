@@ -9,7 +9,11 @@ import glob
 # This file is imported very early (via log/__init__.py → crash_handler)
 # BEFORE QApplication exists.
 
-from config.config import LOGS_FOLDER, MAX_LOG_FILES, MAX_DEBUG_LOG_FILES
+from config.config import MAX_LOG_FILES, MAX_DEBUG_LOG_FILES
+from config.runtime_layout import APPLICATION_PATHS
+
+
+LOGS_FOLDER = str(APPLICATION_PATHS.logs_dir)
 
 
 MAX_BLOCKCHECK_LOG_FILES = 200
@@ -131,9 +135,6 @@ class Logger:
         self._initialized = True
 
         self.verbose_logging = _is_verbose_logging_enabled()
-
-        from config.config import LOGS_FOLDER
-
 
         # Используем глобальную переменную LOG_FILE если не передан путь
         self.log_file = log_file_path or LOG_FILE

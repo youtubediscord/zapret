@@ -4,22 +4,22 @@ from __future__ import annotations
 
 import os
 
-from config.config import MAIN_DIRECTORY
+from config.runtime_layout import APPLICATION_PATHS
 
 
 def get_lists_dir() -> str:
     """Возвращает папку `lists` рядом с программой."""
-    return os.path.join(MAIN_DIRECTORY, "lists")
+    return str(APPLICATION_PATHS.lists_dir)
 
 
 def get_lists_base_dir() -> str:
     """Возвращает папку `lists/base` с системными базами."""
-    return os.path.join(get_lists_dir(), "base")
+    return str(APPLICATION_PATHS.lists_base_dir)
 
 
 def get_lists_user_dir() -> str:
     """Возвращает папку `lists/user` с пользовательскими правками."""
-    return os.path.join(get_lists_dir(), "user")
+    return str(APPLICATION_PATHS.lists_user_dir)
 
 
 def get_list_path(file_name: str) -> str:

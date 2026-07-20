@@ -443,11 +443,10 @@ class UpdateWorker(QObject):
         try:
             self._emit("Запуск установщика…")
 
-            # Путь установки
-            from config.config import MAIN_DIRECTORY
+            from config.runtime_layout import APPLICATION_PATHS
 
-            install_dir = MAIN_DIRECTORY
-            persistent_dir = os.path.join(install_dir, "_update_cache")
+            install_dir = str(APPLICATION_PATHS.root)
+            persistent_dir = str(APPLICATION_PATHS.update_cache_dir)
             os.makedirs(persistent_dir, exist_ok=True)
 
             persistent_exe = os.path.join(persistent_dir, "Zapret2Setup.exe")

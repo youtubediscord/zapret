@@ -7,20 +7,30 @@ from unittest.mock import Mock, call, patch
 
 class WinDivertServiceRecoveryTests(unittest.TestCase):
     def test_packaged_monkey_driver_is_accepted_as_windivert_file(self) -> None:
-        from config import config as app_config
-        from winws_runtime.health.winws_exit_diagnosis import _check_windivert_files
+        from config.runtime_layout import ApplicationPaths
+        from winws_runtime.health import winws_exit_diagnosis
 
         with tempfile.TemporaryDirectory() as tmp_dir:
-            exe_dir = Path(tmp_dir)
+            root = Path(tmp_dir)
+            exe_dir = root / "exe"
+            exe_dir.mkdir()
             (exe_dir / "WinDivert.dll").write_bytes(b"dll")
             (exe_dir / "Monkey64.sys").write_bytes(b"driver")
 
-            with patch.object(app_config, "EXE_FOLDER", str(exe_dir)):
-                self.assertEqual(_check_windivert_files(), [])
+            with patch.object(
+                winws_exit_diagnosis,
+                "APPLICATION_PATHS",
+                ApplicationPaths.from_root(root),
+            ):
+                self.assertEqual(winws_exit_diagnosis._check_windivert_files(), [])
 
             (exe_dir / "Monkey64.sys").unlink()
-            with patch.object(app_config, "EXE_FOLDER", str(exe_dir)):
-                missing = _check_windivert_files()
+            with patch.object(
+                winws_exit_diagnosis,
+                "APPLICATION_PATHS",
+                ApplicationPaths.from_root(root),
+            ):
+                missing = winws_exit_diagnosis._check_windivert_files()
 
         self.assertEqual(
             missing,

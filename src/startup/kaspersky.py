@@ -4,13 +4,13 @@ import os
 import sys
 
 from app_notifications import advisory_notification, notification_action
-from config.config import MAIN_DIRECTORY
+from config.runtime_layout import APPLICATION_PATHS
 from utils.antivirus_probe import is_kaspersky_present
 
 
 def _resolve_kaspersky_paths() -> tuple[str, str]:
     """Возвращает путь к exe и рабочую папку приложения."""
-    base_dir = os.path.abspath(MAIN_DIRECTORY)
+    base_dir = str(APPLICATION_PATHS.root)
     # Исходники не являются режимом запуска; защитнику всегда передаётся текущий exe.
     exe_path = os.path.abspath(sys.executable)
     return exe_path, base_dir

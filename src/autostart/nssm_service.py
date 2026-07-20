@@ -13,6 +13,7 @@ import os
 import subprocess
 import time
 from typing import List, Optional
+from config.runtime_layout import APPLICATION_PATHS
 from log.log import log
 from settings.mode import ALL_WINWS_EXE_NAME_SET, EXE_NAME_WINWS2
 
@@ -52,33 +53,12 @@ def kill_winws_processes() -> bool:
 def get_nssm_path() -> Optional[str]:
     """⚡ Получает путь к nssm.exe"""
     try:
-        # Пробуем несколько вариантов
-        possible_paths = []
-        
-        # 1. Через config (работает в exe)
-        try:
-            from config.config import EXE_FOLDER
+        nssm_path = str(APPLICATION_PATHS.exe_dir / "nssm.exe")
+        if os.path.isfile(nssm_path):
+            log(f"✅ NSSM найден: {nssm_path}", "DEBUG")
+            return nssm_path
 
-            possible_paths.append(os.path.join(EXE_FOLDER, "nssm.exe"))
-        except:
-            pass
-        
-        # 2. Относительно текущей директории (для разработки)
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        project_root = os.path.dirname(script_dir)  # autostart -> project root
-        possible_paths.append(os.path.join(project_root, "exe", "nssm.exe"))
-        
-        # 3. В папке zapret (для разработки)
-        zapret_path = os.path.join(os.path.dirname(project_root), "zapret", "exe", "nssm.exe")
-        possible_paths.append(zapret_path)
-        
-        # Ищем первый существующий
-        for nssm_path in possible_paths:
-            if os.path.exists(nssm_path):
-                log(f"✅ NSSM найден: {nssm_path}", "DEBUG")
-                return nssm_path
-        
-        log(f"❌ NSSM не найден. Проверенные пути: {possible_paths}", "WARNING")
+        log(f"❌ NSSM не найден: {nssm_path}", "WARNING")
         return None
     except Exception as e:
         log(f"Ошибка поиска NSSM: {e}", "ERROR")
@@ -378,11 +358,10 @@ def create_service_with_nssm(
             configs.append(("Description", description))
         
         # Настройка логирования
-        from config.config import LOGS_FOLDER
-
-        os.makedirs(LOGS_FOLDER, exist_ok=True)
+        logs_folder = str(APPLICATION_PATHS.logs_dir)
+        os.makedirs(logs_folder, exist_ok=True)
         
-        log_file = os.path.join(LOGS_FOLDER, f"{service_name}.log")
+        log_file = os.path.join(logs_folder, f"{service_name}.log")
         # Каждый раз пересоздаем лог: старый файл удаляем, чтобы не разрастался
         try:
             if os.path.exists(log_file):

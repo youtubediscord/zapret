@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import sys
 
-from config.config import MAIN_DIRECTORY
+from config.runtime_layout import APPLICATION_PATHS
 from main.pyinstaller_archive_import_lock import install_pyinstaller_archive_import_lock
 from main.runtime_state import is_startup_debug_enabled
 
@@ -12,9 +12,9 @@ _PRELAUNCH_DONE = False
 
 
 def _set_workdir_to_app() -> None:
-    """Устанавливает рабочую директорию в папку exe/скрипта."""
+    """Устанавливает рабочую директорию в единый корень приложения."""
     try:
-        app_dir = os.path.abspath(MAIN_DIRECTORY)
+        app_dir = str(APPLICATION_PATHS.root)
 
         os.chdir(app_dir)
 
@@ -30,14 +30,19 @@ Directory exists: {os.path.exists(app_dir)}
 Directory contents: {os.listdir(app_dir) if os.path.exists(app_dir) else 'N/A'}
 ========================
 """
-            with open("zapret_startup.log", "w", encoding="utf-8") as handle:
+            APPLICATION_PATHS.logs_dir.mkdir(parents=True, exist_ok=True)
+            with open(APPLICATION_PATHS.logs_dir / "zapret_startup.log", "w", encoding="utf-8") as handle:
                 handle.write(debug_info)
     except Exception as exc:
-        with open("zapret_startup_error.log", "w", encoding="utf-8") as handle:
-            handle.write(f"Error setting workdir: {exc}\n")
-            import traceback
+        try:
+            APPLICATION_PATHS.logs_dir.mkdir(parents=True, exist_ok=True)
+            with open(APPLICATION_PATHS.logs_dir / "zapret_startup_error.log", "w", encoding="utf-8") as handle:
+                handle.write(f"Error setting workdir: {exc}\n")
+                import traceback
 
-            handle.write(traceback.format_exc())
+                handle.write(traceback.format_exc())
+        except OSError:
+            pass
 
 
 def _install_crash_handler() -> None:

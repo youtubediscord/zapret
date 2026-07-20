@@ -6,7 +6,7 @@ from collections import OrderedDict
 from dataclasses import dataclass
 from PyQt6.QtCore import QObject, QTimer, pyqtSignal
 from PyQt6.QtGui import QPixmap, QColor, QIcon
-from config.config import THEME_FOLDER
+from config.runtime_layout import APPLICATION_PATHS
 from log.log import log
 from settings.appearance_backgrounds import (
     _RKN_BG_PREFERRED,
@@ -326,7 +326,7 @@ def apply_window_background(window, theme_name: str | None = None, preset: str |
             rkn_path = resolve_rkn_background_path(selected_rkn_bg)
             if rkn_path is None:
                 log(
-                    f"⚠️ RKN background not found in themes folder: {THEME_FOLDER} (selected={selected_rkn_bg})",
+                    f"⚠️ RKN background not found in themes folder: {APPLICATION_PATHS.themes_dir} (selected={selected_rkn_bg})",
                     "DEBUG",
                 )
             window.set_background_image(rkn_path)

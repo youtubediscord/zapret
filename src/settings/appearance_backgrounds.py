@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import os
 
-from config.config import THEME_FOLDER
+from config.runtime_layout import APPLICATION_PATHS
+
+
+THEME_FOLDER = str(APPLICATION_PATHS.themes_dir)
 
 
 _RKN_BG_EXTENSIONS = (".jpg", ".jpeg", ".png", ".webp", ".bmp")

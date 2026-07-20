@@ -5,6 +5,7 @@ import os
 import time
 from dataclasses import dataclass
 
+from config.runtime_layout import APPLICATION_PATHS
 from log.log import log
 from settings.mode import EXE_NAME_WINWS1, EXE_NAME_WINWS2
 
@@ -185,17 +186,11 @@ def find_blocking_windivert_registry_services_runtime() -> list[str]:
 
 
 def _iter_windivert_dll_candidates_runtime() -> list[str]:
-    candidates: list[str] = []
-    try:
-        from config.config import MAIN_DIRECTORY, EXE_FOLDER, BIN_FOLDER
-
-        for base in (MAIN_DIRECTORY, EXE_FOLDER, BIN_FOLDER):
-            base_path = str(base or "").strip()
-            if not base_path:
-                continue
-            candidates.append(os.path.join(base_path, "WinDivert.dll"))
-    except Exception:
-        pass
+    candidates = [
+        str(APPLICATION_PATHS.root / "WinDivert.dll"),
+        str(APPLICATION_PATHS.exe_dir / "WinDivert.dll"),
+        str(APPLICATION_PATHS.bin_dir / "WinDivert.dll"),
+    ]
 
     unique: list[str] = []
     seen: set[str] = set()

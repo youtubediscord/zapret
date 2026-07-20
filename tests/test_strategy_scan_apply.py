@@ -104,6 +104,8 @@ class StrategyScanApplyTests(unittest.TestCase):
             lists_dir.mkdir()
             (lists_dir / "youtube.txt").write_text("youtube.com\n", encoding="utf-8")
 
+            from config.runtime_layout import ApplicationPaths
+
             feature = _PresetFeature(
                 "\n".join(
                     [
@@ -119,7 +121,11 @@ class StrategyScanApplyTests(unittest.TestCase):
                 )
             )
 
-            with patch.object(strategy_scan_apply, "MAIN_DIRECTORY", temp_dir):
+            with patch.object(
+                strategy_scan_apply,
+                "APPLICATION_PATHS",
+                ApplicationPaths.from_root(temp_dir),
+            ):
                 result = strategy_scan_apply.apply_strategy(
                     presets_feature=feature,
                     profile_feature=None,

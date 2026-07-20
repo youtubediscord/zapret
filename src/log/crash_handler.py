@@ -20,7 +20,7 @@ import platform
 import atexit
 from pathlib import Path
 
-from config.config import LOGS_FOLDER, MAIN_DIRECTORY
+from config.runtime_layout import APPLICATION_PATHS
 
 # Папка для логов крашей
 CRASH_LOGS_FOLDER = None
@@ -37,10 +37,7 @@ def _get_crash_logs_folder() -> Path:
     if CRASH_LOGS_FOLDER:
         return Path(CRASH_LOGS_FOLDER)
     
-    try:
-        folder = Path(LOGS_FOLDER) / "crashes"
-    except Exception:
-        folder = Path(MAIN_DIRECTORY) / "logs" / "crashes"
+    folder = APPLICATION_PATHS.crash_logs_dir
     
     folder.mkdir(parents=True, exist_ok=True)
     CRASH_LOGS_FOLDER = str(folder)

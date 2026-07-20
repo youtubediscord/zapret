@@ -11,6 +11,7 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from config.runtime_layout import (  # noqa: E402
+    ApplicationPaths,
     RUNTIME_DIR_NAME,
     SourceApplicationLaunchForbidden,
     require_packaged_application,
@@ -22,6 +23,81 @@ from core.paths import AppPaths  # noqa: E402
 
 
 class RuntimeLayoutTests(unittest.TestCase):
+    def test_all_application_folders_follow_a_changed_install_root(self) -> None:
+        root = Path("D:/Программы/ZapretCustom").resolve()
+        paths = ApplicationPaths.from_root(root)
+
+        expected = {
+            "runtime_dir": root / "_internal",
+            "executable": root / "_internal" / "Zapret.exe",
+            "bin_dir": root / "bin",
+            "exe_dir": root / "exe",
+            "ico_dir": root / "ico",
+            "json_dir": root / "json",
+            "lists_dir": root / "lists",
+            "lists_base_dir": root / "lists" / "base",
+            "lists_user_dir": root / "lists" / "user",
+            "lua_dir": root / "lua",
+            "presets_dir": root / "presets",
+            "profile_dir": root / "profile",
+            "settings_dir": root / "settings",
+            "settings_file": root / "settings" / "settings.json",
+            "logs_dir": root / "logs",
+            "crash_logs_dir": root / "logs" / "crashes",
+            "tmp_dir": root / "tmp",
+            "themes_dir": root / "themes",
+            "sos_dir": root / "sos",
+            "windivert_filter_dir": root / "windivert.filter",
+            "update_cache_dir": root / "_update_cache",
+            "stable_icon": root / "ico" / "Zapret2.ico",
+            "dev_icon": root / "ico" / "ZapretDevLogo4.ico",
+            "sidebar_icons_dir": root / "ico" / "windows11_fluent" / "sidebar",
+        }
+
+        for attribute, expected_path in expected.items():
+            with self.subTest(attribute=attribute):
+                self.assertEqual(getattr(paths, attribute), expected_path)
+
+    def test_runtime_path_consumers_do_not_restore_separate_folder_constants(self) -> None:
+        config_source = (SRC_ROOT / "config" / "config.py").read_text(encoding="utf-8")
+        forbidden_names = (
+            "BIN_FOLDER",
+            "INDEXJSON_FOLDER",
+            "EXE_FOLDER",
+            "LUA_FOLDER",
+            "ICO_FOLDER",
+            "THEME_FOLDER",
+            "WINDIVERT_FILTER",
+            "ICON_PATH",
+            "ICON_DEV_PATH",
+        )
+
+        for name in forbidden_names:
+            with self.subTest(name=name):
+                self.assertNotIn(name, config_source)
+
+        critical_sources = (
+            SRC_ROOT / "main" / "early_startup_crash.py",
+            SRC_ROOT / "main" / "prelaunch.py",
+            SRC_ROOT / "autostart" / "nssm_service.py",
+            SRC_ROOT / "app" / "navigation_icon_resources.py",
+        )
+        for path in critical_sources:
+            source = path.read_text(encoding="utf-8")
+            with self.subTest(path=path.name):
+                self.assertTrue(
+                    "APPLICATION_PATHS" in source or "APPLICATION_RESOURCE_PATHS" in source
+                )
+                self.assertNotIn("Path.cwd()", source)
+                self.assertNotIn("abspath(__file__)", source)
+
+    def test_source_tree_has_no_hard_coded_install_root(self) -> None:
+        for path in SRC_ROOT.rglob("*.py"):
+            source = path.read_text(encoding="utf-8", errors="replace")
+            with self.subTest(path=path.relative_to(SRC_ROOT)):
+                self.assertNotIn(r"C:\Zapret", source)
+                self.assertNotIn("C:/Zapret", source)
+
     def test_packaged_detection_supports_nuitka_and_pyinstaller(self) -> None:
         previous_frozen = getattr(sys, "frozen", None)
         had_frozen = hasattr(sys, "frozen")

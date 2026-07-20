@@ -748,6 +748,32 @@ class BuildResourceLayoutTests(unittest.TestCase):
             iss,
         )
 
+    def test_inno_supports_a_changed_install_root_without_losing_user_data(self) -> None:
+        iss = self._read_inno_script()
+
+        self.assertIn("DisableDirPage=no", iss)
+        self.assertIn("UsePreviousAppDir=yes", iss)
+        self.assertIn("function ReadPreviousInstallRoot: string;", iss)
+        self.assertIn("function MigrateUserDataIfInstallRootChanged: Boolean;", iss)
+        self.assertIn("PreviousInstallRoot + '\\settings'", iss)
+        self.assertIn("PreviousInstallRoot + '\\lists\\user'", iss)
+        self.assertIn("PreviousInstallRoot + '\\presets'", iss)
+        self.assertIn("PreviousInstallRoot + '\\profile'", iss)
+        self.assertIn("PreviousInstallRoot + '\\logs'", iss)
+        self.assertIn("PreviousInstallRoot + '\\lua'", iss)
+        self.assertIn("PreviousInstallRoot + '\\themes'", iss)
+        self.assertIn("previous directory was kept as a backup", iss)
+        self.assertNotIn("RemoveDir(PreviousInstallRoot)", iss)
+
+        source_lines = [line.strip() for line in iss.splitlines() if line.strip().startswith("Source:")]
+        self.assertTrue(source_lines)
+        for line in source_lines:
+            with self.subTest(line=line):
+                self.assertIn('DestDir: "{app}', line)
+
+        self.assertIn('Filename: "{app}\\_internal\\Zapret.exe"', iss)
+        self.assertIn('WorkingDir: "{app}"', iss)
+
     def test_inno_reads_all_required_resources_only_from_prepared_stage(self) -> None:
         iss = self._read_inno_script()
 

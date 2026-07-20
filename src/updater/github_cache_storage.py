@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from config.config import MAIN_DIRECTORY
+from config.runtime_layout import APPLICATION_PATHS
 from utils.atomic_text import atomic_write_text
 
 
@@ -12,7 +12,7 @@ GITHUB_CACHE_FILE_NAME = "updater_github_cache.json"
 
 
 def get_github_cache_path() -> Path:
-    return Path(MAIN_DIRECTORY) / "tmp" / GITHUB_CACHE_FILE_NAME
+    return APPLICATION_PATHS.tmp_dir / GITHUB_CACHE_FILE_NAME
 
 
 def load_github_cache() -> dict[str, Any]:

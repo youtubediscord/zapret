@@ -14,7 +14,7 @@ from collections import deque
 from logging.handlers import RotatingFileHandler
 from typing import Optional
 
-from config.config import LOGS_FOLDER
+from config.runtime_layout import APPLICATION_PATHS
 from ui.log_limits import TELEGRAM_PROXY_PENDING_MAX_LINES, append_bounded_line
 
 
@@ -22,6 +22,7 @@ _LOG_FILENAME = "tg_proxy.log"
 _MAX_BYTES = 10 * 1024 * 1024  # 10 MB
 _BACKUP_COUNT = 5
 _RING_BUFFER_SIZE = 100
+LOGS_FOLDER = str(APPLICATION_PATHS.logs_dir)
 
 
 class ProxyLogger:

@@ -7,11 +7,15 @@ import threading
 import time
 from dataclasses import dataclass
 
-from config.config import LOGS_FOLDER, MAX_DEBUG_LOG_FILES, MAX_LOG_FILES
+from config.config import MAX_DEBUG_LOG_FILES, MAX_LOG_FILES
+from config.runtime_layout import APPLICATION_PATHS
 from log.log import LOG_FILE, cleanup_old_logs, global_logger, log
 from app.performance_metrics import log_ui_timing_since
 
 from support_request_bundle import prepare_support_request
+
+
+LOGS_FOLDER = str(APPLICATION_PATHS.logs_dir)
 
 
 @dataclass(slots=True)

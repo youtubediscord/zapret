@@ -18,15 +18,13 @@ class AppRuntime:
 
 
 def build_app_runtime(*, initial_ui_state=None, feature_deps_factory: Callable[[AppStateAccess], Any]) -> AppRuntime:
-    from pathlib import Path
-
-    from config.config import MAIN_DIRECTORY
+    from config.runtime_layout import APPLICATION_PATHS
     from core.paths import AppPaths
 
     t_paths = _time.perf_counter()
     paths = AppPaths(
-        user_root=Path(MAIN_DIRECTORY).resolve(),
-        local_root=Path(MAIN_DIRECTORY).resolve(),
+        user_root=APPLICATION_PATHS.root,
+        local_root=APPLICATION_PATHS.root,
     )
     emit_startup_metric(
         "StartupAppRuntimePaths",

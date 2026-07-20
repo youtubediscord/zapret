@@ -10,7 +10,7 @@ from blockcheck.strategy_scan_targeting import (
     resolve_games_ipset_paths,
     stun_target_parts,
 )
-from config.config import MAIN_DIRECTORY
+from config.runtime_layout import APPLICATION_PATHS
 
 
 def _line_option_values(line: str) -> list[str]:
@@ -47,7 +47,7 @@ def _hostlist_path_candidates(raw_path: str) -> list[Path]:
 
     normalized = clean.replace("\\", "/")
     raw = Path(normalized)
-    base = Path(str(MAIN_DIRECTORY or "").strip() or ".")
+    base = APPLICATION_PATHS.root
     file_name = PureWindowsPath(normalized).name
 
     candidates: list[Path] = []

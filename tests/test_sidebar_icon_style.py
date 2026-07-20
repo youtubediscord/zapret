@@ -108,6 +108,7 @@ class SidebarIconStyleNavigationTests(unittest.TestCase):
 
     def test_navigation_icon_resource_lookup_uses_canonical_ico_folder(self) -> None:
         import app.navigation_icon_resources as resources
+        from config.runtime_layout import ApplicationPaths
 
         with TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
@@ -115,11 +116,12 @@ class SidebarIconStyleNavigationTests(unittest.TestCase):
             icon_path.parent.mkdir(parents=True)
             icon_path.write_text("<svg />", encoding="utf-8")
 
-            with patch.object(resources, "_resource_roots", return_value=(root,)):
+            with patch.object(resources, "APPLICATION_RESOURCE_PATHS", ApplicationPaths.from_root(root)):
                 self.assertEqual(resources.resolve_windows11_sidebar_icon_path("home.svg"), str(icon_path))
 
     def test_navigation_icon_resource_lookup_ignores_nested_src_ico_folder(self) -> None:
         import app.navigation_icon_resources as resources
+        from config.runtime_layout import ApplicationPaths
 
         with TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
@@ -127,7 +129,7 @@ class SidebarIconStyleNavigationTests(unittest.TestCase):
             icon_path.parent.mkdir(parents=True)
             icon_path.write_text("<svg />", encoding="utf-8")
 
-            with patch.object(resources, "_resource_roots", return_value=(root,)):
+            with patch.object(resources, "APPLICATION_RESOURCE_PATHS", ApplicationPaths.from_root(root)):
                 self.assertEqual(resources.resolve_windows11_sidebar_icon_path("home.svg"), "")
 
     def test_current_sidebar_icon_style_uses_cache_without_settings_load(self) -> None:

@@ -27,7 +27,7 @@ from utils.circular_strategy_numbering import (
     renumber_circular_strategies,
     strip_strategy_tags,
 )
-from config.config import MAIN_DIRECTORY, EXE_FOLDER, LUA_FOLDER, LOGS_FOLDER, BIN_FOLDER
+from config.runtime_layout import APPLICATION_PATHS, ApplicationPaths
 from settings.mode import ENGINE_WINWS2, EXE_NAME_WINWS2
 from lists.core.paths import get_lists_dir
 
@@ -196,14 +196,12 @@ class OrchestraRunner:
     """
 
     def __init__(self, zapret_path: str = None):
-        if zapret_path is None:
-            zapret_path = MAIN_DIRECTORY
-
-        self.zapret_path = zapret_path
-        self.winws_exe = os.path.join(EXE_FOLDER, EXE_NAME_WINWS2)
-        self.lua_path = LUA_FOLDER
-        self.logs_path = LOGS_FOLDER
-        self.bin_path = BIN_FOLDER
+        paths = APPLICATION_PATHS if zapret_path is None else ApplicationPaths.from_root(zapret_path)
+        self.zapret_path = str(paths.root)
+        self.winws_exe = str(paths.exe_dir / EXE_NAME_WINWS2)
+        self.lua_path = str(paths.lua_dir)
+        self.logs_path = str(paths.logs_dir)
+        self.bin_path = str(paths.bin_dir)
 
         # Файлы конфигурации (в lua папке)
         # ВАЖНО: circular-config.txt теперь СТАТИЧЕСКИЙ файл в /home/privacy/zapret/lua/

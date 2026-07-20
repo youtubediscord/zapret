@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from config.config import MAIN_DIRECTORY
+from config.runtime_layout import APPLICATION_PATHS
 from blockcheck.strategy_scan_state import StrategyScanSelectionState
 
 _quick_domains_cache: list[str] | None = None
@@ -148,7 +148,7 @@ def resolve_games_ipset_paths(udp_games_scope: str = "all") -> list[str]:
 
     list_dirs: list[Path] = []
 
-    list_dirs.append(Path(MAIN_DIRECTORY) / "lists")
+    list_dirs.append(APPLICATION_PATHS.lists_dir)
 
     files: list[str] = []
     seen: set[str] = set()

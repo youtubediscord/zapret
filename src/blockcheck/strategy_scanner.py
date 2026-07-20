@@ -38,7 +38,7 @@ from blockcheck.config import (
 from blockcheck.models import TestStatus
 from blockcheck.scan_models import StrategyProbeResult, StrategyScanReport
 from blockcheck.stun_tester import test_stun
-from config.config import MAIN_DIRECTORY
+from config.runtime_layout import APPLICATION_PATHS
 from profile.winws2_preset_source import WINWS2_LUA_INIT_LINES
 from settings.mode import (
     ENGINE_WINWS2,
@@ -554,9 +554,10 @@ class StrategyScanner:
             else:
                 catalog_name = "tcp"
 
-            local_root = Path((MAIN_DIRECTORY or "").strip() or self._work_dir)
-            user_root = Path((MAIN_DIRECTORY or "").strip() or self._work_dir)
-            app_paths = AppPaths(user_root=user_root, local_root=local_root)
+            app_paths = AppPaths(
+                user_root=APPLICATION_PATHS.root,
+                local_root=APPLICATION_PATHS.root,
+            )
             from settings.mode import ENGINE_WINWS2
 
             catalogs = load_strategy_catalogs(app_paths, ENGINE_WINWS2)
@@ -1345,27 +1346,8 @@ class StrategyScanner:
     # ------------------------------------------------------------------
 
     def _game_lists_directories(self) -> list[str]:
-        """Collect candidate directories where ipset game lists can live."""
-        dirs: list[str] = []
-
-        try:
-            user_data_dir = (MAIN_DIRECTORY or "").strip()
-            if user_data_dir:
-                dirs.append(os.path.join(user_data_dir, "lists"))
-        except Exception:
-            pass
-
-        dirs.append(os.path.join(self._work_dir, "lists"))
-
-        result: list[str] = []
-        seen: set[str] = set()
-        for raw in dirs:
-            path = os.path.normpath(raw)
-            if path in seen:
-                continue
-            seen.add(path)
-            result.append(path)
-        return result
+        """Return the one installed directory for game ipset lists."""
+        return [str(APPLICATION_PATHS.lists_dir)]
 
     def _resolve_games_ipset_sources(self) -> list[str]:
         """Resolve available UDP game/ipset files for selected coverage scope."""
@@ -1719,7 +1701,7 @@ class StrategyScanner:
 
     def _find_work_dir(self) -> str:
         """Find the working directory (where exe/ folder is)."""
-        return MAIN_DIRECTORY
+        return str(APPLICATION_PATHS.root)
 
     def _find_winws2(self) -> str:
         """Find the winws2.exe path."""

@@ -86,9 +86,9 @@ def run_user_domain_action(action: str, domain: str):
 
 
 def make_blockcheck_run_log_path(mode: str) -> str:
-    from config.config import LOGS_FOLDER
+    from config.runtime_layout import APPLICATION_PATHS
 
-    log_dir = LOGS_FOLDER
+    log_dir = str(APPLICATION_PATHS.logs_dir)
     try:
         active_log = getattr(global_logger, "log_file", None)
         if isinstance(active_log, str) and active_log.strip():

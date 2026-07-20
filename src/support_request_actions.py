@@ -3,12 +3,15 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 
-from config.config import LOGS_FOLDER
+from config.runtime_layout import APPLICATION_PATHS
 
 from config.urls import BLOCKCHECK_DISCUSSIONS_URL
 from log.log import global_logger, LOG_FILE
 
 from support_request_bundle import PreparedSupportRequest, prepare_support_request
+
+
+LOGS_FOLDER = str(APPLICATION_PATHS.logs_dir)
 
 
 @dataclass(slots=True)

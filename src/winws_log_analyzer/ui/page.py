@@ -9,7 +9,7 @@ from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import QFileDialog, QTableWidgetItem
 
-from config.config import LOGS_FOLDER
+from config.runtime_layout import APPLICATION_PATHS
 from ui.one_shot_worker_runtime import OneShotWorkerRuntime
 from ui.pages.base_page import BasePage
 
@@ -23,6 +23,8 @@ from ..models import (
 )
 from ..worker import WinwsLogParseWorker
 from .build import PACKETS_PLACEHOLDER_TITLE, build_winws_log_analyzer_ui
+
+LOGS_FOLDER = str(APPLICATION_PATHS.logs_dir)
 
 # Цвета вердиктов — те же, что у статусов blockcheck.
 _VERDICT_COLORS = {

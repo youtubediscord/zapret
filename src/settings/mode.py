@@ -117,9 +117,9 @@ def exe_name_for_launch_method(value: object) -> str:
 
 
 def exe_path_for_launch_method(value: object) -> str:
-    from config.config import EXE_FOLDER
+    from config.runtime_layout import APPLICATION_PATHS
 
-    return os.path.join(EXE_FOLDER, exe_name_for_launch_method(value))
+    return str(APPLICATION_PATHS.exe_dir / exe_name_for_launch_method(value))
 
 
 __all__ = [

@@ -6,7 +6,7 @@ import winreg
 
 # Импортируем константы из конфига
 from app_notifications import advisory_notification, notification_action
-from config.config import MAIN_DIRECTORY
+from config.runtime_layout import APPLICATION_PATHS
 
 from startup.windows_version_guard import current_windows_support
 from utils.windows_process_probe import iter_process_records_winapi
@@ -14,7 +14,7 @@ from utils.windows_process_probe import iter_process_records_winapi
 
 def _application_root_path() -> str:
     """Возвращает пользовательский путь установки без деталей среды Python."""
-    return os.path.abspath(MAIN_DIRECTORY)
+    return str(APPLICATION_PATHS.root)
 
 
 def _path_is_inside(path: str, directory: str) -> bool:

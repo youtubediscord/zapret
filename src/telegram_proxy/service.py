@@ -9,6 +9,8 @@ import os
 import sys
 import logging
 
+from config.runtime_layout import APPLICATION_PATHS
+
 log = logging.getLogger("tg_proxy.service")
 
 TG_SERVICE_NAME = "ZapretTelegramProxy"
@@ -19,11 +21,6 @@ TG_SERVICE_DESC = "Telegram WebSocket proxy for bypassing IP blocks"
 def _get_python_exe() -> str:
     """Get path to current Python executable."""
     return sys.executable
-
-
-def _get_proxy_module_path() -> str:
-    """Get path to telegram_proxy package."""
-    return os.path.dirname(os.path.abspath(__file__))
 
 
 def build_service_args(
@@ -73,7 +70,7 @@ def create_tg_proxy_service(
             fake_tls_domain=fake_tls_domain,
             proxy_protocol=proxy_protocol,
         )
-        work_dir = os.path.dirname(_get_proxy_module_path())
+        work_dir = str(APPLICATION_PATHS.root)
 
         # Try NSSM first (better restart handling)
         try:

@@ -13,8 +13,7 @@ import zlib
 from dataclasses import dataclass
 from pathlib import Path
 
-from config.config import MAIN_DIRECTORY
-from config.runtime_layout import PACKAGED_RUNTIME
+from config.runtime_layout import APPLICATION_PATHS, PACKAGED_RUNTIME
 from settings import store as settings_store
 
 
@@ -58,6 +57,9 @@ _RECENT_SIG: tuple[int, int] | None = None
 _RECENT_SIG_CHECKED_AT = 0.0
 _RECENT_SIG_TTL_SECONDS = 1.0
 _MISSING_CATALOG_LOGGED = False
+
+# Явная тестовая точка подмены; production-значение всегда берётся из APPLICATION_PATHS.
+MAIN_DIRECTORY = str(APPLICATION_PATHS.root)
 
 
 def _clean_str(value: object) -> str:

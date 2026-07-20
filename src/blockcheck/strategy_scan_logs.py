@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 
-from config.config import LOGS_FOLDER
+from config.runtime_layout import APPLICATION_PATHS
 from support_request_actions import prepare_strategy_scan_support_request
 from blockcheck.strategy_scan_resume import resume_state_path
 from blockcheck.strategy_scan_state import StrategyScanRunLogState
@@ -16,7 +16,7 @@ def _sanitize_slug(value: str, fallback: str) -> str:
 
 
 def _resolve_log_dir() -> Path:
-    log_dir = Path(LOGS_FOLDER)
+    log_dir = APPLICATION_PATHS.logs_dir
 
     try:
         from log.log import global_logger

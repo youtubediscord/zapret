@@ -2923,21 +2923,22 @@ class StartupRuntimeSetupTests(unittest.TestCase):
 
 
 class EarlyStartupCrashTests(unittest.TestCase):
-    def test_early_startup_exception_hook_writes_crash_file_near_executable(self) -> None:
-        from main.early_startup_crash import write_early_startup_crash
+    def test_early_startup_exception_hook_writes_crash_file_under_application_root(self) -> None:
+        from config.runtime_layout import ApplicationPaths
+        from main import early_startup_crash
 
         with tempfile.TemporaryDirectory() as tmp:
             app_dir = Path(tmp)
-            fake_exe = app_dir / "Zapret.exe"
+            app_paths = ApplicationPaths.from_root(app_dir)
 
-            with patch.object(sys, "executable", str(fake_exe)):
+            with patch.object(early_startup_crash, "APPLICATION_PATHS", app_paths):
                 try:
                     raise RuntimeError("boom")
                 except RuntimeError:
                     exc_type, exc, tb = sys.exc_info()
                     assert exc_type is not None
                     assert exc is not None
-                    write_early_startup_crash(exc_type, exc, tb)
+                    early_startup_crash.write_early_startup_crash(exc_type, exc, tb)
 
             crash_path = app_dir / "logs" / "crashes" / "early_startup_crash.log"
             text = crash_path.read_text(encoding="utf-8")

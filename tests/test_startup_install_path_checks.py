@@ -14,12 +14,17 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from startup import check_start  # noqa: E402
+from config.runtime_layout import ApplicationPaths  # noqa: E402
 
 
 class StartupInstallPathChecksTests(unittest.TestCase):
     def test_internal_runtime_path_is_not_treated_as_install_path(self) -> None:
         with (
-            patch.object(check_start, "MAIN_DIRECTORY", r"C:\Zapret\Dev"),
+            patch.object(
+                check_start,
+                "APPLICATION_PATHS",
+                ApplicationPaths.from_root(r"C:\Zapret\Dev"),
+            ),
             patch.object(
                 check_start.sys,
                 "executable",
@@ -33,7 +38,11 @@ class StartupInstallPathChecksTests(unittest.TestCase):
 
     def test_onedrive_check_uses_application_root_only(self) -> None:
         with (
-            patch.object(check_start, "MAIN_DIRECTORY", r"C:\Zapret\Dev"),
+            patch.object(
+                check_start,
+                "APPLICATION_PATHS",
+                ApplicationPaths.from_root(r"C:\Zapret\Dev"),
+            ),
             patch.object(
                 check_start.sys,
                 "executable",
@@ -51,7 +60,11 @@ class StartupInstallPathChecksTests(unittest.TestCase):
         self.assertEqual(message, "")
 
     def test_real_problem_in_application_root_is_reported(self) -> None:
-        with patch.object(check_start, "MAIN_DIRECTORY", r"C:\Zapret Builds\Dev"):
+        with patch.object(
+            check_start,
+            "APPLICATION_PATHS",
+            ApplicationPaths.from_root(r"C:\Zapret Builds\Dev"),
+        ):
             has_special_chars, message = check_start.check_path_for_special_chars()
 
         self.assertTrue(has_special_chars)
@@ -66,8 +79,10 @@ class StartupInstallPathChecksTests(unittest.TestCase):
         with (
             patch.object(
                 check_start,
-                "MAIN_DIRECTORY",
-                r"C:\Users\privacy\AppData\Local\Temp\Zapret",
+                "APPLICATION_PATHS",
+                ApplicationPaths.from_root(
+                    r"C:\Users\privacy\AppData\Local\Temp\Zapret"
+                ),
             ),
             patch.object(check_start.sys, "executable", r"C:\Python314\python.exe"),
             patch.dict(os.environ, environment, clear=False),
@@ -81,7 +96,11 @@ class StartupInstallPathChecksTests(unittest.TestCase):
             "WINDIR": r"C:\Windows",
         }
         with (
-            patch.object(check_start, "MAIN_DIRECTORY", r"C:\TempBackup\Zapret"),
+            patch.object(
+                check_start,
+                "APPLICATION_PATHS",
+                ApplicationPaths.from_root(r"C:\TempBackup\Zapret"),
+            ),
             patch.dict(os.environ, environment, clear=False),
         ):
             self.assertFalse(check_start.check_if_application_root_is_temporary())
