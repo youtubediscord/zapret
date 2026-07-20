@@ -23,6 +23,8 @@ class CryptoDependencyTrimTests(unittest.TestCase):
 
         requirements = (ROOT / "requirements.txt").read_text(encoding="utf-8")
         workflow = (ROOT / ".github" / "workflows" / "windows-release.yml").read_text(encoding="utf-8")
+        self.assertIn('python-version: "3.14"', workflow)
+        self.assertNotIn('python-version: "3.12"', workflow)
         self.assertIn("tgcrypto", requirements)
         self.assertIn("tgcrypto", workflow)
 

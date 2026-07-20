@@ -1,5 +1,5 @@
 # requirements.txt — Zapret GUI
-# "C:\Program Files\Python312\Scripts\pip.exe" install -r requirements.txt
+# "C:\Program Files\Python314\Scripts\pip.exe" install -r requirements.txt
 # python.exe -m pip install --upgrade pip
 
 # ════════════════════════════════════════════════════════════
@@ -26,7 +26,7 @@ wmi  # dns_core: список сетевых адаптеров
 
 # Misc
 packaging  # updater: сравнение версий
-tgcrypto   # ускоритель AES-CTR для MTProxy (telegram_proxy/proxy/aes_ctr.py)
+tgcrypto   # быстрый AES-CTR для MTProxy; на Python 3.14 собирается через Microsoft C++ Build Tools
 
 # ════════════════════════════════════════════════════════════
 # Build Tools (только для сборки exe, в рантайм не попадают)
