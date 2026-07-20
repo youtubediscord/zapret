@@ -148,6 +148,25 @@ class BuildResourceLayoutTests(unittest.TestCase):
             sys.modules.pop("nuitka_builder", None)
             sys.path[:] = old_path
 
+    def test_release_builder_defaults_to_nuitka(self) -> None:
+        gui = (PRIVATE_ROOT / "build_zapret" / "build_release_gui.py").read_text(encoding="utf-8")
+        cli = (PRIVATE_ROOT / "build_zapret" / "build_release_cli.py").read_text(encoding="utf-8")
+
+        self.assertIn('default_build_method = (', gui)
+        self.assertIn('if NUITKA_AVAILABLE and check_nuitka_available()', gui)
+        self.assertIn('text=f"Nuitka {nuitka_status} (рекомендуется)"', gui)
+        self.assertIn('text=f"PyInstaller {pyinstaller_status} (резервный)"', gui)
+        self.assertIn('default="nuitka"', cli)
+
+    def test_nuitka_installer_removes_previous_pyinstaller_runtime(self) -> None:
+        gui = (PRIVATE_ROOT / "build_zapret" / "build_release_gui.py").read_text(encoding="utf-8")
+        installer = self._read_inno_script()
+
+        self.assertIn('(stage_root / "_nuitka_runtime.marker").write_text', gui)
+        self.assertIn('#if FileExists(_NUITKA_RUNTIME_MARKER)', installer)
+        self.assertIn('#ifdef NUITKA_RUNTIME_BUILD', installer)
+        self.assertIn('Type: filesandordirs; Name: "{app}\\_internal"', installer)
+
     def test_inno_installs_only_required_ico_resources(self) -> None:
         iss = self._read_inno_script()
 
