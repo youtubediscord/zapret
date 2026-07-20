@@ -83,14 +83,44 @@ class BuildResourceLayoutTests(unittest.TestCase):
         self.assertNotIn("root_path / 'ico' / icon_file", builder)
         self.assertNotIn("сборка без иконки", builder)
 
-    def test_nuitka_uses_current_icons_and_includes_dynamic_app_package(self) -> None:
+    def test_nuitka_uses_current_icons_and_source_driven_dynamic_modules(self) -> None:
         builder = (PRIVATE_ROOT / "build_zapret" / "nuitka_builder.py").read_text(encoding="utf-8")
 
         self.assertIn('"ZapretDevLogo4.ico" if channel == CHANNEL_DEV else "Zapret2.ico"', builder)
         self.assertNotIn("ZapretDevLogo3.ico", builder)
         self.assertNotIn("Zapret1.ico", builder)
-        self.assertIn('packages_to_include = [\n            "app",', builder)
-        self.assertIn('nuitka_args.append(f"--include-package={pkg}")', builder)
+        self.assertIn("iter_lazy_feature_facade_modules", builder)
+        self.assertIn("iter_lazy_page_modules", builder)
+        self.assertIn('nuitka_args.append(f"--include-module={module}")', builder)
+        self.assertNotIn("packages_to_include = [", builder)
+
+    def test_nuitka_dynamic_modules_cover_facades_and_lazy_pages(self) -> None:
+        build_path = PRIVATE_ROOT / "build_zapret"
+        old_path = list(sys.path)
+        sys.path.insert(0, str(build_path))
+        try:
+            sys.modules.pop("nuitka_builder", None)
+            import nuitka_builder
+
+            modules = nuitka_builder._lazy_project_modules()
+            nuitka_builder._validate_lazy_project_modules(modules)
+        finally:
+            sys.modules.pop("nuitka_builder", None)
+            sys.path[:] = old_path
+
+        self.assertIn("app.feature_facades.appearance", modules)
+        self.assertIn("presets.ui.control.zapret2.page", modules)
+        self.assertIn("presets.ui.control.zapret1.page", modules)
+
+    def test_nuitka_does_not_bundle_builder_or_full_qt_dependencies(self) -> None:
+        builder = (PRIVATE_ROOT / "build_zapret" / "nuitka_builder.py").read_text(encoding="utf-8")
+
+        self.assertNotIn('"--include-qt-plugins=all"', builder)
+        self.assertNotIn('            "paramiko",', builder)
+        self.assertNotIn('            "pkg_resources",', builder)
+        self.assertIn('"--nofollow-import-to=numpy"', builder)
+        self.assertIn('"--nofollow-import-to=PIL"', builder)
+        self.assertIn('"--noinclude-dlls=opengl32sw.dll"', builder)
 
     def test_inno_installs_only_required_ico_resources(self) -> None:
         iss = self._read_inno_script()
