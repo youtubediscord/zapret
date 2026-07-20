@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import sys
+import tempfile
 import unittest
 
 
@@ -121,6 +122,31 @@ class BuildResourceLayoutTests(unittest.TestCase):
         self.assertIn('"--nofollow-import-to=numpy"', builder)
         self.assertIn('"--nofollow-import-to=PIL"', builder)
         self.assertIn('"--noinclude-dlls=opengl32sw.dll"', builder)
+
+    def test_nuitka_clears_stale_dist_but_preserves_compilation_cache(self) -> None:
+        build_path = PRIVATE_ROOT / "build_zapret"
+        old_path = list(sys.path)
+        sys.path.insert(0, str(build_path))
+        try:
+            sys.modules.pop("nuitka_builder", None)
+            import nuitka_builder
+
+            with tempfile.TemporaryDirectory() as temp_dir:
+                temp_path = Path(temp_dir)
+                build_cache = temp_path / "main.build"
+                stale_dist = temp_path / "main.dist"
+                build_cache.mkdir()
+                stale_dist.mkdir()
+                (build_cache / "cache.bin").write_bytes(b"cache")
+                (stale_dist / "unused.dll").write_bytes(b"old")
+
+                nuitka_builder._clear_previous_dist_outputs(temp_path)
+
+                self.assertTrue((build_cache / "cache.bin").is_file())
+                self.assertFalse(stale_dist.exists())
+        finally:
+            sys.modules.pop("nuitka_builder", None)
+            sys.path[:] = old_path
 
     def test_inno_installs_only_required_ico_resources(self) -> None:
         iss = self._read_inno_script()
