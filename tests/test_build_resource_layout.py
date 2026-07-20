@@ -83,6 +83,15 @@ class BuildResourceLayoutTests(unittest.TestCase):
         self.assertNotIn("root_path / 'ico' / icon_file", builder)
         self.assertNotIn("сборка без иконки", builder)
 
+    def test_nuitka_uses_current_icons_and_includes_dynamic_app_package(self) -> None:
+        builder = (PRIVATE_ROOT / "build_zapret" / "nuitka_builder.py").read_text(encoding="utf-8")
+
+        self.assertIn('"ZapretDevLogo4.ico" if channel == CHANNEL_DEV else "Zapret2.ico"', builder)
+        self.assertNotIn("ZapretDevLogo3.ico", builder)
+        self.assertNotIn("Zapret1.ico", builder)
+        self.assertIn('packages_to_include = [\n            "app",', builder)
+        self.assertIn('nuitka_args.append(f"--include-package={pkg}")', builder)
+
     def test_inno_installs_only_required_ico_resources(self) -> None:
         iss = self._read_inno_script()
 
