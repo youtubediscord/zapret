@@ -260,19 +260,17 @@ class BackendPageDataWarmupTests(unittest.TestCase):
             consume_warmed_page_data=Mock(return_value=cached_state),
             run_runtime_init=Mock(return_value=(True, True)),
         )
-        page = SimpleNamespace(
-            _cleanup_in_progress=False,
-            isVisible=Mock(return_value=True),
-            _runtime_initialized=False,
-            _runtime_started=False,
-            _logs=logs_feature,
-            _apply_logs_list_state=Mock(side_effect=lambda *_args, **_kwargs: calls.append("cached_logs")),
-            _apply_logs_stats_state=Mock(side_effect=lambda *_args, **_kwargs: calls.append("cached_stats")),
-            _refresh_logs_list=Mock(),
-            _update_stats=Mock(),
-            _start_tail_worker=Mock(),
-            _log_ui_timing=Mock(),
-        )
+        page = LogsPage.__new__(LogsPage)
+        page._cleanup_in_progress = False
+        page.isVisible = Mock(return_value=True)
+        page._runtime_initialized = False
+        page._runtime_started = False
+        page._logs = logs_feature
+        page._apply_logs_list_state = Mock(side_effect=lambda *_args, **_kwargs: calls.append("cached_logs"))
+        page._apply_logs_stats_state = Mock(side_effect=lambda *_args, **_kwargs: calls.append("cached_stats"))
+        page._update_stats = Mock()
+        page._start_tail_worker = Mock()
+        page._log_ui_timing = Mock()
 
         LogsPage._run_runtime_init_once(page)
 
@@ -281,6 +279,58 @@ class BackendPageDataWarmupTests(unittest.TestCase):
         logs_feature.run_runtime_init.assert_called_once()
         self.assertTrue(page._runtime_initialized)
         self.assertTrue(page._runtime_started)
+
+    def test_logs_page_applies_warmed_overview_immediately_on_activation(self) -> None:
+        from log.commands import LogsPageDataState, LogsListState, LogsStatsState
+        from log.ui.page import LogsPage
+
+        cached_state = LogsPageDataState(
+            logs_state=LogsListState(
+                entries=[],
+                current_log_file="current.log",
+                cleanup_deleted=0,
+                cleanup_errors=[],
+                cleanup_total=0,
+            ),
+            stats_state=LogsStatsState(
+                app_logs=1,
+                debug_logs=0,
+                total_size_mb=0.1,
+                max_logs=50,
+                max_debug_logs=10,
+            ),
+        )
+        calls: list[str] = []
+        page = LogsPage.__new__(LogsPage)
+        page._logs = SimpleNamespace(consume_warmed_page_data=Mock(return_value=cached_state))
+        page._apply_logs_list_state = Mock(side_effect=lambda *_args, **_kwargs: calls.append("cached_logs"))
+        page._apply_logs_stats_state = Mock(side_effect=lambda *_args, **_kwargs: calls.append("cached_stats"))
+        page._schedule_runtime_init = Mock(side_effect=lambda: calls.append("runtime_scheduled"))
+        page._schedule_logs_secondary_panels = Mock(side_effect=lambda: calls.append("secondary_scheduled"))
+        page._first_log_content_timing_done = False
+
+        LogsPage.on_page_activated(page)
+
+        self.assertEqual(
+            calls,
+            ["runtime_scheduled", "secondary_scheduled", "cached_logs", "cached_stats"],
+        )
+
+    def test_logs_page_still_schedules_runtime_when_warmed_overview_is_invalid(self) -> None:
+        from log.ui.page import LogsPage
+
+        page = LogsPage.__new__(LogsPage)
+        page._logs = SimpleNamespace(
+            consume_warmed_page_data=Mock(side_effect=RuntimeError("bad cache")),
+        )
+        page._schedule_runtime_init = Mock()
+        page._schedule_logs_secondary_panels = Mock()
+        page._first_log_content_timing_done = False
+
+        LogsPage.on_page_activated(page)
+
+        page._schedule_runtime_init.assert_called_once_with()
+        page._schedule_logs_secondary_panels.assert_called_once_with()
 
     def test_appearance_initial_state_cache_is_consumed_once(self) -> None:
         from settings import appearance

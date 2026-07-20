@@ -8,7 +8,6 @@ def run_logs_runtime_init(
     runtime_initialized: bool,
     runtime_started: bool,
     schedule_fn,
-    refresh_logs_fn,
     update_stats_fn,
     start_tail_worker_fn,
 ) -> tuple[bool, bool]:
@@ -17,7 +16,8 @@ def run_logs_runtime_init(
 
     if not next_runtime_initialized:
         next_runtime_initialized = True
-        schedule_fn(0, lambda: refresh_logs_fn(run_cleanup=False))
+        # Один overview-worker возвращает и список файлов, и статистику.
+        # Второй параллельный запрос при первом открытии не нужен.
         schedule_fn(0, update_stats_fn)
 
     if not next_runtime_started:

@@ -1,6 +1,8 @@
 # log/ui/page.py
 """Страница просмотра логов в реальном времени"""
 
+from collections import deque
+
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
@@ -146,6 +148,7 @@ class LogsPage(BasePage):
         self._orchestra = orchestra_feature
         self.current_log_file = self._logs.get_current_log_file()
         self._tail_file_signature = None
+        self._latest_logs_state = None
         self._error_pattern = re.compile('|'.join(ERROR_PATTERNS))
         self._exclude_pattern = re.compile('|'.join(EXCLUDE_PATTERNS), re.IGNORECASE)
 
@@ -158,6 +161,7 @@ class LogsPage(BasePage):
         self._orchestra_text_label = None
         self._send_status_text = ""
         self._send_status_tone = "neutral"
+        self._info_text_cache = ""
         self._controls_actions_title = None
         self._controls_actions_bar = None
         self._manage_tab_initialized = False
@@ -168,9 +172,11 @@ class LogsPage(BasePage):
         self._logs_overview_pending_cleanup = False
         self._logs_overview_restart_scheduled = False
         self._tail_runtime = OneShotWorkerRuntime()
-        self._log_text_cache = ""
+        self._log_text_cache_lines = deque(maxlen=MAIN_LOG_VIEW_MAX_LINES)
         self._pending_log_text_append = ""
         self._log_text_append_scheduled = False
+        self._first_log_content_started_at = None
+        self._first_log_content_timing_done = False
         self._support_prepare_runtime = OneShotWorkerRuntime()
         self._support_prepare_state = LatestValueWorkerState(self._support_prepare_runtime, empty_value=False)
         self._open_folder_runtime = OneShotWorkerRuntime()
@@ -195,19 +201,29 @@ class LogsPage(BasePage):
         except Exception:
             pass
 
+    def _apply_warmed_overview_if_available(self) -> bool:
+        try:
+            warmed = self._logs.consume_warmed_page_data()
+            if warmed is None:
+                return False
+            self._apply_logs_list_state(warmed.logs_state, run_cleanup=False)
+            self._apply_logs_stats_state(warmed.stats_state)
+            return True
+        except Exception as exc:
+            # Повреждённый или устаревший прогретый снимок не должен мешать
+            # обычной фоновой загрузке страницы.
+            log(f"Не удалось применить прогретые данные логов: {exc}", "DEBUG")
+            return False
+
     def _run_runtime_init_once(self) -> None:
         if self._cleanup_in_progress or not self.isVisible():
             return
         started_at = time.perf_counter()
-        warmed = self._logs.consume_warmed_page_data()
-        if warmed is not None:
-            self._apply_logs_list_state(warmed.logs_state, run_cleanup=False)
-            self._apply_logs_stats_state(warmed.stats_state)
+        self._apply_warmed_overview_if_available()
         self._runtime_initialized, self._runtime_started = self._logs.run_runtime_init(
             runtime_initialized=self._runtime_initialized,
             runtime_started=self._runtime_started,
             schedule_fn=QTimer.singleShot,
-            refresh_logs_fn=self._refresh_logs_list,
             update_stats_fn=self._update_stats,
             start_tail_worker_fn=self._start_tail_worker,
         )
@@ -231,8 +247,13 @@ class LogsPage(BasePage):
         self._runtime_started = False
 
     def on_page_activated(self) -> None:
+        if not self.__dict__.get("_first_log_content_timing_done", False):
+            self._first_log_content_started_at = time.perf_counter()
         self._schedule_runtime_init()
         self._schedule_logs_secondary_panels()
+        # Прогретые данные уже находятся в памяти: показываем их до следующего
+        # прохода цикла Qt, чтобы пользователь не видел лишнее «Загрузка...».
+        self._apply_warmed_overview_if_available()
 
     def on_page_hidden(self) -> None:
         self._runtime_init_scheduled = False
@@ -408,8 +429,6 @@ class LogsPage(BasePage):
         manage_layout.setContentsMargins(0, 0, 0, 0)
         manage_layout.setSpacing(16)
         self._manage_layout = manage_layout
-        self._build_manage_tab(manage_layout)
-
         self.stacked_widget.addWidget(self._logs_page)
         self.stacked_widget.addWidget(self._send_page)
         self.stacked_widget.addWidget(self._manage_page)
@@ -427,6 +446,16 @@ class LogsPage(BasePage):
                 self._build_send_tab(self._send_layout)
             except Exception as e:
                 log(f"Ошибка построения вкладки отправки: {e}", "ERROR")
+
+        if index == 2 and not self._manage_tab_initialized:
+            try:
+                self._build_manage_tab(self._manage_layout)
+                if self._latest_logs_state is not None:
+                    self._apply_logs_list_state(self._latest_logs_state, run_cleanup=False)
+                self._retranslate_logs_tab()
+                self._apply_page_theme(force=True)
+            except Exception as e:
+                log(f"Ошибка построения вкладки управления логами: {e}", "ERROR")
 
         self.stacked_widget.setCurrentIndex(index)
 
@@ -736,12 +765,16 @@ class LogsPage(BasePage):
         self.clear_btn = manage_widgets.clear_btn
         self.folder_btn = manage_widgets.folder_btn
         self._manage_tab_initialized = True
+        if self._info_text_cache:
+            self._set_info_text(self._info_text_cache)
 
     def _schedule_logs_secondary_panels(self) -> None:
         if self._logs_secondary_initialized or self._logs_secondary_build_scheduled:
             return
         self._logs_secondary_build_scheduled = True
-        QTimer.singleShot(0, self._ensure_logs_secondary_panels)
+        # Нижняя панель не видна на первом экране. Небольшая задержка отдаёт
+        # приоритет первому куску текста текущего лога.
+        QTimer.singleShot(250, self._ensure_logs_secondary_panels)
 
     def _ensure_logs_secondary_panels(self) -> bool:
         if self._logs_secondary_initialized:
@@ -984,7 +1017,9 @@ class LogsPage(BasePage):
         started_at = time.perf_counter()
         self._refresh_spin_active = True
         self._spin_angle = 0
-        self._spin_timer.start()
+        spin_timer = getattr(self, "_spin_timer", None)
+        if spin_timer is not None:
+            spin_timer.start()
         self._start_logs_overview_worker(
             run_cleanup=run_cleanup,
             source_label="logs_ui.refresh_logs_list.total",
@@ -1058,6 +1093,7 @@ class LogsPage(BasePage):
         self._refresh_logs_list(run_cleanup=True)
 
     def _apply_logs_list_state(self, state, *, run_cleanup: bool) -> None:
+        self._latest_logs_state = state
         table = getattr(self, "logs_table", None)
         if table is None:
             return
@@ -1128,16 +1164,21 @@ class LogsPage(BasePage):
         self._set_stats_text(plan.text)
 
     def _set_info_text(self, text: str) -> None:
-        self.info_label.setText(text)
+        normalized_text = str(text or "")
+        self._info_text_cache = normalized_text
+        info_label = self.__dict__.get("info_label")
+        if info_label is None:
+            return
+        info_label.setText(normalized_text)
         set_state_text(
-            self.info_label,
+            info_label,
             _logs_accessible_state(
                 tr_catalog(
                     "page.logs.accessibility.info.name",
                     language=self._ui_language,
                     default="Сообщение страницы логов",
                 ),
-                text,
+                normalized_text,
             ),
         )
 
@@ -1181,8 +1222,12 @@ class LogsPage(BasePage):
     def _stop_refresh_animation(self):
         """Останавливает анимацию кнопки обновления"""
         self._refresh_spin_active = False
-        self._spin_timer.stop()
-        self.refresh_btn.setIcon(self._refresh_icon_normal)
+        spin_timer = getattr(self, "_spin_timer", None)
+        if spin_timer is not None:
+            spin_timer.stop()
+        refresh_btn = getattr(self, "refresh_btn", None)
+        if refresh_btn is not None:
+            refresh_btn.setIcon(self._refresh_icon_normal)
 
     def _on_spin_tick(self):
         """Вращает иконку обновления через QTransform (работает с ToolButton)."""
@@ -1291,6 +1336,12 @@ class LogsPage(BasePage):
             except Exception:
                 pass
 
+        if not self.__dict__.get("_first_log_content_timing_done", False):
+            started_at = self.__dict__.get("_first_log_content_started_at")
+            if started_at is not None:
+                self._first_log_content_timing_done = True
+                self._log_ui_timing("logs_ui.first_log_content", started_at)
+
         # Проверяем на ошибки только по новым строкам
         try:
             for line in text.splitlines():
@@ -1311,7 +1362,7 @@ class LogsPage(BasePage):
         
     def _copy_log(self):
         """Копирует содержимое лога в буфер"""
-        text = str(self.__dict__.get("_log_text_cache", "") or "")
+        text = self._log_text_cache
         if text:
             QApplication.clipboard().setText(text)
             self._set_info_text(
@@ -1345,13 +1396,26 @@ class LogsPage(BasePage):
         self.log_text.clear()
         self._log_text_cache = ""
 
+    @property
+    def _log_text_cache(self) -> str:
+        lines = self.__dict__.get("_log_text_cache_lines")
+        if not lines:
+            return ""
+        return "\n".join(lines)
+
+    @_log_text_cache.setter
+    def _log_text_cache(self, value: str) -> None:
+        self.__dict__["_log_text_cache_lines"] = deque(
+            str(value or "").splitlines(),
+            maxlen=MAIN_LOG_VIEW_MAX_LINES,
+        )
+
     def _append_log_text_cache(self, text: str) -> None:
-        current = str(self.__dict__.get("_log_text_cache", "") or "")
-        combined = f"{current}\n{text}" if current else str(text or "")
-        lines = combined.splitlines()
-        if len(lines) > MAIN_LOG_VIEW_MAX_LINES:
-            lines = lines[-MAIN_LOG_VIEW_MAX_LINES:]
-        self._log_text_cache = "\n".join(lines)
+        lines = self.__dict__.get("_log_text_cache_lines")
+        if not isinstance(lines, deque):
+            lines = deque(maxlen=MAIN_LOG_VIEW_MAX_LINES)
+            self.__dict__["_log_text_cache_lines"] = lines
+        lines.extend(str(text or "").splitlines())
         
     def _open_folder(self):
         """Открывает папку с логами"""
@@ -1520,7 +1584,9 @@ class LogsPage(BasePage):
         self._logs_overview_restart_scheduled = False
         self._pending_log_text_append = ""
         self._log_text_append_scheduled = False
-        self._spin_timer.stop()
+        spin_timer = getattr(self, "_spin_timer", None)
+        if spin_timer is not None:
+            spin_timer.stop()
         self._stop_logs_overview_worker(blocking=False)
         self._stop_support_prepare_worker(blocking=False)
         self._open_folder_state_obj().reset()

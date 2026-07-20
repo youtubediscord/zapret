@@ -1,5 +1,5 @@
 # log_tail.py
-from PyQt6.QtCore import QObject, pyqtSignal, QThread
+from PyQt6.QtCore import QObject, pyqtSignal
 import time, os, io
 
 class LogTailWorker(QObject):
@@ -25,6 +25,20 @@ class LogTailWorker(QObject):
 
     def stop(self):
         self._stop_requested = True
+
+    def _read_available_text(self, stream) -> str:
+        """Читает уже доступные строки одним ограниченным куском."""
+        live_buf = []
+        live_buf_len = 0
+        while not self._stop_requested:
+            line = stream.readline()
+            if not line:
+                break
+            live_buf.append(line)
+            live_buf_len += len(line)
+            if live_buf_len >= self.initial_chunk_chars:
+                break
+        return "".join(live_buf)
 
     def run(self):
         try:
@@ -82,9 +96,12 @@ class LogTailWorker(QObject):
                     max_sleep = 1.2
                     idle_sleep = base_sleep
                     while not self._stop_requested:
-                        line = f.readline()
-                        if line:
-                            self.new_lines.emit(line)
+                        # Забираем доступные строки пачкой. При всплеске логов
+                        # это создаёт один сигнал Qt вместо сотен сигналов по
+                        # одной строке и заметно снижает нагрузку на UI-поток.
+                        live_text = self._read_available_text(f)
+                        if live_text:
+                            self.new_lines.emit(live_text)
                             idle_sleep = base_sleep
                         else:
                             time.sleep(idle_sleep)
