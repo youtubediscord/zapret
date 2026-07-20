@@ -67,12 +67,12 @@ class BuildResourceLayoutTests(unittest.TestCase):
         self.assertIn("function ShouldCreateDesktopIcon: Boolean;", iss)
         self.assertIn("HadDesktopShortcut := ChannelDesktopShortcutExists;", iss)
         self.assertIn(
-            r'Name: "{commondesktop}\{#ShortcutName}"; Filename: "{app}\Zapret.exe"; WorkingDir: "{app}"; Check: ShouldCreateDesktopIcon',
+            r'Name: "{commondesktop}\{#ShortcutName}"; Filename: "{app}\_internal\Zapret.exe"; WorkingDir: "{app}"; Check: ShouldCreateDesktopIcon',
             iss,
         )
         self.assertIn('Name: desktopicon; Description: "Создать ярлык на рабочем столе"; Flags: unchecked', iss)
         self.assertNotIn(
-            r'Name: "{commondesktop}\{#ShortcutName}"; Filename: "{app}\Zapret.exe"; Tasks: desktopicon',
+            r'Name: "{commondesktop}\{#ShortcutName}"; Filename: "{app}\_internal\Zapret.exe"; Tasks: desktopicon',
             iss,
         )
 
@@ -152,20 +152,183 @@ class BuildResourceLayoutTests(unittest.TestCase):
         gui = (PRIVATE_ROOT / "build_zapret" / "build_release_gui.py").read_text(encoding="utf-8")
         cli = (PRIVATE_ROOT / "build_zapret" / "build_release_cli.py").read_text(encoding="utf-8")
 
-        self.assertIn('default_build_method = (', gui)
-        self.assertIn('if NUITKA_AVAILABLE and check_nuitka_available()', gui)
-        self.assertIn('text=f"Nuitka {nuitka_status} (рекомендуется)"', gui)
-        self.assertIn('text=f"PyInstaller {pyinstaller_status} (резервный)"', gui)
+        self.assertIn('self.build_method_var = tk.StringVar(value="nuitka")', gui)
+        self.assertIn('value="nuitka"', gui)
+        self.assertIn('value="pyinstaller"', gui)
+        self.assertIn('choices=["pyinstaller", "nuitka"]', cli)
         self.assertIn('default="nuitka"', cli)
 
-    def test_nuitka_installer_removes_previous_pyinstaller_runtime(self) -> None:
+    def test_both_builders_share_one_internal_runtime_layout(self) -> None:
         gui = (PRIVATE_ROOT / "build_zapret" / "build_release_gui.py").read_text(encoding="utf-8")
+        nuitka = (PRIVATE_ROOT / "build_zapret" / "nuitka_builder.py").read_text(encoding="utf-8")
+        pyinstaller = (PRIVATE_ROOT / "build_zapret" / "pyinstaller_builder.py").read_text(encoding="utf-8")
+        paths = (PRIVATE_ROOT / "build_zapret" / "paths.py").read_text(encoding="utf-8")
         installer = self._read_inno_script()
 
-        self.assertIn('(stage_root / "_nuitka_runtime.marker").write_text', gui)
-        self.assertIn('#if FileExists(_NUITKA_RUNTIME_MARKER)', installer)
-        self.assertIn('#ifdef NUITKA_RUNTIME_BUILD', installer)
+        self.assertIn('RUNTIME_DIR_NAME = "_internal"', paths)
+        self.assertIn("target_dir = DIST_RUNTIME_DIR", nuitka)
+        self.assertIn("contents_directory='.'", pyinstaller)
+        self.assertIn("shutil.copytree(exe_path.parent, DIST_RUNTIME_DIR)", pyinstaller)
+        self.assertIn("runtime_stage = stage_root / RUNTIME_DIR_NAME", gui)
+        self.assertNotIn("_nuitka_runtime", gui)
+        self.assertNotIn("_nuitka_runtime", installer)
+        self.assertNotIn(r'Source: "{#SOURCEPATH}\Zapret.exe"', installer)
+        self.assertIn(
+            r'Source: "{#SOURCEPATH}\_internal\*"; DestDir: "{app}\_internal"',
+            installer,
+        )
         self.assertIn('Type: filesandordirs; Name: "{app}\\_internal"', installer)
+        self.assertIn('Type: files; Name: "{app}\\Zapret.exe"', installer)
+        self.assertIn('Type: files; Name: "{app}\\*.dll"', installer)
+        self.assertIn('Type: files; Name: "{app}\\*.pyd"', installer)
+        self.assertIn('Type: filesandordirs; Name: "{app}\\src"', installer)
+
+    def test_fast_deploy_replaces_complete_internal_runtime(self) -> None:
+        gui = (PRIVATE_ROOT / "build_zapret" / "build_release_gui.py").read_text(encoding="utf-8")
+        cli = (PRIVATE_ROOT / "build_zapret" / "build_release_cli.py").read_text(encoding="utf-8")
+
+        self.assertIn('tmp_runtime = dst_runtime.with_name(f"{RUNTIME_DIR_NAME}.new")', gui)
+        self.assertIn("shutil.copytree(src_runtime, tmp_runtime)", gui)
+        self.assertIn("tmp_runtime.rename(dst_runtime)", gui)
+        self.assertNotIn("Синхронизация библиотек Nuitka рядом с Zapret.exe", gui)
+        self.assertNotIn("def publish_exe_to_telegram", gui)
+        self.assertIn("if fast_exe and publish_telegram:", gui)
+        self.assertIn("if options.fast_exe and options.publish_telegram:", cli)
+
+    def test_cli_rejects_publishing_internal_runtime_as_one_exe(self) -> None:
+        build_path = PRIVATE_ROOT / "build_zapret"
+        old_path = list(sys.path)
+        sys.path.insert(0, str(build_path))
+        try:
+            sys.modules.pop("build_release_cli", None)
+            import build_release_cli
+
+            options = build_release_cli.BuildOptions(
+                channel="dev",
+                version="1.2.3.4",
+                notes="test",
+                build_method="nuitka",
+                fast_exe=True,
+                fast_exe_dest=None,
+                publish_telegram=True,
+                telegram_use_socks=False,
+                skip_github=True,
+                github_nonfatal=False,
+                skip_ssh=True,
+                run_installer=False,
+            )
+            builder = build_release_cli.ConsoleReleaseBuilder(options)
+
+            with self.assertRaisesRegex(RuntimeError, "всю папку _internal"):
+                builder._validate_options()
+        finally:
+            sys.modules.pop("build_release_cli", None)
+            sys.path[:] = old_path
+
+    def test_fast_deploy_cleanup_removes_only_old_flat_runtime(self) -> None:
+        build_path = PRIVATE_ROOT / "build_zapret"
+        old_path = list(sys.path)
+        sys.path.insert(0, str(build_path))
+        try:
+            sys.modules.pop("build_release_cli", None)
+            import build_release_cli
+
+            options = build_release_cli.BuildOptions(
+                channel="dev",
+                version="1.2.3.4",
+                notes="test",
+                build_method="nuitka",
+                fast_exe=True,
+                fast_exe_dest=None,
+                publish_telegram=False,
+                telegram_use_socks=False,
+                skip_github=True,
+                github_nonfatal=False,
+                skip_ssh=True,
+                run_installer=False,
+            )
+            builder = build_release_cli.ConsoleReleaseBuilder(options)
+
+            with tempfile.TemporaryDirectory() as temp_dir:
+                app_root = Path(temp_dir) / "Zapret" / "Dev"
+                internal = app_root / "_internal"
+                settings = app_root / "settings"
+                internal.mkdir(parents=True)
+                settings.mkdir()
+                (internal / "Zapret.exe").write_bytes(b"new")
+                (settings / "settings.json").write_text("{}", encoding="utf-8")
+                (app_root / "Zapret.exe").write_bytes(b"old")
+                (app_root / "python314.dll").write_bytes(b"old")
+                (app_root / "_socket.pyd").write_bytes(b"old")
+                (app_root / "base_library.zip").write_bytes(b"old")
+                (app_root / "PyQt6").mkdir()
+                (app_root / "src").mkdir()
+
+                removed = builder._cleanup_legacy_flat_runtime(app_root)
+
+                self.assertEqual(removed, 6)
+                self.assertTrue((internal / "Zapret.exe").is_file())
+                self.assertTrue((settings / "settings.json").is_file())
+                self.assertFalse((app_root / "Zapret.exe").exists())
+                self.assertFalse((app_root / "python314.dll").exists())
+                self.assertFalse((app_root / "_socket.pyd").exists())
+                self.assertFalse((app_root / "base_library.zip").exists())
+                self.assertFalse((app_root / "PyQt6").exists())
+                self.assertFalse((app_root / "src").exists())
+        finally:
+            sys.modules.pop("build_release_cli", None)
+            sys.path[:] = old_path
+
+    def test_installer_stage_keeps_runtime_only_inside_internal(self) -> None:
+        build_path = PRIVATE_ROOT / "build_zapret"
+        old_path = list(sys.path)
+        sys.path.insert(0, str(build_path))
+        try:
+            sys.modules.pop("build_release_cli", None)
+            import build_release_cli
+
+            options = build_release_cli.BuildOptions(
+                channel="dev",
+                version="1.2.3.4",
+                notes="test",
+                build_method="nuitka",
+                fast_exe=False,
+                fast_exe_dest=None,
+                publish_telegram=False,
+                telegram_use_socks=False,
+                skip_github=True,
+                github_nonfatal=False,
+                skip_ssh=True,
+                run_installer=False,
+            )
+            builder = build_release_cli.ConsoleReleaseBuilder(options)
+
+            with tempfile.TemporaryDirectory() as temp_dir:
+                temp_root = Path(temp_dir)
+                source_root = temp_root / "source"
+                runtime_root = temp_root / "runtime"
+                stage_root = temp_root / "stage"
+                source_root.mkdir()
+                runtime_root.mkdir()
+                (runtime_root / "Zapret.exe").write_bytes(b"exe")
+                (runtime_root / "python314.dll").write_bytes(b"dll")
+
+                builder._source_root = lambda: source_root
+                builder._built_runtime_root = lambda: runtime_root
+                builder._installer_stage_root = lambda: stage_root
+                builder._copy_installer_icon_resources = lambda _stage: None
+                builder._materialize_installer_managed_lists = lambda _stage: None
+
+                prepared = builder._prepare_installer_source_root()
+
+                self.assertEqual(prepared, stage_root)
+                self.assertTrue((stage_root / "_internal" / "Zapret.exe").is_file())
+                self.assertTrue((stage_root / "_internal" / "python314.dll").is_file())
+                self.assertFalse((stage_root / "Zapret.exe").exists())
+                self.assertFalse((stage_root / "python314.dll").exists())
+        finally:
+            sys.modules.pop("build_release_cli", None)
+            sys.path[:] = old_path
 
     def test_inno_installs_only_required_ico_resources(self) -> None:
         iss = self._read_inno_script()
@@ -174,7 +337,7 @@ class BuildResourceLayoutTests(unittest.TestCase):
         self.assertIn(r'Source: "{#SOURCEPATH}\ico\Zapret2.ico"; DestDir: "{app}\ico"', iss)
         self.assertIn(r'Source: "{#SOURCEPATH}\ico\ZapretDevLogo4.ico"; DestDir: "{app}\ico"', iss)
         self.assertIn(
-            r'Source: "{#PUBLICSRC}\ico\windows11_fluent\sidebar\*.svg"; DestDir: "{app}\src\ico\windows11_fluent\sidebar"',
+            r'Source: "{#PUBLICSRC}\ico\windows11_fluent\sidebar\*.svg"; DestDir: "{app}\ico\windows11_fluent\sidebar"',
             iss,
         )
 

@@ -124,7 +124,7 @@ class HostsCatalogJsonTests(unittest.TestCase):
         )
         return catalog_dir
 
-    def test_source_mode_uses_repo_json_hosts_catalog_path(self) -> None:
+    def test_build_tool_import_uses_repo_json_hosts_catalog_path(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             fake_module = root / "public_zapretgui" / "src" / "hosts" / "proxy_domains.py"
@@ -137,7 +137,7 @@ class HostsCatalogJsonTests(unittest.TestCase):
                     root / "private_zapretgui" / "resources" / "json" / "hosts_catalog",
                 )
 
-    def test_source_mode_uses_split_hosts_catalog_directory(self) -> None:
+    def test_build_tool_import_uses_split_hosts_catalog_directory(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             fake_module = root / "public_zapretgui" / "src" / "hosts" / "proxy_domains.py"
@@ -148,6 +148,19 @@ class HostsCatalogJsonTests(unittest.TestCase):
                 self.assertEqual(
                     self.proxy_domains.get_hosts_catalog_path(),
                     root / "private_zapretgui" / "resources" / "json" / "hosts_catalog",
+                )
+
+    def test_packaged_runtime_reads_catalog_from_installation_root(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            install_root = Path(tmp) / "Zapret" / "Dev"
+
+            with (
+                patch.object(self.proxy_domains, "PACKAGED_RUNTIME", True),
+                patch.object(self.proxy_domains, "MAIN_DIRECTORY", str(install_root)),
+            ):
+                self.assertEqual(
+                    self.proxy_domains.get_hosts_catalog_path(),
+                    install_root / "json" / "hosts_catalog",
                 )
 
     def test_split_catalog_reads_dns_sources_and_hosts_files(self) -> None:

@@ -7,7 +7,6 @@
 from __future__ import annotations
 
 import json
-import sys
 import threading
 import time
 import zlib
@@ -15,6 +14,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from config.config import MAIN_DIRECTORY
+from config.runtime_layout import PACKAGED_RUNTIME
 from settings import store as settings_store
 
 
@@ -68,17 +68,18 @@ def _get_app_root() -> Path:
     """
     Возвращает корень для hosts-каталога.
 
-    - source-режим: общий корень zapretgui, где лежит private_zapretgui;
-    - exe-сборка: папка, где лежит exe.
+    В собранном приложении это корень установки над `_internal`.
+    Вторая ветка нужна только для тестов и инструментов сборки;
+    запуск самого приложения из исходников запрещён в `main.py`.
     """
-    if getattr(sys, "frozen", False):
+    if PACKAGED_RUNTIME:
         return Path(MAIN_DIRECTORY)
     return Path(__file__).resolve().parents[3]
 
 
 def _get_hosts_catalog_candidates() -> list[Path]:
     root = _get_app_root()
-    if getattr(sys, "frozen", False):
+    if PACKAGED_RUNTIME:
         json_root = root / "json"
     else:
         json_root = root / "private_zapretgui" / "resources" / "json"

@@ -40,25 +40,6 @@ Directory contents: {os.listdir(app_dir) if os.path.exists(app_dir) else 'N/A'}
             handle.write(traceback.format_exc())
 
 
-def _require_frozen() -> None:
-    is_frozen = getattr(sys, "frozen", False) or ("__compiled__" in globals())
-    if is_frozen:
-        return
-
-    try:
-        import ctypes
-
-        ctypes.windll.user32.MessageBoxW(
-            0,
-            "Запустите программу через Zapret.exe\n\nЗапуск напрямую из исходников не поддерживается.",
-            "Zapret — Ошибка запуска",
-            0x10,
-        )
-    except Exception:
-        print("ERROR: Запуск из исходников не поддерживается. Используйте Zapret.exe")
-    sys.exit(1)
-
-
 def _install_crash_handler() -> None:
     from log.crash_handler import install_crash_handler
 
@@ -92,7 +73,6 @@ def prepare_prelaunch() -> None:
         return
 
     _set_workdir_to_app()
-    _require_frozen()
     _install_crash_handler()
     install_pyinstaller_archive_import_lock()
     _preload_slow_modules()

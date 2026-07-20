@@ -132,9 +132,6 @@ class Logger:
 
         self.verbose_logging = _is_verbose_logging_enabled()
 
-        base_dir = os.path.dirname(
-            os.path.abspath(sys.executable if getattr(sys, "frozen", False) else __file__)
-        )
         from config.config import LOGS_FOLDER
 
 

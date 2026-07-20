@@ -2,17 +2,17 @@
 # https://github.com/ankddev/zapret-discord-youtube
 
 #config/config.py
-import os, sys
+import os
+
+from config.runtime_layout import APPLICATION_ROOT
 
 # ═══════════════════════════════════════════════════════════════════
 # ОСНОВНАЯ ПАПКА ПРОГРАММЫ
 # ═══════════════════════════════════════════════════════════════════
-# В exe-сборке папка программы определяется по exe-файлу.
-# В source-режиме это корень репозитория public_zapretgui.
-if getattr(sys, "frozen", False):
-    MAIN_DIRECTORY = os.path.dirname(sys.executable)
-else:
-    MAIN_DIRECTORY = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Единственный источник истины для собранного приложения.
+# Импорт из исходников допустим только для тестов и сборочных инструментов.
+# В установленной сборке ресурсы принадлежат корню над `_internal`.
+MAIN_DIRECTORY = str(APPLICATION_ROOT)
 
 # Канал сборки (для информации)
 from config.build_info import CHANNEL

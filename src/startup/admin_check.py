@@ -1,7 +1,6 @@
 # admin_utils.py - ИСПРАВЛЕННАЯ ВЕРСИЯ
 import ctypes
 import sys
-import os
 from log.log import log
 
 
@@ -54,13 +53,9 @@ def request_admin_restart(
         try:
             args = sys.argv[1:] + ["--elevated"]
             params = " ".join(f'"{arg}"' if " " in arg else arg for arg in args)
-
-            if getattr(sys, 'frozen', False):
-                exe_path = sys.executable
-            else:
-                exe_path = sys.executable
-                script_path = os.path.abspath(sys.argv[0])
-                params = f'"{script_path}" {params}'
+            # Приложение запускается только из собранного Zapret.exe.
+            # Путь к Python-сценарию здесь не поддерживаем.
+            exe_path = sys.executable
 
             log(f"Запуск с правами администратора: {exe_path} {params}", level="INFO")
 
