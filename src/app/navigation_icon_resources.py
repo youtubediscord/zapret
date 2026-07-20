@@ -2,11 +2,15 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from config.runtime_layout import APPLICATION_ROOT
+from config.runtime_layout import APPLICATION_ROOT, PACKAGED_RUNTIME
 
 
 def _resource_roots() -> tuple[Path, ...]:
-    roots = [APPLICATION_ROOT, Path.cwd()]
+    # В установке ico лежит в корне над `_internal`.
+    # Импорты для тестов/сборки читают те же ресурсы из `src`;
+    # это не разрешает запуск самого приложения из исходников.
+    resource_root = APPLICATION_ROOT if PACKAGED_RUNTIME else APPLICATION_ROOT / "src"
+    roots = [resource_root, Path.cwd()]
     return tuple(dict.fromkeys(roots))
 
 
