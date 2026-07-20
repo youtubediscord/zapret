@@ -29,6 +29,7 @@ class StrategyScanWorker(QObject):
         shutdown_sync: Callable[..., object],
         start_run_log: Callable[..., object],
         append_run_log: Callable[[object, str], None],
+        close_run_log: Callable[[object], None],
         parent=None,
     ):
         super().__init__(parent)
@@ -39,6 +40,7 @@ class StrategyScanWorker(QObject):
         self._shutdown_sync = shutdown_sync
         self._start_run_log_action = start_run_log
         self._append_run_log_action = append_run_log
+        self._close_run_log_action = close_run_log
         try:
             self._start_index = max(0, int(start_index))
         except Exception:
@@ -52,6 +54,7 @@ class StrategyScanWorker(QObject):
     def run(self):
         self._cancelled = False
         self._running = True
+        report = None
         try:
             self._start_run_log()
             from blockcheck.strategy_scanner import StrategyScanner
@@ -67,16 +70,19 @@ class StrategyScanWorker(QObject):
             )
             report = self._scanner.run()
             self._drain_pending_log_messages()
-            self.scan_finished.emit(report)
-            self.finished.emit(report)
         except Exception as e:
             logger.exception("StrategyScanWorker crashed")
             self._append_run_log(f"ERROR: {e}")
             self.scan_log.emit(f"ERROR: {e}")
-            self.scan_finished.emit(None)
-            self.finished.emit(None)
         finally:
+            self._drain_pending_log_messages()
+            try:
+                self._close_run_log_action(self._run_log_file)
+            except Exception:
+                pass
             self._running = False
+        self.scan_finished.emit(report)
+        self.finished.emit(report)
 
     def stop(self):
         self._cancelled = True

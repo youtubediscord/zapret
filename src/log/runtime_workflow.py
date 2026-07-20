@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+
 
 def run_logs_runtime_init(
     *,
@@ -9,7 +11,7 @@ def run_logs_runtime_init(
     runtime_started: bool,
     schedule_fn,
     update_stats_fn,
-    start_tail_worker_fn,
+    start_log_source_fn,
 ) -> tuple[bool, bool]:
     next_runtime_initialized = bool(runtime_initialized)
     next_runtime_started = bool(runtime_started)
@@ -22,61 +24,107 @@ def run_logs_runtime_init(
 
     if not next_runtime_started:
         next_runtime_started = True
-        start_tail_worker_fn()
+        start_log_source_fn()
 
     return next_runtime_initialized, next_runtime_started
 
 
-def start_tail_worker(
+def start_live_log_source(
     *,
-    current_log_file: str,
-    previous_signature,
-    set_tail_signature_fn,
-    stop_worker_fn,
-    build_tail_start_plan_fn,
+    active_log_file: str,
+    after_sequence: int | None,
+    should_reset_view: bool,
+    create_bridge_fn,
+    on_new_text,
+    set_bridge_fn,
+    set_cursor_fn,
+    set_displayed_file_fn,
     set_info_text_fn,
     clear_log_view_fn,
-    tail_runtime,
-    parent,
-    create_worker_fn,
-    on_new_lines,
+    append_text_fn,
     log_fn,
 ):
-    stop_worker_fn()
-    plan = build_tail_start_plan_fn(
-        current_log_file=current_log_file,
+    bridge = None
+    try:
+        bridge = create_bridge_fn(
+            after_sequence=None if should_reset_view else after_sequence,
+            on_new_text=on_new_text,
+        )
+        snapshot = bridge.snapshot
+        set_bridge_fn(bridge)
+        if should_reset_view or snapshot.reset_required:
+            clear_log_view_fn()
+        set_info_text_fn(f"📄 {os.path.basename(active_log_file)}")
+        if snapshot.text:
+            append_text_fn(snapshot.text)
+        set_cursor_fn(snapshot.last_sequence)
+        set_displayed_file_fn(active_log_file)
+        return bridge
+    except Exception as exc:
+        if bridge is not None:
+            try:
+                bridge.close()
+            except Exception:
+                pass
+        log_fn(f"Ошибка подключения живого журнала: {exc}", "ERROR")
+        return None
+
+
+def start_log_file_reader(
+    *,
+    selected_log_file: str,
+    previous_signature,
+    set_file_signature_fn,
+    build_file_read_plan_fn,
+    set_info_text_fn,
+    clear_log_view_fn,
+    reader_runtime,
+    parent,
+    create_reader_fn,
+    on_new_lines,
+    set_displayed_file_fn,
+    log_fn,
+):
+    plan = build_file_read_plan_fn(
+        current_log_file=selected_log_file,
         previous_signature=previous_signature,
     )
     if not plan.should_start:
-        return None, None
+        return False
 
     if plan.should_clear_view:
         clear_log_view_fn()
     set_info_text_fn(plan.info_text)
 
     try:
-        def create_tail_worker(_request_id):
-            return create_worker_fn(plan.file_path, initial_max_bytes=plan.initial_max_bytes)
+        def create_reader(_request_id):
+            return create_reader_fn(plan.file_path, max_bytes=plan.max_bytes)
 
-        def bind_tail_worker(worker):
+        def bind_reader(worker):
             worker.new_lines.connect(on_new_lines)
 
-        tail_runtime.start_qobject_worker(
+        reader_runtime.start_qobject_worker(
             parent=parent,
-            worker_factory=create_tail_worker,
-            bind_worker=bind_tail_worker,
+            worker_factory=create_reader,
+            bind_worker=bind_reader,
         )
-        set_tail_signature_fn(plan.file_signature)
+        set_file_signature_fn(plan.file_signature)
+        set_displayed_file_fn(plan.file_path)
         return True
     except Exception as e:
-        log_fn(f"Ошибка запуска log tail worker: {e}", "ERROR")
+        log_fn(f"Ошибка запуска чтения файла лога: {e}", "ERROR")
         return False
 
 
-def stop_tail_worker(*, tail_runtime, blocking: bool, log_fn, warning_prefix: str):
-    tail_runtime.stop(
+def stop_log_source(*, live_bridge, reader_runtime, blocking: bool, log_fn, warning_prefix: str):
+    if live_bridge is not None:
+        try:
+            live_bridge.close()
+        except Exception as exc:
+            log_fn(f"Ошибка отключения живого журнала: {exc}", "DEBUG")
+    reader_runtime.stop(
         blocking=blocking,
         log_fn=log_fn,
         warning_prefix=warning_prefix,
     )
-    tail_runtime.cancel()
+    reader_runtime.cancel()

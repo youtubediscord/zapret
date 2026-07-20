@@ -55,19 +55,25 @@ class BlockcheckWorkerArchitectureTests(unittest.TestCase):
 
         self.assertIn("start_run_log=self.start_blockcheck_run_log", feature_source)
         self.assertIn("append_run_log=self.append_blockcheck_run_log", feature_source)
+        self.assertIn("close_run_log=self.close_blockcheck_run_log", feature_source)
         self.assertIn("start_run_log=start_blockcheck_run_log", command_factory_source)
         self.assertIn("append_run_log=append_blockcheck_run_log", command_factory_source)
+        self.assertIn("close_run_log=close_blockcheck_run_log", command_factory_source)
         self.assertIn("_start_run_log", worker_source)
         self.assertIn("_append_run_log_action", worker_source)
+        self.assertIn("_close_run_log_action", worker_source)
         self.assertNotIn("blockcheck.commands", worker_source)
 
-    def test_blockcheck_run_log_file_io_lives_in_commands_not_page_runtime(self) -> None:
+    def test_blockcheck_run_log_file_io_lives_in_session_registry_not_page_runtime(self) -> None:
         commands_source = inspect.getsource(blockcheck_commands)
         page_runtime_source = inspect.getsource(blockcheck_page_runtime)
 
         self.assertIn("def start_blockcheck_run_log", commands_source)
         self.assertIn("def append_blockcheck_run_log", commands_source)
-        self.assertIn("with open(", commands_source)
+        self.assertIn("run_log_sessions.start", commands_source)
+        self.assertIn("run_log_sessions.append", commands_source)
+        self.assertIn("run_log_sessions.close", commands_source)
+        self.assertNotIn("with open(", inspect.getsource(blockcheck_commands.append_blockcheck_run_log))
 
         self.assertNotIn("with open(", page_runtime_source)
         self.assertNotIn("os.makedirs(", page_runtime_source)
@@ -79,10 +85,13 @@ class BlockcheckWorkerArchitectureTests(unittest.TestCase):
 
         self.assertIn("start_run_log=self.start_strategy_scan_run_log", feature_source)
         self.assertIn("append_run_log=self.append_strategy_scan_run_log", feature_source)
+        self.assertIn("close_run_log=self.close_strategy_scan_run_log", feature_source)
         self.assertIn("start_run_log=start_strategy_scan_run_log", command_factory_source)
         self.assertIn("append_run_log=append_strategy_scan_run_log", command_factory_source)
+        self.assertIn("close_run_log=close_strategy_scan_run_log", command_factory_source)
         self.assertIn("_start_run_log_action", worker_source)
         self.assertIn("_append_run_log_action", worker_source)
+        self.assertIn("_close_run_log_action", worker_source)
         self.assertNotIn("blockcheck.commands", worker_source)
 
     def test_strategy_scan_worker_exposes_finished_signal_for_shared_runtime(self) -> None:
@@ -91,7 +100,8 @@ class BlockcheckWorkerArchitectureTests(unittest.TestCase):
         self.assertTrue(hasattr(strategy_scan_worker.StrategyScanWorker, "finished"))
         self.assertIn("finished = pyqtSignal(object)", worker_source)
         self.assertIn("self.finished.emit(report)", worker_source)
-        self.assertIn("self.finished.emit(None)", worker_source)
+        run_source = inspect.getsource(strategy_scan_worker.StrategyScanWorker.run)
+        self.assertLess(run_source.index("_close_run_log_action"), run_source.index("self.finished.emit(report)"))
 
     def test_blockcheck_run_workers_leave_thread_ownership_to_shared_runtime(self) -> None:
         worker_sources = "\n".join(

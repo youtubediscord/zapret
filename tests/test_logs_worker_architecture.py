@@ -168,22 +168,25 @@ class LogsWorkerArchitectureTests(unittest.TestCase):
         )
         page._logs_overview_runtime.cancel.assert_called_once()
 
-    def test_stop_tail_worker_cancels_runtime_after_stop_request(self) -> None:
-        tail_runtime = Mock()
+    def test_stop_log_source_cancels_reader_and_closes_live_bridge(self) -> None:
+        reader_runtime = Mock()
+        live_bridge = Mock()
 
-        log_runtime_workflow.stop_tail_worker(
-            tail_runtime=tail_runtime,
+        log_runtime_workflow.stop_log_source(
+            live_bridge=live_bridge,
+            reader_runtime=reader_runtime,
             blocking=False,
             log_fn=logs_page.log,
-            warning_prefix="Log tail worker",
+            warning_prefix="Log file reader",
         )
 
-        tail_runtime.stop.assert_called_once_with(
+        live_bridge.close.assert_called_once_with()
+        reader_runtime.stop.assert_called_once_with(
             blocking=False,
             log_fn=logs_page.log,
-            warning_prefix="Log tail worker",
+            warning_prefix="Log file reader",
         )
-        tail_runtime.cancel.assert_called_once()
+        reader_runtime.cancel.assert_called_once()
 
     def test_support_prepare_pending_restarts_after_event_loop_turn(self) -> None:
         page = logs_page.LogsPage.__new__(logs_page.LogsPage)
@@ -328,7 +331,7 @@ class LogsWorkerArchitectureTests(unittest.TestCase):
         page._open_folder_start_scheduled = True
         page._pending_log_text_append = "old log"
         page._log_text_append_scheduled = True
-        page._stop_tail_worker = Mock()
+        page._stop_log_source = Mock()
 
         logs_page.LogsPage.cleanup(page)
 
@@ -347,7 +350,7 @@ class LogsWorkerArchitectureTests(unittest.TestCase):
             warning_prefix="Logs open folder worker",
         )
         page._open_folder_runtime.cancel.assert_called_once()
-        page._stop_tail_worker.assert_called_once_with(blocking=False)
+        page._stop_log_source.assert_called_once_with(blocking=False)
 
     def test_copy_log_uses_cached_text_without_reading_log_widget(self) -> None:
         class LogText:
@@ -367,7 +370,7 @@ class LogsWorkerArchitectureTests(unittest.TestCase):
         clipboard.setText.assert_called_once_with("cached log")
         page._set_info_text.assert_called_once()
 
-    def test_log_tail_text_appends_are_coalesced_for_next_gui_turn(self) -> None:
+    def test_log_text_appends_are_coalesced_for_next_gui_turn(self) -> None:
         class ScrollBar:
             def value(self):
                 return 10

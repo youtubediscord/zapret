@@ -27,6 +27,7 @@ class BlockcheckFeature:
         return BlockcheckWorker(
             start_run_log=self.start_blockcheck_run_log,
             append_run_log=self.append_blockcheck_run_log,
+            close_run_log=self.close_blockcheck_run_log,
             **kwargs,
         )
 
@@ -37,6 +38,7 @@ class BlockcheckFeature:
             shutdown_sync=shutdown_sync,
             start_run_log=self.start_strategy_scan_run_log,
             append_run_log=self.append_strategy_scan_run_log,
+            close_run_log=self.close_strategy_scan_run_log,
             **kwargs,
         )
 
@@ -126,11 +128,17 @@ class BlockcheckFeature:
     def append_blockcheck_run_log(self, *args, **kwargs) -> None:
         return self._worker_commands().append_blockcheck_run_log(*args, **kwargs)
 
+    def close_blockcheck_run_log(self, *args, **kwargs) -> None:
+        return self._worker_commands().close_blockcheck_run_log(*args, **kwargs)
+
     def start_strategy_scan_run_log(self, *args, **kwargs):
         return self._worker_commands().start_strategy_scan_run_log(*args, **kwargs)
 
     def append_strategy_scan_run_log(self, *args, **kwargs) -> None:
         return self._worker_commands().append_strategy_scan_run_log(*args, **kwargs)
+
+    def close_strategy_scan_run_log(self, *args, **kwargs) -> None:
+        return self._worker_commands().close_strategy_scan_run_log(*args, **kwargs)
 
     def prepare_support(self, *args, **kwargs):
         return self._worker_commands().prepare_support(*args, **kwargs)

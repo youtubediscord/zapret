@@ -269,7 +269,7 @@ class BackendPageDataWarmupTests(unittest.TestCase):
         page._apply_logs_list_state = Mock(side_effect=lambda *_args, **_kwargs: calls.append("cached_logs"))
         page._apply_logs_stats_state = Mock(side_effect=lambda *_args, **_kwargs: calls.append("cached_stats"))
         page._update_stats = Mock()
-        page._start_tail_worker = Mock()
+        page._start_log_source = Mock()
         page._log_ui_timing = Mock()
 
         LogsPage._run_runtime_init_once(page)

@@ -44,8 +44,18 @@ class LogsFeature:
     def open_logs_folder(self) -> None:
         return self._commands().open_logs_folder()
 
-    def create_log_tail_worker(self, file_path: str, *, initial_max_bytes: int | None = 1024 * 1024):
-        return self._commands().create_log_tail_worker(file_path, initial_max_bytes=initial_max_bytes)
+    def create_log_file_reader_worker(self, file_path: str, *, max_bytes: int | None = 1024 * 1024):
+        return self._commands().create_log_file_reader_worker(file_path, max_bytes=max_bytes)
+
+    def create_live_log_bridge(self, *, after_sequence: int | None, on_new_text, parent=None):
+        return self._commands().create_live_log_bridge(
+            after_sequence=after_sequence,
+            on_new_text=on_new_text,
+            parent=parent,
+        )
+
+    def is_same_log_file(self, first_path: str, second_path: str) -> bool:
+        return self._commands().is_same_log_file(first_path, second_path)
 
     def create_logs_overview_worker(self, *, run_cleanup: bool):
         return self._commands().create_logs_overview_worker(run_cleanup=run_cleanup)
@@ -77,8 +87,8 @@ class LogsFeature:
             parent=parent,
         )
 
-    def build_tail_start_plan(self, *, current_log_file: str, previous_signature=None):
-        return self._commands().build_tail_start_plan(
+    def build_file_read_plan(self, *, current_log_file: str, previous_signature=None):
+        return self._commands().build_file_read_plan(
             current_log_file=current_log_file,
             previous_signature=previous_signature,
         )
@@ -95,11 +105,14 @@ class LogsFeature:
     def run_runtime_init(self, **kwargs):
         return self._runtime().run_logs_runtime_init(**kwargs)
 
-    def start_tail_worker(self, **kwargs):
-        return self._runtime().start_tail_worker(**kwargs)
+    def start_live_log_source(self, **kwargs):
+        return self._runtime().start_live_log_source(**kwargs)
 
-    def stop_tail_worker(self, **kwargs):
-        return self._runtime().stop_tail_worker(**kwargs)
+    def start_log_file_reader(self, **kwargs):
+        return self._runtime().start_log_file_reader(**kwargs)
+
+    def stop_log_source(self, **kwargs):
+        return self._runtime().stop_log_source(**kwargs)
 
 
 def build_logs_feature() -> LogsFeature:

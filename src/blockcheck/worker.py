@@ -28,6 +28,7 @@ class BlockcheckWorker(QObject):
         *,
         start_run_log: Callable[[str, list[str]], object],
         append_run_log: Callable[[str | None, str], None],
+        close_run_log: Callable[[str | None], None],
         parent=None,
     ):
         super().__init__(parent)
@@ -36,6 +37,7 @@ class BlockcheckWorker(QObject):
         self._skip_preflight_failed = skip_preflight_failed
         self._start_run_log = start_run_log
         self._append_run_log_action = append_run_log
+        self._close_run_log_action = close_run_log
         self._runner = None
         self._cancelled = False
         self._run_log_file = None
@@ -44,6 +46,7 @@ class BlockcheckWorker(QObject):
     def run(self):
         self._cancelled = False
         self._running = True
+        report = None
         try:
             from blockcheck.runner import BlockcheckRunner
 
@@ -63,14 +66,17 @@ class BlockcheckWorker(QObject):
             if report is not None and not getattr(report, "cancelled", False):
                 elapsed = getattr(report, "elapsed_seconds", 0.0)
                 self._append_run_log(f"\nCompleted in {elapsed:.1f}s")
-            self.finished.emit(report)
         except Exception as e:
             logger.exception("BlockcheckWorker crashed")
             self._append_run_log(f"ERROR: {e}")
             self.log_message.emit(f"ERROR: {e}")
-            self.finished.emit(None)
         finally:
+            try:
+                self._close_run_log_action(self._run_log_file)
+            except Exception:
+                pass
             self._running = False
+        self.finished.emit(report)
 
     def stop(self):
         self._cancelled = True

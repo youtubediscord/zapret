@@ -58,6 +58,8 @@ from log.log import log
 ERROR_PATTERNS = [
     r'\[❌ ERROR\]',           # Наш формат ошибок
     r'\[❌ CRITICAL\]',        # Критические ошибки
+    r'\[ERROR\]',             # Обычный log(..., "ERROR") и logging
+    r'\[CRITICAL\]',          # Обычный CRITICAL без значка
     r'AttributeError:',        # Python ошибки атрибутов
     r'TypeError:',             # Python ошибки типов
     r'ValueError:',            # Python ошибки значений
@@ -147,7 +149,10 @@ class LogsPage(BasePage):
         self._logs = logs_feature
         self._orchestra = orchestra_feature
         self.current_log_file = self._logs.get_current_log_file()
-        self._tail_file_signature = None
+        self._log_file_signature = None
+        self._displayed_log_file = None
+        self._live_log_cursor = None
+        self._live_log_bridge = None
         self._latest_logs_state = None
         self._error_pattern = re.compile('|'.join(ERROR_PATTERNS))
         self._exclude_pattern = re.compile('|'.join(EXCLUDE_PATTERNS), re.IGNORECASE)
@@ -171,7 +176,7 @@ class LogsPage(BasePage):
         self._logs_overview_runtime = OneShotWorkerRuntime()
         self._logs_overview_pending_cleanup = False
         self._logs_overview_restart_scheduled = False
-        self._tail_runtime = OneShotWorkerRuntime()
+        self._log_reader_runtime = OneShotWorkerRuntime()
         self._log_text_cache_lines = deque(maxlen=MAIN_LOG_VIEW_MAX_LINES)
         self._pending_log_text_append = ""
         self._log_text_append_scheduled = False
@@ -225,7 +230,7 @@ class LogsPage(BasePage):
             runtime_started=self._runtime_started,
             schedule_fn=QTimer.singleShot,
             update_stats_fn=self._update_stats,
-            start_tail_worker_fn=self._start_tail_worker,
+            start_log_source_fn=self._start_log_source,
         )
         self._log_ui_timing("logs_ui.runtime_init.total", started_at)
 
@@ -243,7 +248,7 @@ class LogsPage(BasePage):
 
     def _stop_runtime(self) -> None:
         self._stop_logs_overview_worker(blocking=False)
-        self._stop_tail_worker(blocking=False)
+        self._stop_log_source(blocking=False)
         self._runtime_started = False
 
     def on_page_activated(self) -> None:
@@ -1261,32 +1266,67 @@ class LogsPage(BasePage):
         if log_path and log_path != self.current_log_file:
             self.current_log_file = str(log_path)
             self._update_logs_table_accessibility(display, count=table.rowCount())
-            self._start_tail_worker()
-            
-    def _start_tail_worker(self):
-        """Запускает worker для чтения лога"""
-        self._logs.start_tail_worker(
-            current_log_file=self.current_log_file,
-            previous_signature=self._tail_file_signature,
-            set_tail_signature_fn=lambda value: setattr(self, "_tail_file_signature", value),
-            stop_worker_fn=self._stop_tail_worker,
-            build_tail_start_plan_fn=self._logs.build_tail_start_plan,
+            self._start_log_source()
+
+    def _start_log_source(self):
+        """Подключает живой журнал или разово читает выбранный старый файл."""
+        self._stop_log_source(blocking=False)
+        active_log_file = self._logs.get_current_log_file()
+        if self._logs.is_same_log_file(self.current_log_file, active_log_file):
+            should_reset_view = not self._logs.is_same_log_file(
+                self._displayed_log_file,
+                active_log_file,
+            )
+            self._logs.start_live_log_source(
+                active_log_file=active_log_file,
+                after_sequence=self._live_log_cursor,
+                should_reset_view=should_reset_view,
+                create_bridge_fn=lambda **kwargs: self._logs.create_live_log_bridge(parent=self, **kwargs),
+                on_new_text=self._on_live_log_text,
+                set_bridge_fn=lambda value: setattr(self, "_live_log_bridge", value),
+                set_cursor_fn=lambda value: setattr(self, "_live_log_cursor", value),
+                set_displayed_file_fn=lambda value: setattr(self, "_displayed_log_file", value),
+                set_info_text_fn=self._set_info_text,
+                clear_log_view_fn=self._clear_log_view_silent,
+                append_text_fn=self._append_text,
+                log_fn=log,
+            )
+            return
+
+        self._logs.start_log_file_reader(
+            selected_log_file=self.current_log_file,
+            previous_signature=self._log_file_signature,
+            set_file_signature_fn=lambda value: setattr(self, "_log_file_signature", value),
+            build_file_read_plan_fn=self._logs.build_file_read_plan,
             set_info_text_fn=self._set_info_text,
             clear_log_view_fn=self._clear_log_view_silent,
-            tail_runtime=self._tail_runtime,
+            reader_runtime=self._log_reader_runtime,
             parent=self,
-            create_worker_fn=self._logs.create_log_tail_worker,
+            create_reader_fn=self._logs.create_log_file_reader_worker,
             on_new_lines=self._append_text,
+            set_displayed_file_fn=lambda value: setattr(self, "_displayed_log_file", value),
             log_fn=log,
         )
-            
-    def _stop_tail_worker(self, blocking: bool = False):
-        """Останавливает worker (неблокирующий по умолчанию)"""
-        self._logs.stop_tail_worker(
-            tail_runtime=self._tail_runtime,
+
+    def _on_live_log_text(self, sequence: int, text: str) -> None:
+        if self._cleanup_in_progress or self._live_log_bridge is None:
+            return
+        cursor = self._live_log_cursor
+        if cursor is not None and int(sequence) <= int(cursor):
+            return
+        self._live_log_cursor = int(sequence)
+        self._append_text(text)
+
+    def _stop_log_source(self, blocking: bool = False):
+        """Отключает источник без ожидания и без постоянного опроса файла."""
+        bridge = self.__dict__.get("_live_log_bridge")
+        self._live_log_bridge = None
+        self._logs.stop_log_source(
+            live_bridge=bridge,
+            reader_runtime=self._log_reader_runtime,
             blocking=blocking,
             log_fn=log,
-            warning_prefix="Log tail worker",
+            warning_prefix="Log file reader",
         )
 
     def _append_text(self, text: str):
@@ -1596,4 +1636,4 @@ class LogsPage(BasePage):
             warning_prefix="Logs open folder worker",
         )
         self._open_folder_runtime.cancel()
-        self._stop_tail_worker(blocking=False)
+        self._stop_log_source(blocking=False)

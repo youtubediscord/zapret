@@ -493,7 +493,7 @@ class LogsAccessibilityTests(unittest.TestCase):
         page.current_log_file = "C:/Zapret/Dev/logs/old.log"
         page.logs_table = logs_page.TableWidget()
         page.info_label = _FakeLabel()
-        page._start_tail_worker = lambda: None
+        page._start_log_source = lambda: None
         self.addCleanup(page.logs_table.deleteLater)
 
         logs_page.LogsPage._apply_logs_list_state(

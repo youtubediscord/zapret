@@ -7,6 +7,7 @@ from config.runtime_layout import APPLICATION_PATHS
 from support_request_actions import prepare_strategy_scan_support_request
 from blockcheck.strategy_scan_resume import resume_state_path
 from blockcheck.strategy_scan_state import StrategyScanRunLogState
+from log.run_log_sessions import run_log_sessions
 
 def _sanitize_slug(value: str, fallback: str) -> str:
     raw = (value or "").strip().lower()
@@ -73,35 +74,26 @@ def start_run_log(
         if path in tried:
             continue
         tried.add(path)
-        try:
-            path.parent.mkdir(parents=True, exist_ok=True)
-            with path.open("w", encoding="utf-8-sig") as f:
-                f.write(f"=== Strategy Scan Run Log ({datetime.now():%Y-%m-%d %H:%M:%S}) ===\n")
-                f.write(f"Mode: {mode}\n")
-                f.write(f"Protocol: {scan_protocol}\n")
-                if scan_protocol == "udp_games":
-                    f.write(f"UDP games scope: {udp_games_scope}\n")
-                f.write(f"Target: {target}\n")
-                f.write(f"Resume index: {max(0, int(resume_index))}\n")
-                f.write("=" * 70 + "\n\n")
+        header = (
+            f"=== Strategy Scan Run Log ({datetime.now():%Y-%m-%d %H:%M:%S}) ===\n"
+            f"Mode: {mode}\n"
+            f"Protocol: {scan_protocol}\n"
+        )
+        if scan_protocol == "udp_games":
+            header += f"UDP games scope: {udp_games_scope}\n"
+        header += (
+            f"Target: {target}\n"
+            f"Resume index: {max(0, int(resume_index))}\n"
+            f"{'=' * 70}\n\n"
+        )
+        if run_log_sessions.start(path, header):
             return StrategyScanRunLogState(path=path, created=True)
-        except Exception:
-            continue
 
     return StrategyScanRunLogState(path=None, created=False)
 
 
 def append_run_log(path: Path | None, message: str) -> None:
-    if path is None:
-        return
-    try:
-        text = str(message or "")
-        if not text.endswith("\n"):
-            text += "\n"
-        with path.open("a", encoding="utf-8-sig") as f:
-            f.write(text)
-    except Exception:
-        pass
+    run_log_sessions.append(path, message)
 
 
 def prepare_support(

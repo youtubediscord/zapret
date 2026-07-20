@@ -5,6 +5,7 @@ from datetime import datetime
 import os
 
 from log.log import global_logger
+from log.run_log_sessions import run_log_sessions
 
 
 @dataclass(slots=True)
@@ -28,6 +29,7 @@ def create_blockcheck_worker(
         skip_preflight_failed=skip_preflight_failed,
         start_run_log=start_blockcheck_run_log,
         append_run_log=append_blockcheck_run_log,
+        close_run_log=close_blockcheck_run_log,
         parent=parent,
     )
 
@@ -53,6 +55,7 @@ def create_strategy_scan_worker(
         shutdown_sync=shutdown_sync,
         start_run_log=start_strategy_scan_run_log,
         append_run_log=append_strategy_scan_run_log,
+        close_run_log=close_strategy_scan_run_log,
         parent=parent,
     )
 
@@ -106,32 +109,24 @@ def make_blockcheck_run_log_path(mode: str) -> str:
 
 def start_blockcheck_run_log(mode: str, extra_domains: list[str]):
     path = make_blockcheck_run_log_path(mode)
-    try:
-        log_dir = os.path.dirname(path)
-        os.makedirs(log_dir, exist_ok=True)
-        with open(path, "w", encoding="utf-8-sig") as f:
-            f.write(f"=== Blockcheck Run Log ({datetime.now():%Y-%m-%d %H:%M:%S}) ===\n")
-            f.write(f"Mode: {mode}\n")
-            f.write(f"Extra domains: {len(extra_domains)}\n")
-            if extra_domains:
-                f.write(f"Domains: {', '.join(extra_domains)}\n")
-            f.write("=" * 60 + "\n\n")
-        return BlockcheckRunLogState(path=path, created=True)
-    except Exception:
-        return BlockcheckRunLogState(path=None, created=False)
+    header = (
+        f"=== Blockcheck Run Log ({datetime.now():%Y-%m-%d %H:%M:%S}) ===\n"
+        f"Mode: {mode}\n"
+        f"Extra domains: {len(extra_domains)}\n"
+    )
+    if extra_domains:
+        header += f"Domains: {', '.join(extra_domains)}\n"
+    header += "=" * 60 + "\n\n"
+    created = run_log_sessions.start(path, header)
+    return BlockcheckRunLogState(path=path if created else None, created=created)
 
 
 def append_blockcheck_run_log(path: str | None, message: str) -> None:
-    if not path:
-        return
-    try:
-        text = str(message or "")
-        if not text.endswith("\n"):
-            text += "\n"
-        with open(path, "a", encoding="utf-8-sig") as f:
-            f.write(text)
-    except Exception:
-        pass
+    run_log_sessions.append(path, message)
+
+
+def close_blockcheck_run_log(path: str | None) -> None:
+    run_log_sessions.close(path)
 
 
 def build_quick_target_menu_plan(*, scan_protocol: str, current_value: str):
@@ -182,3 +177,7 @@ def append_strategy_scan_run_log(path: str | None, message: str) -> None:
     from blockcheck.strategy_scan_logs import append_run_log
 
     append_run_log(path, message)
+
+
+def close_strategy_scan_run_log(path: str | None) -> None:
+    run_log_sessions.close(path)

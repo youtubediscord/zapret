@@ -14,8 +14,9 @@ class LegacyLogViewerRuntimeTest(unittest.TestCase):
         self.assertNotIn("QDialog", source)
         self.assertNotIn("QThread", source)
         self.assertNotIn("moveToThread", source)
-        self.assertNotIn("thread.start()", source)
         self.assertNotIn("subprocess.Popen", source)
+        self.assertIn('name="app-log-writer"', source)
+        self.assertIn("self._condition.wait()", source)
 
 
 if __name__ == "__main__":

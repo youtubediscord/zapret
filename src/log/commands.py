@@ -43,12 +43,12 @@ class LogsPageDataState:
 
 
 @dataclass(slots=True)
-class LogsTailStartPlan:
+class LogFileReadPlan:
     should_start: bool
     info_text: str
     file_path: str
     should_clear_view: bool = True
-    initial_max_bytes: int | None = 1024 * 1024
+    max_bytes: int | None = 1024 * 1024
     file_signature: tuple[str, int, int] | None = None
 
 
@@ -207,6 +207,8 @@ def get_orchestra_log_path(orchestra_runner):
     return None
 
 def prepare_support_bundle(*, current_log_file: str, orchestra_runner):
+    # Архив должен видеть все сообщения, которые уже были приняты логгером.
+    global_logger.flush_pending(timeout=2.0)
     candidate_paths = [
         current_log_file,
         get_current_log_file(),
@@ -223,15 +225,33 @@ def prepare_support_bundle(*, current_log_file: str, orchestra_runner):
 def open_logs_folder() -> None:
     subprocess.run(["explorer", LOGS_FOLDER], check=False)
 
-def create_log_tail_worker(file_path: str, *, initial_max_bytes: int | None = 1024 * 1024):
-    from log_tail import LogTailWorker
+def create_log_file_reader_worker(file_path: str, *, max_bytes: int | None = 1024 * 1024):
+    from log.file_reader_worker import LogFileReaderWorker
 
-    return LogTailWorker(
+    return LogFileReaderWorker(
         file_path,
-        poll_interval=0.6,
-        initial_chunk_chars=65536,
-        initial_max_bytes=initial_max_bytes,
+        chunk_chars=65536,
+        max_bytes=max_bytes,
     )
+
+
+def create_live_log_bridge(*, after_sequence: int | None, on_new_text, parent=None):
+    from log.live_stream import LiveLogBridge
+
+    return LiveLogBridge(
+        after_sequence=after_sequence,
+        on_new_text=on_new_text,
+        max_snapshot_chars=1024 * 1024,
+        parent=parent,
+    )
+
+
+def is_same_log_file(first_path: str, second_path: str) -> bool:
+    first = str(first_path or "").strip()
+    second = str(second_path or "").strip()
+    if not first or not second:
+        return False
+    return os.path.normcase(os.path.abspath(first)) == os.path.normcase(os.path.abspath(second))
 
 def create_logs_overview_worker(*, run_cleanup: bool):
     from log.overview_worker import LogsOverviewWorker
@@ -250,29 +270,29 @@ def _log_file_signature(file_path: str) -> tuple[str, int, int] | None:
         return None
 
 
-def build_tail_start_plan(
+def build_file_read_plan(
     *,
     current_log_file: str,
     previous_signature: tuple[str, int, int] | None = None,
-) -> LogsTailStartPlan:
+) -> LogFileReadPlan:
     file_path = str(current_log_file or "").strip()
     if not file_path or not os.path.exists(file_path):
-        return LogsTailStartPlan(
+        return LogFileReadPlan(
             should_start=False,
             info_text="",
             file_path=file_path,
             should_clear_view=False,
-            initial_max_bytes=None,
+            max_bytes=None,
             file_signature=None,
         )
     file_signature = _log_file_signature(file_path)
     is_same_file_content = bool(file_signature and file_signature == previous_signature)
-    return LogsTailStartPlan(
+    return LogFileReadPlan(
         should_start=True,
         info_text=f"📄 {os.path.basename(file_path)}",
         file_path=file_path,
         should_clear_view=not is_same_file_content,
-        initial_max_bytes=0 if is_same_file_content else 1024 * 1024,
+        max_bytes=0 if is_same_file_content else 1024 * 1024,
         file_signature=file_signature,
     )
 
