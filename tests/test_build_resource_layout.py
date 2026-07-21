@@ -51,21 +51,17 @@ class BuildResourceLayoutTests(unittest.TestCase):
         self.assertNotIn(r"{#SOURCEPATH}\help\*", iss)
         self.assertNotIn(r'DestDir: "{app}\help"', iss)
 
-    def test_inno_shortcuts_are_versioned_and_recreated_by_single_channel_owner(self) -> None:
+    def test_inno_shortcuts_are_recreated_without_touching_the_other_channel(self) -> None:
         iss = self._read_inno_script()
 
         self.assertIn("#define ShortcutName AppName", iss)
-
-        expected_delete_patterns = [
-            r'Type: files; Name: "{commondesktop}\{#AppName}.lnk"',
-            r'Type: files; Name: "{commondesktop}\{#AppName} v*.lnk"',
-            r'Type: files; Name: "{group}\{#AppName}.lnk"',
-            r'Type: files; Name: "{group}\{#AppName} v*.lnk"',
-            r'Type: files; Name: "{group}\Удалить {#AppName}.lnk"',
-            r'Type: files; Name: "{group}\Удалить {#AppName} v*.lnk"',
-        ]
-        for pattern in expected_delete_patterns:
-            self.assertIn(pattern, iss)
+        self.assertNotIn(r'Type: files; Name: "{commondesktop}\{#AppName} v*.lnk"', iss)
+        self.assertNotIn(r'Type: files; Name: "{group}\{#AppName} v*.lnk"', iss)
+        self.assertIn("function IsOtherChannelShortcutName(const FileName: string): Boolean;", iss)
+        self.assertIn("Result := Pos('zapret 2 dev ', Lowercase(FileName)) > 0;", iss)
+        self.assertIn("function LegacyChannelShortcutExistsInDirectory(", iss)
+        self.assertIn("procedure RemoveLegacyChannelShortcuts;", iss)
+        self.assertIn("RemoveLegacyChannelShortcuts;", iss)
 
         self.assertIn("HadDesktopShortcut: Boolean;", iss)
         self.assertIn("function ChannelDesktopShortcutExists: Boolean;", iss)
@@ -80,13 +76,14 @@ class BuildResourceLayoutTests(unittest.TestCase):
             r'Name: "{commondesktop}\{#ShortcutName}"; Filename: "{app}\_internal\Zapret.exe"; Tasks: desktopicon',
             iss,
         )
-        self.assertIn("function RefreshPinnedTaskbarShortcutTarget: Boolean;", iss)
+        self.assertIn("function RepairAllUserShortcuts(", iss)
         self.assertIn(
-            "PinnedShortcutRelocationSafe := RefreshPinnedTaskbarShortcutTarget;",
+            "RepairAllUserShortcuts(PreviousInstallRoot, NewInstallRoot)",
             iss,
         )
-        self.assertIn("CreateShellLink(", iss)
-        self.assertIn("AppExe := ExpandConstant('{app}\\_internal\\Zapret.exe');", iss)
+        self.assertNotIn("ExecAsOriginalUser(", iss)
+        self.assertIn("CurrentVersion\\ProfileList", iss)
+        self.assertIn("$link.TargetPath=$newExe", iss)
 
     def test_pyinstaller_icon_source_is_private_dist_ico_only(self) -> None:
         builder = (PRIVATE_ROOT / "build_zapret" / "pyinstaller_builder.py").read_text(encoding="utf-8")
@@ -757,6 +754,12 @@ class BuildResourceLayoutTests(unittest.TestCase):
         self.assertIn("DisableDirPage=no", iss)
         self.assertIn("UsePreviousAppDir=yes", iss)
         self.assertIn("function NormalizeInstallRoot(const Value: string): string;", iss)
+        self.assertIn("function ValidateDestinationInstallRoot(", iss)
+        self.assertIn("function IsDirectoryEmpty(const Value: string): Boolean;", iss)
+        self.assertIn("function InstallOwnerMarkerAllowsRetry(const Root: string): Boolean;", iss)
+        self.assertIn("function InstallOwnerMarkerIsInstalled(const Root: string): Boolean;", iss)
+        self.assertIn("function WriteInstallOwnerMarker(", iss)
+        self.assertIn("PrepareDestinationOwnership", iss)
         self.assertIn("function ReadPreviousInstallRoot: string;", iss)
         self.assertIn("function IsRecognizedPreviousInstallRoot(const Value: string): Boolean;", iss)
         self.assertIn("GetFileAttributesW(Root)", iss)
@@ -790,6 +793,9 @@ class BuildResourceLayoutTests(unittest.TestCase):
         self.assertIn("MigratedFromRoot := PreviousInstallRoot;", iss)
         self.assertIn("MigratedToRoot := NewInstallRoot;", iss)
         self.assertNotIn("RemoveDir(PreviousInstallRoot)", iss)
+        self.assertNotIn('Type: filesandordirs; Name: "{app}\\*"', iss)
+        self.assertNotIn('Type: filesandordirs; Name: "{localappdata}\\ZapretUpdate"', iss)
+        self.assertIn('Type: files; Name: "{app}\\.zapret-install-owner"', iss)
 
         source_lines = [line.strip() for line in iss.splitlines() if line.strip().startswith("Source:")]
         self.assertTrue(source_lines)
@@ -824,21 +830,32 @@ class BuildResourceLayoutTests(unittest.TestCase):
         self.assertIn("ExecAndCaptureOutput(", iss)
         self.assertIn("'file queryFileID \"' + Directory + '\"'", iss)
         self.assertIn("if not DifferentDirectoryIdentitiesVerified(PreviousInstallRoot, NewInstallRoot) then", iss)
+        self.assertIn("procedure DisablePreviousUninstallerIfKept;", iss)
+        self.assertIn("OldUninstaller + '.disabled'", iss)
 
         self.assertIn("function RetargetGuiAutostartTask(const OldRoot, NewRoot: string): Boolean;", iss)
         self.assertIn("'ZapretGUI Autostart'", iss)
         self.assertIn("Action.WorkingDirectory := NewRoot;", iss)
+        self.assertIn("TaskUserId := Definition.Principal.UserId;", iss)
         self.assertIn("function PersistentServiceReferencesOldRoot(const OldRoot: string): Boolean;", iss)
         self.assertIn("SYSTEM\\CurrentControlSet\\Services\\ZapretTelegramProxy", iss)
-        self.assertIn("if PersistentServiceReferencesOldRoot(PreviousInstallRoot) then", iss)
-        self.assertIn("function RemoveLegacyStartupShortcut: Boolean;", iss)
-        self.assertIn("'{userstartup}\\ZapretGUI.lnk'", iss)
-        self.assertIn("if not PinnedShortcutRelocationSafe then", iss)
+        self.assertIn("if PersistentServiceReferencesOldRoot(OldRoot) then", iss)
+        self.assertIn("function RetargetTelegramProxyService(", iss)
+        self.assertIn("function RepairAllUserShortcuts(", iss)
+        self.assertNotIn("ExecAsOriginalUser(", iss)
+        self.assertNotIn("{userstartup}", iss)
+        self.assertNotIn("{userappdata}", iss)
+        self.assertNotIn("{localappdata}", iss)
+        self.assertNotIn("PinnedShortcutRelocationSafe", iss)
 
         post_install = iss.index("if (CurStep = ssPostInstall) then")
+        bindings_call = iss.index("RelocatePersistentBindingsIfNeeded(FailureReason)", post_install)
         cleanup_call = iss.index("CleanupPreviousInstallIfRequested;", post_install)
+        disable_old_uninstaller_call = iss.index("DisablePreviousUninstallerIfKept;", post_install)
         delete_call = iss.index("DelTree(PreviousInstallRoot, True, True, True)")
         self.assertLess(delete_call, post_install)
+        self.assertLess(bindings_call, cleanup_call)
+        self.assertLess(cleanup_call, disable_old_uninstaller_call)
         self.assertGreater(cleanup_call, post_install)
 
     def test_inno_rejects_unsafe_or_nested_relocation_paths(self) -> None:
@@ -848,7 +865,82 @@ class BuildResourceLayoutTests(unittest.TestCase):
         self.assertIn("if IsProtectedInstallRoot(NewInstallRoot) then", iss)
         self.assertIn("IsNestedPath(NewInstallRoot, PreviousInstallRoot)", iss)
         self.assertIn("IsNestedPath(PreviousInstallRoot, NewInstallRoot)", iss)
+        self.assertIn("function PathHasReparsePointAncestor(const Value: string): Boolean;", iss)
+        self.assertIn("if PathHasReparsePointAncestor(NewInstallRoot) then", iss)
+        self.assertIn("if Copy(NewInstallRoot, 1, 2) = '\\\\' then", iss)
+        self.assertIn("IsNestedPath(Root, ExpandConstant('{win}'))", iss)
+        self.assertIn("IsNestedPath(Root, GetEnv('ProgramW6432'))", iss)
         self.assertIn("Previous InstallLocation ignored", iss)
+        self.assertIn("IsDirectoryEmpty(NewInstallRoot)", iss)
+        self.assertIn("InstallOwnerMarkerAllowsRetry(NewInstallRoot)", iss)
+        self.assertIn("папка уже содержит чужие файлы", iss)
+
+    def test_inno_auto_update_has_an_explicit_success_only_flow(self) -> None:
+        iss = self._read_inno_script()
+        updater = (PUBLIC_ROOT / "src" / "updater" / "update.py").read_text(encoding="utf-8")
+
+        auto_update_start = iss.index("function IsAutoUpdate: Boolean;")
+        auto_update_end = iss.index("function ReadPreviousInstallRoot", auto_update_start)
+        auto_update = iss[auto_update_start:auto_update_end]
+        self.assertIn("'/AUTOUPDATE'", auto_update)
+        self.assertNotIn("'/SILENT'", auto_update)
+        self.assertNotIn("'/VERYSILENT'", auto_update)
+        self.assertNotIn("'/NORESTART'", auto_update)
+        self.assertIn('"/AUTOUPDATE",', updater)
+        self.assertIn('"/VERYSILENT",', updater)
+        self.assertNotIn('"/RESTARTAPPLICATIONS",', updater)
+        self.assertIn('f"/DIR={install_dir}"', updater)
+        self.assertNotIn("arguments.split()", updater)
+        self.assertIn("subprocess.list2cmdline(argument_list)", updater)
+        self.assertIn('"-EncodedCommand",', updater)
+        self.assertIn("process.communicate(timeout=120)", updater)
+        self.assertNotIn("procedure DeinitializeSetup;", iss)
+        self.assertIn("if (CurStep = ssDone) and IsAutoUpdate() and", iss)
+        self.assertIn("PostInstallFinalizationSucceeded", iss)
+        self.assertIn("function ShouldLaunchAfterInteractiveInstall: Boolean;", iss)
+        self.assertIn("Check: ShouldLaunchAfterInteractiveInstall", iss)
+
+        initialize_start = iss.index("function InitializeSetup: Boolean;")
+        initialize_end = iss.index("procedure InitializeWizard;", initialize_start)
+        initialize = iss[initialize_start:initialize_end]
+        self.assertNotIn("KillProcessWithRetry", initialize)
+        self.assertNotIn("NormalizePinnedTaskbarShortcut", initialize)
+
+    def test_inno_stops_only_processes_from_the_selected_installation(self) -> None:
+        iss = self._read_inno_script()
+
+        self.assertIn("function KillProcessAtPathWithRetry(const ExePath: string): Boolean;", iss)
+        self.assertIn("function StopInstallRootProcesses(const Root: string): Boolean;", iss)
+        self.assertIn("function StopRelocationInstallProcesses: Boolean;", iss)
+        self.assertIn("NormalizedRoot + '\\_internal\\Zapret.exe'", iss)
+        self.assertIn("NormalizedRoot + '\\exe\\winws.exe'", iss)
+        self.assertIn("NormalizedRoot + '\\exe\\winws2.exe'", iss)
+        self.assertIn("$_.Path -and ($_.Path -ieq $target)", iss)
+        self.assertNotIn("taskkill.exe", iss)
+        self.assertNotIn("ProcessName -eq", iss)
+        self.assertNotIn("KillProcessWithRetry", iss)
+
+        prepare_start = iss.index("function PrepareToInstall(var NeedsRestart: Boolean): string;")
+        prepare_end = iss.index("function GetInstallDir(Param: string): string;", prepare_start)
+        prepare = iss[prepare_start:prepare_end]
+        ownership_call = prepare.index("if not PrepareDestinationOwnership then")
+        process_stop_call = prepare.index("if not StopRelocationInstallProcesses then")
+        self.assertLess(ownership_call, process_stop_call)
+        self.assertIn("StopApplicationServices(PreviousInstallRoot, WizardDirValue);", prepare)
+        self.assertIn("function ServiceReferencesInstallRoot(", iss)
+        self.assertIn("Service does not belong to selected install roots, skipped", iss)
+
+        uninstall_start = iss.index("procedure CurUninstallStepChanged(")
+        uninstall_end = iss.index("procedure CurStepChanged(", uninstall_start)
+        uninstall = iss[uninstall_start:uninstall_end]
+        self.assertIn("PrepareApplicationUninstall(AppRoot);", uninstall)
+        self.assertIn("procedure PrepareApplicationUninstall(const AppRoot: string);", iss)
+        self.assertIn("StopInstallRootProcesses(AppRoot);", iss)
+        self.assertIn("StopApplicationServices(AppRoot, '');", iss)
+        self.assertIn("StopAndDeleteServiceForRoots('ZapretTelegramProxy', AppRoot, '');", iss)
+        self.assertIn("function RemoveGuiAutostartTaskIfOwned(const AppRoot: string): Boolean;", iss)
+        self.assertIn("Folder.DeleteTask('ZapretGUI Autostart', 0);", iss)
+        self.assertIn("function RemoveAllUserShortcutsForUninstall(", iss)
 
     def test_inno_reads_all_required_resources_only_from_prepared_stage(self) -> None:
         iss = self._read_inno_script()

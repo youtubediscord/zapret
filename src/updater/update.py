@@ -3,6 +3,7 @@ updater/update.py
 ────────────────────────────────────────────────────────────────
 ОПТИМИЗИРОВАННАЯ ВЕРСИЯ ДЛЯ БЫСТРОГО СКАЧИВАНИЯ
 """
+import base64
 import os
 import shutil
 import subprocess
@@ -10,10 +11,11 @@ import sys
 import tempfile
 import threading
 import time
+from collections.abc import Sequence
+from time import sleep
+from typing import Callable
 
 import requests
-from typing import Callable
-from time import sleep
 
 from PyQt6.QtCore    import QObject, pyqtSignal, QTimer
 from packaging import version
@@ -46,7 +48,12 @@ CHUNK_SIZE = 1024 * 1024  # 1 MB
 # Проверено 25.12.2025.
 
 
-def launch_installer_winapi(exe_path: str, arguments: str) -> bool:
+def _quote_powershell_literal(value: str) -> str:
+    """Возвращает строку, которую PowerShell прочитает без подстановок."""
+    return "'" + value.replace("'", "''") + "'"
+
+
+def launch_installer_winapi(exe_path: str, arguments: Sequence[str]) -> bool:
     """
     Запускает установщик с правами администратора через PowerShell Start-Process.
 
@@ -54,7 +61,7 @@ def launch_installer_winapi(exe_path: str, arguments: str) -> bool:
 
     Args:
         exe_path: Путь к установщику (.exe)
-        arguments: Аргументы командной строки (разделённые пробелами)
+        arguments: Отдельные аргументы командной строки
 
     Returns:
         True если процесс успешно запущен
@@ -68,35 +75,59 @@ def launch_installer_winapi(exe_path: str, arguments: str) -> bool:
     log(f"📦 Размер установщика: {file_size / 1024 / 1024:.1f} MB", "🔁 UPDATE")
 
     log(f"🚀 Запуск через PowerShell (RunAs): {exe_path}", "🔁 UPDATE")
-    log(f"   Параметры: {arguments}", "🔁 UPDATE")
+    argument_list = [str(argument) for argument in arguments]
+    log(f"   Параметры: {subprocess.list2cmdline(argument_list)}", "🔁 UPDATE")
 
     try:
-        # Разбиваем аргументы на список для PowerShell
-        args_list = arguments.split()
-        # Формируем строку аргументов для PowerShell: '/arg1','/arg2',...
-        ps_args = ",".join(f"'{arg}'" for arg in args_list)
-
-        # PowerShell команда для запуска с правами админа
-        ps_command = f"Start-Process -FilePath '{exe_path}' -ArgumentList {ps_args} -Verb RunAs"
-
-        log(f"   PowerShell: {ps_command}", "🔁 UPDATE")
+        # list2cmdline сохраняет каждый аргумент целиком, включая /DIR с пробелами.
+        # EncodedCommand не даёт кавычкам и апострофам в пути изменить PowerShell-команду.
+        argument_line = subprocess.list2cmdline(argument_list)
+        ps_command = (
+            "$ErrorActionPreference='Stop';"
+            "try {"
+            "$process=Start-Process -FilePath "
+            f"{_quote_powershell_literal(os.path.abspath(exe_path))} "
+            f"-ArgumentList {_quote_powershell_literal(argument_line)} "
+            "-Verb RunAs -PassThru;"
+            "if($null -eq $process){exit 1};"
+            "exit 0"
+            "} catch {"
+            "[Console]::Error.WriteLine($_.Exception.Message);"
+            "exit 1"
+            "}"
+        )
+        encoded_command = base64.b64encode(ps_command.encode("utf-16le")).decode("ascii")
 
         # Запускаем PowerShell с командой
         process = subprocess.Popen(
-            ["powershell", "-NoProfile", "-Command", ps_command],
+            [
+                "powershell",
+                "-NoProfile",
+                "-NonInteractive",
+                "-EncodedCommand",
+                encoded_command,
+            ],
             creationflags=subprocess.CREATE_NO_WINDOW,
             stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE
+            stderr=subprocess.PIPE,
         )
 
-        # Даём время на появление UAC (не ждём завершения установщика!)
-        time.sleep(0.5)
+        # PowerShell завершается сразу после принятия или отмены UAC. Сам установщик
+        # продолжает работать отдельно, поэтому его завершения здесь не ждём.
+        try:
+            _, stderr_bytes = process.communicate(timeout=120)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.communicate()
+            log("❌ Не получен ответ на запрос прав администратора", "🔁❌ ERROR")
+            return False
 
-        # Проверяем, не завершился ли PowerShell с ошибкой
-        retcode = process.poll()
-        if retcode is not None and retcode != 0:
-            stderr = process.stderr.read().decode('utf-8', errors='ignore')
-            log(f"❌ PowerShell ошибка (код {retcode}): {stderr}", "🔁❌ ERROR")
+        if process.returncode != 0:
+            stderr = stderr_bytes.decode("utf-8", errors="ignore").strip()
+            log(
+                f"❌ PowerShell ошибка (код {process.returncode}): {stderr}",
+                "🔁❌ ERROR",
+            )
             return False
 
         log(f"✅ Установщик запущен успешно", "🔁 UPDATE")
@@ -438,7 +469,7 @@ class UpdateWorker(QObject):
 
     def _run_installer(self, setup_exe: str, version: str, tmp_dir: str) -> bool:
         """
-        Запускает установщик через ShellExecuteW с правами администратора.
+        Запускает установщик через PowerShell с правами администратора.
         """
         try:
             self._emit("Запуск установщика…")
@@ -464,17 +495,17 @@ class UpdateWorker(QObject):
             file_size = os.path.getsize(persistent_exe)
             log(f"📁 Установщик скопирован: {persistent_exe} ({file_size / 1024 / 1024:.1f} MB)", "🔁 UPDATE")
 
-            # Аргументы для тихой установки.
-            base_args = (
-                '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /NOCANCEL '
-                '/CLOSEAPPLICATIONS /RESTARTAPPLICATIONS'
-            )
-
-            # Примечание: если путь содержит пробелы, нужно экранировать кавычки
-            if ' ' in install_dir:
-                arguments = f'{base_args} /DIR="{install_dir}"'
-            else:
-                arguments = f'{base_args} /DIR={install_dir}'
+            # Каждый параметр передаётся отдельно. Поэтому путь после /DIR не
+            # развалится на несколько частей, даже если в нём есть пробелы.
+            arguments = [
+                "/AUTOUPDATE",
+                "/VERYSILENT",
+                "/SUPPRESSMSGBOXES",
+                "/NORESTART",
+                "/NOCANCEL",
+                "/CLOSEAPPLICATIONS",
+                f"/DIR={install_dir}",
+            ]
 
             # Запускаем установщик через WinAPI с правами администратора
             success = launch_installer_winapi(persistent_exe, arguments)
