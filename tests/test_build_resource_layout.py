@@ -6,7 +6,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 
 PUBLIC_ROOT = Path(__file__).resolve().parents[1]
@@ -690,6 +690,60 @@ class BuildResourceLayoutTests(unittest.TestCase):
                     builder._prepare_installer_source_root()
 
                 self.assertEqual(sentinel.read_text(encoding="utf-8"), "unchanged")
+        finally:
+            sys.modules.pop("build_zapret.build_release_gui", None)
+            sys.path[:] = old_path
+
+    def test_successful_installer_stage_cleanup_removes_only_expected_directory(self) -> None:
+        old_path = list(sys.path)
+        sys.path.insert(0, str(PRIVATE_ROOT))
+        try:
+            sys.modules.pop("build_zapret.build_release_gui", None)
+            from build_zapret import build_release_gui
+
+            builder = object.__new__(build_release_gui.BuildReleaseGUI)
+            builder.log_queue = Mock()
+
+            with tempfile.TemporaryDirectory() as temp_dir:
+                root = Path(temp_dir)
+                expected_stage = root / "stage" / "installer_root"
+                expected_stage.mkdir(parents=True)
+                (expected_stage / "prepared.txt").write_text("ready", encoding="utf-8")
+                builder._installer_stage_root = lambda: expected_stage
+
+                builder._cleanup_installer_stage_after_success(expected_stage)
+
+                self.assertFalse(expected_stage.exists())
+                builder.log_queue.put.assert_called_once()
+        finally:
+            sys.modules.pop("build_zapret.build_release_gui", None)
+            sys.path[:] = old_path
+
+    def test_successful_installer_stage_cleanup_rejects_unexpected_directory(self) -> None:
+        old_path = list(sys.path)
+        sys.path.insert(0, str(PRIVATE_ROOT))
+        try:
+            sys.modules.pop("build_zapret.build_release_gui", None)
+            from build_zapret import build_release_gui
+
+            builder = object.__new__(build_release_gui.BuildReleaseGUI)
+            builder.log_queue = Mock()
+
+            with tempfile.TemporaryDirectory() as temp_dir:
+                root = Path(temp_dir)
+                expected_stage = root / "stage" / "installer_root"
+                unexpected_stage = root / "keep"
+                expected_stage.mkdir(parents=True)
+                unexpected_stage.mkdir()
+                sentinel = unexpected_stage / "keep.txt"
+                sentinel.write_text("unchanged", encoding="utf-8")
+                builder._installer_stage_root = lambda: expected_stage
+
+                with self.assertRaisesRegex(RuntimeError, "неожиданного installer stage"):
+                    builder._cleanup_installer_stage_after_success(unexpected_stage)
+
+                self.assertEqual(sentinel.read_text(encoding="utf-8"), "unchanged")
+                builder.log_queue.put.assert_not_called()
         finally:
             sys.modules.pop("build_zapret.build_release_gui", None)
             sys.path[:] = old_path
