@@ -916,6 +916,16 @@ class BuildResourceLayoutTests(unittest.TestCase):
         self.assertIn("NormalizedRoot + '\\exe\\winws.exe'", iss)
         self.assertIn("NormalizedRoot + '\\exe\\winws2.exe'", iss)
         self.assertIn("$_.Path -and ($_.Path -ieq $target)", iss)
+        self.assertIn("function NativePowerShellExe: string;", iss)
+        self.assertIn(
+            "ExpandConstant('{sysnative}\\WindowsPowerShell\\v1.0\\powershell.exe')",
+            iss,
+        )
+        self.assertNotIn(
+            "ExpandConstant('{sys}\\WindowsPowerShell\\v1.0\\powershell.exe')",
+            iss,
+        )
+        self.assertIn("if Exec(NativePowerShellExe,", iss)
         self.assertNotIn("taskkill.exe", iss)
         self.assertNotIn("ProcessName -eq", iss)
         self.assertNotIn("KillProcessWithRetry", iss)
