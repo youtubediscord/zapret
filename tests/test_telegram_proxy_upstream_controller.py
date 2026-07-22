@@ -6,6 +6,8 @@ import unittest
 from telegram_proxy.proxy import socks5
 from telegram_proxy.proxy.routing import UpstreamProxyConfig, UpstreamProxyEndpoint
 from telegram_proxy.proxy.upstream_controller import (
+    CONNECT_FAILURE_LIMIT,
+    CONNECT_FAILURE_OBSERVATION_WINDOW,
     RETRY_DELAYS,
     ZERO_RECV_LIMIT,
     ZERO_RECV_OBSERVATION_WINDOW,
@@ -85,11 +87,15 @@ class UpstreamStateControllerTests(unittest.TestCase):
             clock=self.clock,
         )
 
-    def _fail_active_twice(self):
-        first = self.controller.select_attempt()
-        second = self.controller.select_attempt()
-        self.assertIsNone(self.controller.record_connect_failure(first, "timeout"))
-        return self.controller.record_connect_failure(second, "timeout")
+    def _fail_controller(self, controller: UpstreamStateController):
+        attempts = [controller.select_attempt() for _ in range(CONNECT_FAILURE_LIMIT)]
+        for item in attempts[:-1]:
+            self.assertIsNone(controller.record_connect_failure(item, "timeout"))
+        self.clock.advance(CONNECT_FAILURE_OBSERVATION_WINDOW)
+        return controller.record_connect_failure(attempts[-1], "timeout")
+
+    def _fail_active_repeatedly(self):
+        return self._fail_controller(self.controller)
 
     def test_all_connections_use_one_active_server(self) -> None:
         attempts = [self.controller.select_attempt() for _ in range(50)]
@@ -97,14 +103,33 @@ class UpstreamStateControllerTests(unittest.TestCase):
         self.assertEqual({item.endpoint.host for item in attempts}, {"95.128.157.251"})
         self.assertEqual({item.generation for item in attempts}, {1})
 
-    def test_concurrent_failures_produce_one_global_switch(self) -> None:
-        attempts = [self.controller.select_attempt() for _ in range(8)]
-        transitions = [
-            self.controller.record_connect_failure(item, "timeout")
-            for item in attempts
-        ]
-        transitions = [item for item in transitions if item is not None]
-        self.assertEqual(len(transitions), 1)
+    def test_two_resets_after_real_data_do_not_drop_working_server(self) -> None:
+        attempts = [self.controller.select_attempt() for _ in range(17)]
+        for item in attempts[:15]:
+            self.assertIsNone(self.controller.record_recv_ok(item))
+
+        self.assertIsNone(
+            self.controller.record_connect_failure(attempts[15], "ConnectionResetError")
+        )
+        self.assertIsNone(
+            self.controller.record_connect_failure(attempts[16], "ConnectionResetError")
+        )
+        self.assertEqual(self.controller.snapshot().active_name, "Германия 1")
+        self.assertEqual(self.controller.snapshot().generation, 1)
+
+    def test_parallel_connect_failure_burst_waits_for_inflight_real_data(self) -> None:
+        attempts = [self.controller.select_attempt() for _ in range(CONNECT_FAILURE_LIMIT + 1)]
+        for item in attempts[:CONNECT_FAILURE_LIMIT]:
+            self.assertIsNone(self.controller.record_connect_failure(item, "timeout"))
+
+        self.assertEqual(self.controller.snapshot().active_name, "Германия 1")
+        self.assertIsNone(self.controller.record_recv_ok(attempts[-1]))
+        self.assertEqual(self.controller.snapshot().active_name, "Германия 1")
+        self.assertEqual(self.controller.snapshot().generation, 1)
+
+    def test_repeated_connect_failures_produce_one_global_switch(self) -> None:
+        transition = self._fail_active_repeatedly()
+        self.assertIsNotNone(transition)
         self.assertEqual(self.controller.snapshot().active_name, "Великобритания")
         self.assertEqual(self.controller.snapshot().generation, 2)
 
@@ -129,7 +154,7 @@ class UpstreamStateControllerTests(unittest.TestCase):
         self.assertEqual(self.controller.snapshot().active_name, "Германия 1")
 
     def test_primary_returns_only_after_probe_receives_real_data(self) -> None:
-        self.assertIsNotNone(self._fail_active_twice())
+        self.assertIsNotNone(self._fail_active_repeatedly())
         self.clock.advance(RETRY_DELAYS[0])
         probe = self.controller.select_attempt()
         self.assertTrue(probe.primary_probe)
@@ -151,10 +176,7 @@ class UpstreamStateControllerTests(unittest.TestCase):
     def test_retry_delays_grow_to_five_minutes_without_busy_loop(self) -> None:
         manual = UpstreamProxyConfig(enabled=True, host="127.0.0.1", port=1080)
         controller = UpstreamStateController(manual, clock=self.clock)
-        first = controller.select_attempt()
-        second = controller.select_attempt()
-        controller.record_connect_failure(first, "timeout")
-        controller.record_connect_failure(second, "timeout")
+        self.assertIsNotNone(self._fail_controller(controller))
         self.assertIsNone(controller.active)
         self.assertIsNone(controller.select_attempt())
 
@@ -181,15 +203,12 @@ class UpstreamStateControllerTests(unittest.TestCase):
             password="password",
         )
         controller = UpstreamStateController(manual, clock=self.clock)
-        first = controller.select_attempt()
-        second = controller.select_attempt()
-        controller.record_connect_failure(first, "timeout")
-        controller.record_connect_failure(second, "timeout")
+        self.assertIsNotNone(self._fail_controller(controller))
         self.assertIsNone(controller.active)
         self.assertEqual(len(controller.endpoints), 1)
 
     def test_gui_text_keeps_selected_server_separate_from_fallback(self) -> None:
-        self._fail_active_twice()
+        self._fail_active_repeatedly()
         text = format_upstream_runtime_state(self.controller.snapshot())
         self.assertIn("Выбрано: Германия 1", text)
         self.assertIn("Сейчас используется: Великобритания (резерв)", text)
@@ -217,6 +236,7 @@ class UpstreamConnectionExecutorTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_each_connection_dials_only_the_global_active_server_once(self) -> None:
         calls: list[str] = []
+        clock = _Clock()
 
         async def failing_connector(proxy_host, *_args, **_kwargs):
             calls.append(proxy_host)
@@ -225,14 +245,17 @@ class UpstreamConnectionExecutorTests(unittest.IsolatedAsyncioTestCase):
         runtime = UpstreamConnectionExecutor(
             _config(fallbacks=(_endpoint("uk", "Великобритания", "144.31.213.98"),)),
             connector=failing_connector,
+            clock=clock,
         )
-        with self.assertRaises(UpstreamConnectError):
-            await runtime.open_connection("149.154.167.51", 443)
-        self.assertEqual(calls, ["95.128.157.251"])
+        for _ in range(CONNECT_FAILURE_LIMIT - 1):
+            with self.assertRaises(UpstreamConnectError):
+                await runtime.open_connection("149.154.167.51", 443)
+            self.assertEqual(runtime.snapshot().active_name, "Германия 1")
 
+        clock.advance(CONNECT_FAILURE_OBSERVATION_WINDOW)
         with self.assertRaises(UpstreamConnectError):
             await runtime.open_connection("149.154.167.51", 443)
-        self.assertEqual(calls, ["95.128.157.251", "95.128.157.251"])
+        self.assertEqual(calls, ["95.128.157.251"] * CONNECT_FAILURE_LIMIT)
         self.assertEqual(runtime.snapshot().active_name, "Великобритания")
 
     async def test_established_relays_do_not_occupy_connect_slots(self) -> None:

@@ -12,7 +12,10 @@ UpstreamState = Literal["primary", "fallback", "checking_primary", "unavailable"
 EndpointKey = tuple[str, int, str, str, bool, str, bool]
 
 CONNECT_FAILURE_WINDOW = 10.0
-CONNECT_FAILURE_LIMIT = 2
+# Telegram opens connections in parallel, so leave time for an in-flight relay
+# to prove the server healthy before a short reset burst can switch it globally.
+CONNECT_FAILURE_LIMIT = 6
+CONNECT_FAILURE_OBSERVATION_WINDOW = 2.0
 ZERO_RECV_LIMIT = 6
 ZERO_RECV_OBSERVATION_WINDOW = 2.0
 RETRY_DELAYS = (60.0, 180.0, 300.0)
@@ -313,12 +316,19 @@ class UpstreamStateController:
         health.connect_failures.append(now)
         while health.connect_failures and now - health.connect_failures[0] > CONNECT_FAILURE_WINDOW:
             health.connect_failures.popleft()
-        if len(health.connect_failures) < CONNECT_FAILURE_LIMIT:
+        observation_time = now - health.connect_failures[0]
+        if (
+            len(health.connect_failures) < CONNECT_FAILURE_LIMIT
+            or observation_time < CONNECT_FAILURE_OBSERVATION_WINDOW
+        ):
             return None
         retry_after = self._penalize(attempt.endpoint, now)
         return self._fail_active(
             attempt,
-            reason=f"две ошибки подключения за 10 секунд: {reason}",
+            reason=(
+                f"{CONNECT_FAILURE_LIMIT} ошибок подключения не менее чем за "
+                f"{CONNECT_FAILURE_OBSERVATION_WINDOW:g} с: {reason}"
+            ),
             retry_after=retry_after,
         )
 
@@ -466,6 +476,7 @@ class UpstreamStateController:
 
 __all__ = [
     "CONNECT_FAILURE_LIMIT",
+    "CONNECT_FAILURE_OBSERVATION_WINDOW",
     "CONNECT_FAILURE_WINDOW",
     "RETRY_DELAYS",
     "ZERO_RECV_LIMIT",
