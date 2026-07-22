@@ -8,7 +8,18 @@ Final contract:
 
 from __future__ import annotations
 
+import hashlib
+
 MANUAL_PRESET_ID = "manual"
+_BUNDLED_TLS_SNI_DERIVATION_PREFIX = b"zapret-socks-sni-v1\0"
+
+
+def _derive_bundled_tls_server_name(password: str) -> str:
+    """Derive a closed SNI without storing another secret in the build catalog."""
+    digest = hashlib.sha256(
+        _BUNDLED_TLS_SNI_DERIVATION_PREFIX + str(password or "").encode("utf-8")
+    ).hexdigest()
+    return f"{digest[:32]}.invalid"
 
 
 def _coerce_port(value) -> int:
@@ -55,14 +66,20 @@ def _normalize_upstream_preset(
     if not host or port <= 0:
         return None
 
+    password = str(raw.get("password") or "")
+    tls = bool(raw.get("tls", False))
+    tls_server_name = str(raw.get("tls_server_name") or "").strip()
+    if source == "build" and tls and password and not tls_server_name:
+        tls_server_name = _derive_bundled_tls_server_name(password)
+
     preset.update(
         {
             "host": host,
             "port": port,
             "username": str(raw.get("username") or "").strip(),
-            "password": str(raw.get("password") or ""),
-            "tls": bool(raw.get("tls", False)),
-            "tls_server_name": str(raw.get("tls_server_name") or "").strip(),
+            "password": password,
+            "tls": tls,
+            "tls_server_name": tls_server_name,
             "tls_verify": bool(raw.get("tls_verify", False)),
         }
     )

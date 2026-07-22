@@ -127,6 +127,36 @@ class TelegramProxyUpstreamCatalogTest(unittest.TestCase):
         self.assertNotIn("password", catalog.choices[0])
         self.assertEqual(catalog.choices[1]["id"], MANUAL_PRESET_ID)
 
+    def test_bundled_tls_without_explicit_sni_derives_one_from_password(self) -> None:
+        from telegram_proxy.config.upstream_catalog import (
+            UpstreamPresetResolver,
+            _derive_bundled_tls_server_name,
+        )
+
+        password = "private_password_for_tls_sni"
+        resolver = UpstreamPresetResolver(
+            [
+                {
+                    "id": "derived-sni",
+                    "name": "Derived SNI",
+                    "type": "socks5",
+                    "host": "203.0.113.10",
+                    "port": 9443,
+                    "username": "preset_user",
+                    "password": password,
+                    "tls": True,
+                }
+            ]
+        )
+
+        preset = resolver.socks5_by_id("derived-sni")
+        self.assertIsNotNone(preset)
+        self.assertEqual(
+            preset["tls_server_name"],
+            _derive_bundled_tls_server_name(password),
+        )
+        self.assertTrue(preset["tls_server_name"].endswith(".invalid"))
+
     def test_germany_socks_can_be_first_choice_before_uk(self) -> None:
         from telegram_proxy.config.upstream_catalog import UpstreamCatalog, UpstreamPresetResolver
 
@@ -377,9 +407,19 @@ class TelegramProxyUpstreamCatalogTest(unittest.TestCase):
         self.assertEqual(upstream.username, "preset_user")
         self.assertEqual(upstream.password, "preset_password")
         self.assertTrue(upstream.tls)
+        from telegram_proxy.config.upstream_catalog import _derive_bundled_tls_server_name
+
         self.assertEqual(
             test_target,
-            ("203.0.113.10", 443, "preset_user", "preset_password", True, "", False),
+            (
+                "203.0.113.10",
+                443,
+                "preset_user",
+                "preset_password",
+                True,
+                _derive_bundled_tls_server_name("preset_password"),
+                False,
+            ),
         )
 
     def test_selected_bundled_socks_gets_other_bundled_socks_as_fallback(self) -> None:
