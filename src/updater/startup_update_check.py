@@ -52,6 +52,7 @@ def check_for_update_sync() -> dict:
                     'release_info': None,
                     'skipped': True,
                     'skip_reason': skip_reason,
+                    'checked_at': UpdateRateLimiter.get_last_check_time(is_auto=True),
                 }
 
             release_info = get_latest_release(CHANNEL, use_cache=True)

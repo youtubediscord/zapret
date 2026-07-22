@@ -358,7 +358,6 @@ class UpdaterSettingsWorkerArchitectureTests(unittest.TestCase):
     def test_full_server_check_starts_rate_limit_gate_worker(self) -> None:
         runtime = update_page_runtime.UpdatePageRuntime.__new__(update_page_runtime.UpdatePageRuntime)
         runtime._cleanup_in_progress = False
-        runtime._check_state = SimpleNamespace(is_active=False)
         runtime._can_start_new_check = Mock(return_value=True)
         runtime._request_server_check_gate = Mock()
         runtime._continue_start_checks = Mock()
@@ -375,7 +374,6 @@ class UpdaterSettingsWorkerArchitectureTests(unittest.TestCase):
     def test_telegram_only_check_skips_rate_limit_gate_worker(self) -> None:
         runtime = update_page_runtime.UpdatePageRuntime.__new__(update_page_runtime.UpdatePageRuntime)
         runtime._cleanup_in_progress = False
-        runtime._check_state = SimpleNamespace(is_active=False)
         runtime._can_start_new_check = Mock(return_value=True)
         runtime._request_server_check_gate = Mock()
         runtime._continue_start_checks = Mock()

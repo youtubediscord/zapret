@@ -108,6 +108,7 @@ class UpdatePageRuntimeServerRecoveryTests(unittest.TestCase):
             upsert_server_status=Mock(),
             start_checking=Mock(),
             finish_checking=Mock(),
+            show_update_check_error=Mock(),
             show_found_update_source=Mock(),
             show_update_offer=Mock(),
             hide_update_offer=Mock(),
@@ -131,6 +132,8 @@ class UpdatePageRuntimeServerRecoveryTests(unittest.TestCase):
             is_available=Mock(return_value=True),
             restart=Mock(),
         )
+        from app.feature_facades.updater import UpdaterFeature
+
         runtime = UpdatePageRuntime(
             view,
             runtime_actions=UpdateRuntimeActions(
@@ -139,7 +142,7 @@ class UpdatePageRuntimeServerRecoveryTests(unittest.TestCase):
                 is_available=runtime_feature.is_available,
                 restart=runtime_feature.restart,
             ),
-            updater_feature=SimpleNamespace(),
+            updater_feature=UpdaterFeature(),
         )
         return runtime, view, runtime_feature
 

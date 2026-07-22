@@ -17,7 +17,19 @@ class PostStartupUpdateContractTests(unittest.TestCase):
         from main import post_startup_update
 
         class UpdaterFeature:
+            finished_result = None
+
             def is_auto_update_enabled(self) -> bool:
+                return True
+
+            def begin_update_check(self, *, source: str) -> int:
+                self.begin_source = source
+                return 7
+
+            def finish_update_check(self, result: dict, *, source: str, token: int) -> bool:
+                self.finished_result = dict(result)
+                self.finish_source = source
+                self.finish_token = token
                 return True
 
             def run_startup_update_check(self) -> dict:
@@ -40,6 +52,8 @@ class PostStartupUpdateContractTests(unittest.TestCase):
         )
         statuses: list[str] = []
 
+        updater_feature = UpdaterFeature()
+
         with (
             patch.object(post_startup_update, "bind_startup_gate", side_effect=lambda _signal, callback, **_kwargs: callback()),
             patch.object(post_startup_update, "schedule_after", side_effect=lambda _delay_ms, callback: callback()),
@@ -48,7 +62,7 @@ class PostStartupUpdateContractTests(unittest.TestCase):
         ):
             post_startup_update.install_update_check(
                 startup_host,
-                updater_feature=UpdaterFeature(),
+                updater_feature=updater_feature,
                 notify=Mock(),
                 set_status=statuses.append,
             )
@@ -56,6 +70,10 @@ class PostStartupUpdateContractTests(unittest.TestCase):
         self.assertEqual(statuses[0], "Проверка обновлений...")
         self.assertNotEqual(statuses[-1], "Проверка обновлений...")
         self.assertIn("Следующая автоматическая проверка", statuses[-1])
+        self.assertEqual(updater_feature.begin_source, "startup")
+        self.assertEqual(updater_feature.finish_source, "startup")
+        self.assertEqual(updater_feature.finish_token, 7)
+        self.assertTrue(updater_feature.finished_result["skipped"])
 
 
 if __name__ == "__main__":

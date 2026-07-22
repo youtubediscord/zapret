@@ -20,13 +20,6 @@ class UpdateFoundState:
 
 
 @dataclass(slots=True)
-class UpdateCheckState:
-    is_active: bool = False
-    last_check_time: float = 0.0
-    has_cached_data: bool = False
-
-
-@dataclass(slots=True)
 class ServerCheckRecoveryState:
     enabled: bool = False
     attempted: bool = False
@@ -108,6 +101,7 @@ class UpdatePageView(Protocol):
     def upsert_server_status(self, server_name: str, status: dict) -> None: ...
     def start_checking(self) -> None: ...
     def finish_checking(self, found_update: bool, version: str) -> None: ...
+    def show_update_check_error(self, error: str) -> None: ...
     def show_found_update_source(self, version: str, source: str) -> None: ...
     def show_update_offer(self, version: str, release_notes: str) -> None: ...
     def hide_update_offer(self) -> None: ...
@@ -131,9 +125,9 @@ class UpdatePageView(Protocol):
 class UpdatePageRuntime:
     """Сценарный слой страницы обновлений.
 
-    Держит только действительно stateful-часть update workflow:
-    фоновые воркеры, кэш найденного обновления, текущую проверку и загрузку.
-    View остаётся экраном и получает уже готовые команды отображения.
+    Держит воркеры подробной проверки серверов и загрузки обновления.
+    Общей фазой проверки владеет UpdateCheckCoordinator из UpdaterFeature,
+    поэтому запуск программы и страница используют один результат.
     """
 
     def __init__(self, view: UpdatePageView, *, runtime_actions: UpdateRuntimeActions, updater_feature) -> None:
@@ -151,6 +145,8 @@ class UpdatePageRuntime:
         self._cache_invalidate_runtime = OneShotWorkerRuntime()
         self._server_check_gate_runtime = OneShotWorkerRuntime()
         self._update_install_runtime = OneShotWorkerRuntime()
+        self._update_check_unsubscribe = None
+        self._manual_check_token: int | None = None
         self._cleanup_in_progress = False
         self._auto_check_load_state = UpdateLatestValueWorkerState(self._auto_check_load_runtime, empty_value=False)
         self._auto_check_save_state = UpdateLatestValueWorkerState(self._auto_check_save_runtime, empty_value=None)
@@ -161,7 +157,6 @@ class UpdatePageRuntime:
         self._dpi_restart_after = ""
 
         self._found_state = UpdateFoundState()
-        self._check_state = UpdateCheckState()
         self._server_check_recovery = ServerCheckRecoveryState()
         self._download_state = UpdateDownloadState()
 
@@ -368,10 +363,11 @@ class UpdatePageRuntime:
         return UpdateStatefulCoreDescription(
             required_state_fields=(
                 "_found_state",
-                "_check_state",
                 "_server_check_recovery",
                 "_download_state",
                 "_auto_check_enabled",
+                "_update_check_unsubscribe",
+                "_manual_check_token",
             ),
             worker_runtime_fields=(
                 "_server_worker_runtime",
@@ -460,6 +456,51 @@ class UpdatePageRuntime:
         if view_action == "auto_on":
             self._view.show_auto_enabled_hint()
 
+    def attach_update_check_coordinator(self) -> None:
+        if self._update_check_unsubscribe is not None:
+            return
+        self._update_check_unsubscribe = self._updater_feature.subscribe_update_check(
+            self._apply_coordinated_update_check_snapshot,
+            emit_initial=True,
+        )
+
+    def _apply_coordinated_update_check_snapshot(self, snapshot) -> None:
+        if self._cleanup_in_progress:
+            return
+
+        phase = str(getattr(snapshot, "phase", "") or "")
+        if phase == "idle":
+            return
+        if phase == "checking":
+            self._view.start_checking()
+            return
+
+        completed_at = float(getattr(snapshot, "completed_at", 0.0) or 0.0)
+        if phase == "skipped":
+            if completed_at > 0:
+                self._view.show_checked_ago(max(time.time() - completed_at, 0.0))
+            elif self._auto_check_enabled:
+                self._view.show_auto_enabled_hint()
+            else:
+                self._view.show_manual_hint()
+            return
+
+        if phase == "error":
+            self._view.show_update_check_error(str(getattr(snapshot, "error", "") or ""))
+            return
+
+        if phase != "completed":
+            return
+
+        has_update = bool(getattr(snapshot, "has_update", False))
+        version = str(getattr(snapshot, "version", "") or "")
+        release_notes = str(getattr(snapshot, "release_notes", "") or "")
+        if has_update:
+            self._set_found_update_state(version, release_notes)
+        else:
+            self._reset_found_update_state()
+        self._view.finish_checking(has_update, version)
+
     def start_auto_check_load(self) -> None:
         self._request_auto_check_load()
 
@@ -543,7 +584,7 @@ class UpdatePageRuntime:
 
     def start_checks(self, telegram_only: bool = False, skip_server_rate_limit: bool = False) -> None:
         self._cleanup_in_progress = False
-        if self._check_state.is_active:
+        if self._is_update_check_active():
             return
         if not self._can_start_new_check():
             log("⏭️ Пропуск проверки - идёт скачивание обновления", "🔄 UPDATE")
@@ -631,18 +672,19 @@ class UpdatePageRuntime:
         self._request_server_check_gate(skip_rate_limit=bool(pending))
 
     def _continue_start_checks(self, *, telegram_only: bool, keep_existing_rows: bool) -> None:
-        if self._cleanup_in_progress or self._check_state.is_active:
+        if self._cleanup_in_progress or self._is_update_check_active():
             return
         if not self._can_start_new_check():
             return
-        if not telegram_only:
-            self._check_state.last_check_time = time.time()
-        self._reset_check_state(keep_cached_data=True)
-        self._check_state.is_active = True
+        token = self._updater_feature.begin_update_check(source="manual")
+        if token is None:
+            return
+        self._manual_check_token = int(token)
         self._server_check_recovery = ServerCheckRecoveryState(enabled=not telegram_only)
         self._reset_found_update_state()
 
-        self._view.start_checking()
+        if getattr(self, "_update_check_unsubscribe", None) is None:
+            self._view.start_checking()
         if not keep_existing_rows:
             self._view.reset_server_rows()
 
@@ -914,6 +956,25 @@ class UpdatePageRuntime:
 
     def cleanup(self) -> None:
         self._cleanup_in_progress = True
+        manual_check_token = getattr(self, "_manual_check_token", None)
+        self._manual_check_token = None
+        if manual_check_token is not None:
+            self._updater_feature.finish_update_check(
+                {
+                    "has_update": False,
+                    "version": "",
+                    "release_notes": "",
+                    "error": None,
+                    "skipped": True,
+                    "skip_reason": "Проверка остановлена при закрытии страницы",
+                },
+                source="manual",
+                token=manual_check_token,
+            )
+        unsubscribe = getattr(self, "_update_check_unsubscribe", None)
+        self._update_check_unsubscribe = None
+        if callable(unsubscribe):
+            unsubscribe()
         self._teardown_server_worker()
         self._teardown_server_retry_without_dpi_worker()
         self._teardown_dpi_restart_worker()
@@ -932,17 +993,34 @@ class UpdatePageRuntime:
         if self._found_state.is_available and self._found_state.version:
             return UpdateIdleViewDecision(action="none", elapsed_seconds=0.0)
 
-        if self._check_state.has_cached_data:
+        snapshot = self._current_update_check_snapshot()
+        phase = str(getattr(snapshot, "phase", "") or "")
+        completed_at = float(getattr(snapshot, "completed_at", 0.0) or 0.0)
+        if phase in {"completed", "skipped"} and completed_at > 0:
             return UpdateIdleViewDecision(
                 action="checked_ago",
                 elapsed_seconds=self._resolve_elapsed_since_last_check(),
             )
+        if phase in {"checking", "error"}:
+            return UpdateIdleViewDecision(action="none", elapsed_seconds=0.0)
         if self._auto_check_enabled:
             return UpdateIdleViewDecision(action="auto_on", elapsed_seconds=0.0)
         return UpdateIdleViewDecision(action="manual", elapsed_seconds=0.0)
 
     def _resolve_elapsed_since_last_check(self) -> float:
-        return max(time.time() - self._check_state.last_check_time, 0.0)
+        snapshot = self._current_update_check_snapshot()
+        completed_at = float(getattr(snapshot, "completed_at", 0.0) or 0.0)
+        return max(time.time() - completed_at, 0.0)
+
+    def _current_update_check_snapshot(self):
+        updater_feature = getattr(self, "_updater_feature", None)
+        if updater_feature is None:
+            return None
+        return updater_feature.current_update_check_snapshot()
+
+    def _is_update_check_active(self) -> bool:
+        snapshot = self._current_update_check_snapshot()
+        return str(getattr(snapshot, "phase", "") or "") == "checking"
 
     def _resolve_startup_present_action(
         self,
@@ -972,7 +1050,7 @@ class UpdatePageRuntime:
 
     def _can_present_idle_view_state(self) -> bool:
         return not (
-            self._check_state.is_active
+            self._is_update_check_active()
             or self._download_state.is_installing
             or self._is_download_in_progress()
         )
@@ -985,7 +1063,7 @@ class UpdatePageRuntime:
 
     def _can_start_new_check(self) -> bool:
         return not (
-            self._check_state.is_active
+            self._is_update_check_active()
             or self._download_state.is_installing
             or self._is_download_in_progress()
         )
@@ -1003,15 +1081,6 @@ class UpdatePageRuntime:
 
     def _reset_found_update_state(self) -> None:
         self._found_state = UpdateFoundState()
-
-    def _reset_check_state(self, *, keep_cached_data: bool = False) -> None:
-        cached_data = self._check_state.has_cached_data if keep_cached_data else False
-        last_check_time = self._check_state.last_check_time if keep_cached_data else 0.0
-        self._check_state = UpdateCheckState(
-            is_active=False,
-            last_check_time=last_check_time,
-            has_cached_data=cached_data,
-        )
 
     def _reset_download_state(self) -> None:
         self._download_state = UpdateDownloadState()
@@ -1221,9 +1290,26 @@ class UpdatePageRuntime:
     def _finish_checking_workflow(self) -> None:
         if self._cleanup_in_progress:
             return
-        self._reset_check_state(keep_cached_data=True)
-        self._check_state.has_cached_data = True
-        self._view.finish_checking(self._found_state.is_available, self._found_state.version)
+        result = {
+            "has_update": bool(self._found_state.is_available),
+            "version": str(self._found_state.version or self._app_version()),
+            "release_notes": str(self._found_state.release_notes or ""),
+            "error": None,
+        }
+        manual_check_token = getattr(self, "_manual_check_token", None)
+        self._manual_check_token = None
+        updater_feature = getattr(self, "_updater_feature", None)
+        published = bool(
+            updater_feature is not None
+            and manual_check_token is not None
+            and updater_feature.finish_update_check(
+                result,
+                source="manual",
+                token=manual_check_token,
+            )
+        )
+        if not published or getattr(self, "_update_check_unsubscribe", None) is None:
+            self._view.finish_checking(self._found_state.is_available, self._found_state.version)
 
     def _on_server_checked(self, server_name: str, status: dict) -> None:
         if self._cleanup_in_progress:
@@ -1360,7 +1446,7 @@ class UpdatePageRuntime:
         self._view.show_update_download_error()
 
     def _maybe_offer_update_from_server(self, server_name: str, status: dict) -> None:
-        if not self._check_state.is_active:
+        if not self._is_update_check_active():
             return
 
         if not self._found_state.is_available and not status.get("is_current"):

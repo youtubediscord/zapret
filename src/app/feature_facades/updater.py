@@ -1,15 +1,53 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Any
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True, slots=True, init=False)
 class UpdaterFeature:
+    _check_coordinator: Any | None = field(default=None, repr=False, compare=False)
+
+    def __init__(self, check_coordinator: Any | None = None) -> None:
+        object.__setattr__(self, "_check_coordinator", check_coordinator)
+
     @staticmethod
     def _commands():
         import updater.public as updater_commands
 
         return updater_commands
+
+    @staticmethod
+    def _create_check_coordinator():
+        from core.runtime.update_check_coordinator import UpdateCheckCoordinator
+
+        return UpdateCheckCoordinator()
+
+    @property
+    def check_coordinator(self):
+        coordinator = self._check_coordinator
+        if coordinator is None:
+            coordinator = self._create_check_coordinator()
+            object.__setattr__(self, "_check_coordinator", coordinator)
+        return coordinator
+
+    def begin_update_check(self, *, source: str) -> int | None:
+        return self.check_coordinator.begin(source=source)
+
+    def finish_update_check(self, result: dict, *, source: str, token: int) -> bool:
+        return bool(
+            self.check_coordinator.finish(
+                dict(result or {}),
+                source=source,
+                token=int(token),
+            )
+        )
+
+    def current_update_check_snapshot(self):
+        return self.check_coordinator.snapshot()
+
+    def subscribe_update_check(self, callback, *, emit_initial: bool = False):
+        return self.check_coordinator.subscribe(callback, emit_initial=bool(emit_initial))
 
     def is_auto_update_enabled(self) -> bool:
         return bool(self._commands().is_auto_update_enabled())

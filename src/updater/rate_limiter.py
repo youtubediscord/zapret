@@ -36,6 +36,15 @@ class UpdateRateLimiter:
         except Exception as e:
             log(f"⚠️ Ошибка загрузки rate limit: {e}", "⏱️ RATE")
         return {}
+
+    @staticmethod
+    def get_last_check_time(is_auto: bool = False) -> float:
+        state = UpdateRateLimiter._load_state()
+        check_type = "auto" if is_auto else "manual"
+        try:
+            return max(float(state.get(f"last_{check_type}_check", 0) or 0), 0.0)
+        except (TypeError, ValueError):
+            return 0.0
     
     @staticmethod
     def _save_state(state: dict):

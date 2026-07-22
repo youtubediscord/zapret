@@ -87,6 +87,7 @@ class ServersPage(BasePage):
 
         self._build_ui()
         self._apply_page_theme(force=True)
+        self._update_runtime.attach_update_check_coordinator()
         self._update_runtime.start_auto_check_load()
 
     def _tr(self, key: str, default: str) -> str:
@@ -275,6 +276,13 @@ class ServersPage(BasePage):
 
     def finish_checking(self, found_update: bool, version: str) -> None:
         self.update_card.stop_checking(found_update, version)
+
+    def show_update_check_error(self, error: str) -> None:
+        message = str(error or "").strip() or self._tr(
+            "page.servers.update.error.check_failed",
+            "Не удалось проверить обновления",
+        )
+        self.update_card.set_error(message)
 
     def show_found_update_source(self, version: str, source: str) -> None:
         self.update_card.show_found_update(version, source)

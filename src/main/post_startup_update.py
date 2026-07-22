@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from PyQt6.QtCore import QObject, pyqtSignal
+from PyQt6.QtCore import QCoreApplication, QObject, pyqtSignal
 
 from app_notifications import advisory_notification
 from log.log import log
@@ -9,10 +9,7 @@ from main.post_startup_threading import enqueue_subsystem_task, schedule_after
 
 
 class _UpdateCheckBridge(QObject):
-    update_found = pyqtSignal(str, str)
-    no_update = pyqtSignal(str)
-    check_error = pyqtSignal(str)
-    skipped = pyqtSignal(str)
+    result_ready = pyqtSignal(object)
 
 
 def install_update_check(
@@ -22,7 +19,8 @@ def install_update_check(
     notify,
     set_status,
 ) -> None:
-    update_bridge = _UpdateCheckBridge()
+    update_bridge = _UpdateCheckBridge(QCoreApplication.instance())
+    startup_check_token: int | None = None
 
     def _on_update_found(version: str, release_notes: str) -> None:
         if not is_startup_host_alive(startup_host):
@@ -87,39 +85,74 @@ def install_update_check(
         except Exception:
             pass
 
-    update_bridge.update_found.connect(_on_update_found)
-    update_bridge.no_update.connect(_on_no_update)
-    update_bridge.check_error.connect(_on_update_check_error)
-    update_bridge.skipped.connect(_on_update_check_skipped)
+    def _on_update_check_finished(result: object) -> None:
+        nonlocal startup_check_token
+        payload = dict(result or {}) if isinstance(result, dict) else {
+            "has_update": False,
+            "version": "",
+            "release_notes": "",
+            "error": "Некорректный результат проверки обновлений",
+        }
+        token = startup_check_token
+        startup_check_token = None
+        if token is None or not updater_feature.finish_update_check(
+            payload,
+            source="startup",
+            token=token,
+        ):
+            return
+
+        if payload.get("skipped"):
+            skip_reason = payload.get("skip_reason") or "Проверка обновлений сейчас не требуется"
+            log(
+                f"Автопроверка обновлений пропущена: {skip_reason}",
+                "🔁 UPDATE",
+            )
+            _on_update_check_skipped(str(skip_reason))
+            return
+        if payload.get("error"):
+            _on_update_check_error(str(payload.get("error") or ""))
+            return
+        if payload.get("has_update"):
+            _on_update_found(
+                str(payload.get("version") or ""),
+                str(payload.get("release_notes") or ""),
+            )
+            return
+        _on_no_update(str(payload.get("version") or ""))
+
+    update_bridge.result_ready.connect(_on_update_check_finished)
 
     def _startup_update_worker() -> None:
         try:
             result = updater_feature.run_startup_update_check()
-            if result.get("skipped"):
-                skip_reason = result.get("skip_reason") or "Проверка обновлений сейчас не требуется"
-                log(
-                    f"Автопроверка обновлений пропущена: {skip_reason}",
-                    "🔁 UPDATE",
-                )
-                update_bridge.skipped.emit(skip_reason)
-            elif result.get("error"):
-                update_bridge.check_error.emit(result["error"])
-            elif result.get("has_update"):
-                update_bridge.update_found.emit(
-                    result.get("version") or "",
-                    result.get("release_notes") or "",
-                )
-            else:
-                update_bridge.no_update.emit(result.get("version") or "")
+            update_bridge.result_ready.emit(dict(result or {}))
         except Exception as exc:
             log(f"Ошибка воркера проверки обновлений: {exc}", "❌ ERROR")
+            update_bridge.result_ready.emit(
+                {
+                    "has_update": False,
+                    "version": "",
+                    "release_notes": "",
+                    "error": str(exc),
+                }
+            )
 
     def _schedule_startup_update_check() -> None:
+        nonlocal startup_check_token
         if not is_startup_host_alive(startup_host):
             return
         if not updater_feature.is_auto_update_enabled():
             log("Автопроверка обновлений при запуске отключена", "🔁 UPDATE")
             return
+        token = updater_feature.begin_update_check(source="startup")
+        if token is None:
+            log(
+                "Автопроверка при запуске не запущена: проверка уже идёт или выполнена в этой сессии",
+                "🔁 UPDATE",
+            )
+            return
+        startup_check_token = int(token)
         try:
             set_status("Проверка обновлений...")
         except Exception:
