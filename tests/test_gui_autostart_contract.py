@@ -163,6 +163,7 @@ class GuiAutostartContractTests(unittest.TestCase):
 
     def test_enable_gui_autostart_creates_task_and_removes_legacy_shortcut(self) -> None:
         from autostart.public import enable_gui_autostart
+        from config.runtime_layout import APPLICATION_PATHS
 
         with (
             patch("autostart.startup_shortcut_api.delete_startup_shortcut", return_value=True) as delete_shortcut,
@@ -172,7 +173,7 @@ class GuiAutostartContractTests(unittest.TestCase):
 
         self.assertTrue(result.success)
         delete_shortcut.assert_called_once()
-        create_task.assert_called_once_with(sys.executable)
+        create_task.assert_called_once_with(str(APPLICATION_PATHS.executable))
 
     def test_enable_gui_autostart_returns_readable_error_message(self) -> None:
         from autostart.public import enable_gui_autostart
@@ -213,13 +214,15 @@ class GuiAutostartContractTests(unittest.TestCase):
 
     def test_migration_is_noop_when_task_matches_and_no_shortcut(self) -> None:
         from autostart.public import ensure_gui_autostart_migrated
+        from config.runtime_layout import APPLICATION_PATHS
 
         shortcut_path = Path(r"C:\nonexistent\ZapretGUI.lnk")
+        task_path = str(APPLICATION_PATHS.executable).swapcase()
         with (
             patch("settings.store.get_gui_autostart_enabled", return_value=True),
             patch(
                 "autostart.scheduled_task_api.get_autostart_task_action",
-                return_value=(sys.executable, "--tray"),
+                return_value=(task_path, "--tray"),
             ),
             patch(
                 "autostart.startup_shortcut_api.get_startup_shortcut_path",
@@ -234,6 +237,7 @@ class GuiAutostartContractTests(unittest.TestCase):
 
     def test_migration_replaces_legacy_shortcut_with_task(self) -> None:
         from autostart.public import ensure_gui_autostart_migrated
+        from config.runtime_layout import APPLICATION_PATHS
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             legacy_shortcut = Path(tmp_dir) / "ZapretGUI.lnk"
@@ -254,8 +258,34 @@ class GuiAutostartContractTests(unittest.TestCase):
                 migrated = ensure_gui_autostart_migrated()
 
             self.assertTrue(migrated)
-            create_task.assert_called_once_with(sys.executable)
+            create_task.assert_called_once_with(str(APPLICATION_PATHS.executable))
             self.assertFalse(legacy_shortcut.exists())
+
+    def test_migration_replaces_task_with_wrong_arguments(self) -> None:
+        from autostart.public import ensure_gui_autostart_migrated
+        from config.runtime_layout import APPLICATION_PATHS
+
+        shortcut_path = Path(r"C:\nonexistent\ZapretGUI.lnk")
+        with (
+            patch("settings.store.get_gui_autostart_enabled", return_value=True),
+            patch(
+                "autostart.scheduled_task_api.get_autostart_task_action",
+                return_value=(str(APPLICATION_PATHS.executable), ""),
+            ),
+            patch(
+                "autostart.startup_shortcut_api.get_startup_shortcut_path",
+                return_value=shortcut_path,
+            ),
+            patch(
+                "autostart.scheduled_task_api.create_or_update_autostart_task",
+                return_value=True,
+            ) as create_task,
+            patch("autostart.startup_shortcut_api.delete_startup_shortcut"),
+        ):
+            migrated = ensure_gui_autostart_migrated()
+
+        self.assertTrue(migrated)
+        create_task.assert_called_once_with(str(APPLICATION_PATHS.executable))
 
     def test_autostart_error_notification_payload_is_user_readable(self) -> None:
         from autostart.ui.notifications import build_autostart_error_notification

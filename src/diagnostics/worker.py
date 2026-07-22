@@ -23,32 +23,28 @@ class ConnectionTestWorker(QObject):
         super().__init__()
         self.test_type = test_type
 
-        os.makedirs(LOGS_FOLDER, exist_ok=True)
         self.log_filename = os.path.join(LOGS_FOLDER, "connection_test_temp.log")
         self._stop_requested = False
         self._curl_path = None
         self._curl_path_checked = False
         self._curl_available_logged = False
-        self._logger = logging.getLogger("connection_test.worker")
-        self._logger.setLevel(logging.INFO)
+        self._logger = logging.Logger("connection_test.worker", level=logging.INFO)
         self._logger.propagate = False
+        self._file_handler = None
 
-        for handler in self._logger.handlers[:]:
-            self._logger.removeHandler(handler)
-            try:
-                handler.close()
-            except Exception:
-                pass
-
-        self._file_handler = logging.FileHandler(self.log_filename, "w", "utf-8")
-        self._file_handler.setFormatter(
+    def _open_logger(self) -> None:
+        """Открывает файл уже внутри фонового потока диагностики."""
+        self._close_logger()
+        os.makedirs(LOGS_FOLDER, exist_ok=True)
+        handler = logging.FileHandler(self.log_filename, "w", "utf-8")
+        handler.setFormatter(
             logging.Formatter("%(asctime)s - %(message)s", "%Y-%m-%d %H:%M:%S")
         )
-        self._logger.addHandler(self._file_handler)
+        self._logger.addHandler(handler)
+        self._file_handler = handler
     
     def stop_gracefully(self):
         """Мягкая остановка теста."""
-        self.log_message("⚠️ Получен запрос на остановку теста...", allow_after_stop=True)
         self._stop_requested = True
 
     def stop(self) -> None:
@@ -852,6 +848,7 @@ class ConnectionTestWorker(QObject):
     def run(self):
         """Выполнение тестов в отдельном потоке с корректной остановкой."""
         try:
+            self._open_logger()
             self.log_message(f"Запуск тестирования соединения ({datetime.now().strftime('%Y-%m-%d %H:%M:%S')})")
             self.log_message("="*50)
             

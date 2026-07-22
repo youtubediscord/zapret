@@ -7,9 +7,20 @@ from unittest.mock import Mock, patch
 
 from diagnostics.ui.page import ConnectionTestPage
 import diagnostics.ui.runtime_helpers as diagnostics_runtime_helpers
+from diagnostics.worker import ConnectionTestWorker
 
 
 class DiagnosticsSupportRuntimeArchitectureTests(unittest.TestCase):
+    def test_connection_worker_constructor_does_not_touch_log_file(self) -> None:
+        constructor_source = inspect.getsource(ConnectionTestWorker.__init__)
+        run_source = inspect.getsource(ConnectionTestWorker.run)
+        stop_source = inspect.getsource(ConnectionTestWorker.stop_gracefully)
+
+        self.assertNotIn("makedirs", constructor_source)
+        self.assertNotIn("FileHandler", constructor_source)
+        self.assertIn("self._open_logger()", run_source)
+        self.assertNotIn("log_message", stop_source)
+
     def test_connection_cleanup_requests_stop_without_waiting_for_worker(self) -> None:
         worker = object()
         runtime = SimpleNamespace(

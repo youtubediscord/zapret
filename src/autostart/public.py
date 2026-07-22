@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-import sys
+import ntpath
 from typing import Callable
 
 
@@ -11,6 +11,20 @@ class GuiAutostartResult:
     removed_count: int = 0
     restart_requested: bool = False
     message: str = ""
+
+
+def _gui_autostart_executable() -> str:
+    """Возвращает единственную допустимую точку запуска установленного GUI."""
+    from config.runtime_layout import APPLICATION_PATHS
+
+    return str(APPLICATION_PATHS.executable)
+
+
+def _same_windows_path(left: str, right: str) -> bool:
+    def _normalize(value: str) -> str:
+        return ntpath.normcase(ntpath.normpath(str(value or "").strip().strip('"')))
+
+    return bool(left and right) and _normalize(left) == _normalize(right)
 
 
 def get_current_launch_method() -> str:
@@ -49,7 +63,7 @@ def enable_gui_autostart(*, status_cb: Callable[[str], None] | None = None) -> G
         _status("Удаление старого ярлыка автозапуска...")
         delete_startup_shortcut()
         _status("Создание задачи автозапуска в Планировщике Windows...")
-        ok = bool(create_or_update_autostart_task(sys.executable))
+        ok = bool(create_or_update_autostart_task(_gui_autostart_executable()))
     except Exception:
         ok = False
     if ok:
@@ -79,6 +93,7 @@ def ensure_gui_autostart_migrated() -> bool:
             return False
 
         from autostart.scheduled_task_api import (
+            AUTOSTART_TASK_ARGS,
             create_or_update_autostart_task,
             get_autostart_task_action,
         )
@@ -87,9 +102,13 @@ def ensure_gui_autostart_migrated() -> bool:
             get_startup_shortcut_path,
         )
 
-        exe_path = sys.executable
+        exe_path = _gui_autostart_executable()
         action = get_autostart_task_action()
-        task_ok = action is not None and action[0] == exe_path
+        task_ok = (
+            action is not None
+            and _same_windows_path(action[0], exe_path)
+            and action[1].strip() == AUTOSTART_TASK_ARGS
+        )
         shortcut_exists = get_startup_shortcut_path().exists()
         if task_ok and not shortcut_exists:
             return False
