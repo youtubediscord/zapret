@@ -815,9 +815,8 @@ class BuildResourceLayoutTests(unittest.TestCase):
         self.assertIn("function WriteInstallOwnerMarker(", iss)
         self.assertIn("PrepareDestinationOwnership", iss)
         self.assertIn("function ReadPreviousInstallRoot: string;", iss)
-        self.assertIn("function IsRecognizedPreviousInstallRoot(const Value: string): Boolean;", iss)
-        self.assertIn("GetFileAttributesW(Root)", iss)
-        self.assertIn("((Attributes and $400) = 0)", iss)
+        self.assertIn("function IsSafeInstallRoot(const Value: string): Boolean;", iss)
+        self.assertIn("not PathHasReparsePointAncestor(Root)", iss)
         self.assertIn("function MigrateUserDataIfInstallRootChanged: Boolean;", iss)
         self.assertIn("PreviousInstallRoot + '\\settings'", iss)
         self.assertIn("PreviousInstallRoot + '\\lists\\user'", iss)
@@ -860,7 +859,7 @@ class BuildResourceLayoutTests(unittest.TestCase):
         self.assertIn('Filename: "{app}\\_internal\\Zapret.exe"', iss)
         self.assertIn('WorkingDir: "{app}"', iss)
 
-    def test_inno_old_install_cleanup_is_explicit_and_runs_only_after_success(self) -> None:
+    def test_inno_previous_install_cleanup_is_explicit_and_runs_only_after_success(self) -> None:
         iss = self._read_inno_script()
 
         self.assertIn("CleanupPreviousInstallPage: TInputOptionWizardPage;", iss)
@@ -873,9 +872,9 @@ class BuildResourceLayoutTests(unittest.TestCase):
         self.assertIn("(not IsPreviousInstallCleanupSelected())", iss)
         self.assertIn("UserDataMigrationHasSkippedEntries or", iss)
 
-        self.assertIn("function IsDeletablePreviousInstallRoot(const Value: string): Boolean;", iss)
-        self.assertIn("HasKnownZapretExecutable(Root);", iss)
+        self.assertIn("function IsSafeInstallRoot(const Value: string): Boolean;", iss)
         self.assertIn("MatchingFileExists(Root + '\\unins*.exe')", iss)
+        self.assertNotIn("function IsDeletablePreviousInstallRoot", iss)
         self.assertIn("function IsProtectedInstallRoot(const Value: string): Boolean;", iss)
         self.assertIn("PathsEqual(Root, ExpandConstant('{sd}\\Zapret'))", iss)
         self.assertIn("не подтверждён успешный перенос данных", iss)
@@ -929,30 +928,53 @@ class BuildResourceLayoutTests(unittest.TestCase):
         self.assertIn("InstallOwnerMarkerAllowsRetry(NewInstallRoot)", iss)
         self.assertIn("папка уже содержит чужие файлы", iss)
 
-    def test_inno_accepts_and_stops_legacy_root_executable_during_update(self) -> None:
+    def test_inno_uses_registered_install_root_without_runtime_layout_branches(self) -> None:
         iss = self._read_inno_script()
 
-        recognized_start = iss.index("function IsRecognizedPreviousInstallRoot")
-        recognized_end = iss.index("function IsDeletablePreviousInstallRoot", recognized_start)
-        recognized = iss[recognized_start:recognized_end]
+        safe_root_start = iss.index("function IsSafeInstallRoot")
+        safe_root_end = iss.index("function IsAutoUpdate", safe_root_start)
+        safe_root = iss[safe_root_start:safe_root_end]
+        registry_start = iss.index("function ReadPreviousInstallRoot")
+        registry_end = iss.index("function ShouldOfferPreviousInstallCleanup", registry_start)
+        registry = iss[registry_start:registry_end]
         validation_start = iss.index("function ValidateDestinationInstallRoot")
         validation_end = iss.index("function PrepareDestinationOwnership", validation_start)
         validation = iss[validation_start:validation_end]
-        process_start = iss.index("function StopInstallRootProcesses")
-        process_end = iss.index("function StopRelocationInstallProcesses", process_start)
-        process_stop = iss[process_start:process_end]
 
-        self.assertIn("function HasKnownZapretExecutable(const Root: string): Boolean;", iss)
-        self.assertIn("FileExists(NormalizedRoot + '\\_internal\\Zapret.exe') or", iss)
-        self.assertIn("FileExists(NormalizedRoot + '\\Zapret.exe');", iss)
-        self.assertIn("HasKnownZapretExecutable(Root);", recognized)
-        self.assertNotIn("HasKnownZapretExecutable", validation)
+        self.assertNotIn("HasKnownZapretExecutable", iss)
+        self.assertNotIn("IsRecognizedPreviousInstallRoot", iss)
+        self.assertIn("MatchingFileExists(Root + '\\unins*.exe')", safe_root)
+        self.assertNotIn("Zapret.exe", safe_root)
+        self.assertIn("Uninstall\\{#UninstallKeyName}", registry)
+        self.assertIn("'InstallLocation'", registry)
+        self.assertIn("if IsSafeInstallRoot(Value) then", registry)
+        self.assertNotIn("IsSafeInstallRoot", validation)
         self.assertIn("PathsEqual(PreviousInstallRoot, NewInstallRoot)", validation)
-        self.assertIn(
-            "OneProcessStopped := KillProcessAtPathWithRetry(\n"
-            "    NormalizedRoot + '\\Zapret.exe');",
-            process_stop,
-        )
+
+    def test_inno_persistent_bindings_follow_install_roots_not_previous_exe_layout(self) -> None:
+        iss = self._read_inno_script()
+
+        retarget_start = iss.index("function RetargetGuiAutostartTask")
+        retarget_end = iss.index("function QuotePowerShellLiteral", retarget_start)
+        retarget = iss[retarget_start:retarget_end]
+        repair_start = iss.index("function RepairAllUserShortcuts")
+        repair_end = iss.index("function RemoveGuiAutostartTaskIfOwned", repair_start)
+        repair = iss[repair_start:repair_end]
+        remove_task_start = iss.index("function RemoveGuiAutostartTaskIfOwned")
+        remove_task_end = iss.index("function RemoveAllUserShortcutsForUninstall", remove_task_start)
+        remove_task = iss[remove_task_start:remove_task_end]
+        remove_links_start = iss.index("function RemoveAllUserShortcutsForUninstall")
+        remove_links_end = iss.index("procedure AppendRelocationReason", remove_links_start)
+        remove_links = iss[remove_links_start:remove_links_end]
+
+        self.assertIn("if IsNestedPath(ActionPath, OldRoot) then", retarget)
+        self.assertNotIn("OldExe", retarget)
+        self.assertIn("OldRootPrefix := AddBackslash(NormalizeInstallRoot(OldRoot));", repair)
+        self.assertIn("$target.StartsWith($oldRoot,[StringComparison]::OrdinalIgnoreCase)", repair)
+        self.assertNotIn("$oldExe", repair)
+        self.assertIn("if IsNestedPath(Action.Path, AppRoot) then", remove_task)
+        self.assertIn("RootPrefix := AddBackslash(NormalizeInstallRoot(AppRoot));", remove_links)
+        self.assertIn("$target.StartsWith($root,[StringComparison]::OrdinalIgnoreCase)", remove_links)
 
     def test_inno_auto_update_has_an_explicit_success_only_flow(self) -> None:
         iss = self._read_inno_script()
@@ -988,13 +1010,20 @@ class BuildResourceLayoutTests(unittest.TestCase):
     def test_inno_stops_only_processes_from_the_selected_installation(self) -> None:
         iss = self._read_inno_script()
 
-        self.assertIn("function KillProcessAtPathWithRetry(const ExePath: string): Boolean;", iss)
         self.assertIn("function StopInstallRootProcesses(const Root: string): Boolean;", iss)
         self.assertIn("function StopRelocationInstallProcesses: Boolean;", iss)
-        self.assertIn("NormalizedRoot + '\\_internal\\Zapret.exe'", iss)
-        self.assertIn("NormalizedRoot + '\\exe\\winws.exe'", iss)
-        self.assertIn("NormalizedRoot + '\\exe\\winws2.exe'", iss)
-        self.assertIn("$_.Path -and ($_.Path -ieq $target)", iss)
+        process_start = iss.index("function StopInstallRootProcesses")
+        process_end = iss.index("function StopRelocationInstallProcesses", process_start)
+        process_stop = iss[process_start:process_end]
+        self.assertIn("RootPrefix := AddBackslash(NormalizedRoot);", process_stop)
+        self.assertIn("SourceInstaller := NormalizeInstallRoot(ExpandConstant('{srcexe}'));", process_stop)
+        self.assertIn("$path.StartsWith($root,[StringComparison]::OrdinalIgnoreCase)", process_stop)
+        self.assertIn("$path -ine $setup", process_stop)
+        self.assertIn("Stop-Process -Force", process_stop)
+        self.assertNotIn("Zapret.exe", process_stop)
+        self.assertNotIn("winws.exe", process_stop)
+        self.assertNotIn("winws2.exe", process_stop)
+        self.assertNotIn("KillProcessAtPathWithRetry", iss)
         self.assertIn("function NativePowerShellExe: string;", iss)
         self.assertIn(
             "ExpandConstant('{sysnative}\\WindowsPowerShell\\v1.0\\powershell.exe')",
