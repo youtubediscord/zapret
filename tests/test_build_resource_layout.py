@@ -874,7 +874,7 @@ class BuildResourceLayoutTests(unittest.TestCase):
         self.assertIn("UserDataMigrationHasSkippedEntries or", iss)
 
         self.assertIn("function IsDeletablePreviousInstallRoot(const Value: string): Boolean;", iss)
-        self.assertIn("FileExists(Root + '\\_internal\\Zapret.exe')", iss)
+        self.assertIn("HasKnownZapretExecutable(Root);", iss)
         self.assertIn("MatchingFileExists(Root + '\\unins*.exe')", iss)
         self.assertIn("function IsProtectedInstallRoot(const Value: string): Boolean;", iss)
         self.assertIn("PathsEqual(Root, ExpandConstant('{sd}\\Zapret'))", iss)
@@ -928,6 +928,31 @@ class BuildResourceLayoutTests(unittest.TestCase):
         self.assertIn("IsDirectoryEmpty(NewInstallRoot)", iss)
         self.assertIn("InstallOwnerMarkerAllowsRetry(NewInstallRoot)", iss)
         self.assertIn("папка уже содержит чужие файлы", iss)
+
+    def test_inno_accepts_and_stops_legacy_root_executable_during_update(self) -> None:
+        iss = self._read_inno_script()
+
+        recognized_start = iss.index("function IsRecognizedPreviousInstallRoot")
+        recognized_end = iss.index("function IsDeletablePreviousInstallRoot", recognized_start)
+        recognized = iss[recognized_start:recognized_end]
+        validation_start = iss.index("function ValidateDestinationInstallRoot")
+        validation_end = iss.index("function PrepareDestinationOwnership", validation_start)
+        validation = iss[validation_start:validation_end]
+        process_start = iss.index("function StopInstallRootProcesses")
+        process_end = iss.index("function StopRelocationInstallProcesses", process_start)
+        process_stop = iss[process_start:process_end]
+
+        self.assertIn("function HasKnownZapretExecutable(const Root: string): Boolean;", iss)
+        self.assertIn("FileExists(NormalizedRoot + '\\_internal\\Zapret.exe') or", iss)
+        self.assertIn("FileExists(NormalizedRoot + '\\Zapret.exe');", iss)
+        self.assertIn("HasKnownZapretExecutable(Root);", recognized)
+        self.assertNotIn("HasKnownZapretExecutable", validation)
+        self.assertIn("PathsEqual(PreviousInstallRoot, NewInstallRoot)", validation)
+        self.assertIn(
+            "OneProcessStopped := KillProcessAtPathWithRetry(\n"
+            "    NormalizedRoot + '\\Zapret.exe');",
+            process_stop,
+        )
 
     def test_inno_auto_update_has_an_explicit_success_only_flow(self) -> None:
         iss = self._read_inno_script()
