@@ -151,7 +151,32 @@ class BuildResourceLayoutTests(unittest.TestCase):
         self.assertIn('"--nofollow-import-to=PIL"', builder)
         self.assertIn('"--noinclude-dlls=opengl32sw.dll"', builder)
 
-    def test_nuitka_clears_stale_dist_but_preserves_compilation_cache(self) -> None:
+    def test_nuitka_uses_local_work_dir_for_windows_network_share(self) -> None:
+        old_path = list(sys.path)
+        sys.path.insert(0, str(PRIVATE_ROOT))
+        try:
+            sys.modules.pop("build_zapret.nuitka_builder", None)
+            from build_zapret import nuitka_builder
+
+            with tempfile.TemporaryDirectory() as temp_dir:
+                local_app_data = Path(temp_dir) / "LocalAppData"
+                network_build_dir = Path(r"\\10.20.0.1\zapretgui\private_zapretgui\build_zapret")
+                with (
+                    patch.object(nuitka_builder.sys, "platform", "win32"),
+                    patch.object(nuitka_builder, "BUILD_DIR", network_build_dir),
+                    patch.dict(os.environ, {"LOCALAPPDATA": str(local_app_data)}),
+                ):
+                    work_dir = nuitka_builder._nuitka_work_dir()
+
+                self.assertEqual(
+                    work_dir,
+                    local_app_data / "ZapretGUI" / "build_zapret" / "nuitka",
+                )
+        finally:
+            sys.modules.pop("build_zapret.nuitka_builder", None)
+            sys.path[:] = old_path
+
+    def test_nuitka_clears_generated_outputs_before_rebuild(self) -> None:
         old_path = list(sys.path)
         sys.path.insert(0, str(PRIVATE_ROOT))
         try:
@@ -167,9 +192,9 @@ class BuildResourceLayoutTests(unittest.TestCase):
                 (build_cache / "cache.bin").write_bytes(b"cache")
                 (stale_dist / "unused.dll").write_bytes(b"old")
 
-                nuitka_builder._clear_previous_dist_outputs(temp_path)
+                nuitka_builder._clear_previous_nuitka_outputs(temp_path)
 
-                self.assertTrue((build_cache / "cache.bin").is_file())
+                self.assertFalse(build_cache.exists())
                 self.assertFalse(stale_dist.exists())
         finally:
             sys.modules.pop("build_zapret.nuitka_builder", None)
@@ -807,16 +832,21 @@ class BuildResourceLayoutTests(unittest.TestCase):
 
         self.assertIn("DisableDirPage=no", iss)
         self.assertIn("UsePreviousAppDir=yes", iss)
+        self.assertIn("AppendDefaultDirName=no", iss)
         self.assertIn("function NormalizeInstallRoot(const Value: string): string;", iss)
         self.assertIn("function ValidateDestinationInstallRoot(", iss)
         self.assertIn("function IsDirectoryEmpty(const Value: string): Boolean;", iss)
-        self.assertIn("function InstallOwnerMarkerAllowsRetry(const Root: string): Boolean;", iss)
+        self.assertIn("function InstallOwnerMarkerAllowsReuse(const Root: string): Boolean;", iss)
         self.assertIn("function InstallOwnerMarkerIsInstalled(const Root: string): Boolean;", iss)
         self.assertIn("function WriteInstallOwnerMarker(", iss)
         self.assertIn("PrepareDestinationOwnership", iss)
         self.assertIn("function ReadPreviousInstallRoot: string;", iss)
+        self.assertIn("function IsRegisteredInstallRoot(const Value: string): Boolean;", iss)
         self.assertIn("function IsSafeInstallRoot(const Value: string): Boolean;", iss)
         self.assertIn("not PathHasReparsePointAncestor(Root)", iss)
+        self.assertIn("function ResolveSelectedInstallRoot(const Value: string): string;", iss)
+        self.assertIn("procedure ApplySelectedInstallRoot;", iss)
+        self.assertIn("WizardForm.DirBrowseButton.OnClick := @SelectInstallParent;", iss)
         self.assertIn("function MigrateUserDataIfInstallRootChanged: Boolean;", iss)
         self.assertIn("PreviousInstallRoot + '\\settings'", iss)
         self.assertIn("PreviousInstallRoot + '\\lists\\user'", iss)
@@ -915,7 +945,7 @@ class BuildResourceLayoutTests(unittest.TestCase):
         iss = self._read_inno_script()
 
         self.assertIn("NewInstallRoot := NormalizeInstallRoot(WizardDirValue);", iss)
-        self.assertIn("if IsProtectedInstallRoot(NewInstallRoot) then", iss)
+        self.assertIn("if IsProtectedInstallRoot(NewInstallRoot) and", iss)
         self.assertIn("IsNestedPath(NewInstallRoot, PreviousInstallRoot)", iss)
         self.assertIn("IsNestedPath(PreviousInstallRoot, NewInstallRoot)", iss)
         self.assertIn("function PathHasReparsePointAncestor(const Value: string): Boolean;", iss)
@@ -923,14 +953,18 @@ class BuildResourceLayoutTests(unittest.TestCase):
         self.assertIn("if Copy(NewInstallRoot, 1, 2) = '\\\\' then", iss)
         self.assertIn("IsNestedPath(Root, ExpandConstant('{win}'))", iss)
         self.assertIn("IsNestedPath(Root, GetEnv('ProgramW6432'))", iss)
-        self.assertIn("Previous InstallLocation ignored", iss)
+        self.assertIn("Previous InstallLocation ignored because it is not a registered Zapret install root", iss)
         self.assertIn("IsDirectoryEmpty(NewInstallRoot)", iss)
-        self.assertIn("InstallOwnerMarkerAllowsRetry(NewInstallRoot)", iss)
-        self.assertIn("папка уже содержит чужие файлы", iss)
+        self.assertIn("InstallOwnerMarkerAllowsReuse(NewInstallRoot)", iss)
+        self.assertIn("DestinationConfirmationRequired := True;", iss)
+        self.assertIn("папка уже содержит файлы", iss)
 
     def test_inno_uses_registered_install_root_without_runtime_layout_branches(self) -> None:
         iss = self._read_inno_script()
 
+        registered_root_start = iss.index("function IsRegisteredInstallRoot")
+        registered_root_end = iss.index("function IsSafeInstallRoot", registered_root_start)
+        registered_root = iss[registered_root_start:registered_root_end]
         safe_root_start = iss.index("function IsSafeInstallRoot")
         safe_root_end = iss.index("function IsAutoUpdate", safe_root_start)
         safe_root = iss[safe_root_start:safe_root_end]
@@ -943,13 +977,57 @@ class BuildResourceLayoutTests(unittest.TestCase):
 
         self.assertNotIn("HasKnownZapretExecutable", iss)
         self.assertNotIn("IsRecognizedPreviousInstallRoot", iss)
-        self.assertIn("MatchingFileExists(Root + '\\unins*.exe')", safe_root)
-        self.assertNotIn("Zapret.exe", safe_root)
+        self.assertIn("MatchingFileExists(Root + '\\unins*.exe')", registered_root)
+        self.assertNotIn("IsProtectedInstallRoot", registered_root)
+        self.assertIn("IsRegisteredInstallRoot(Value)", safe_root)
+        self.assertIn("(not IsSharedInstallRoot(Value))", safe_root)
         self.assertIn("Uninstall\\{#UninstallKeyName}", registry)
         self.assertIn("'InstallLocation'", registry)
-        self.assertIn("if IsSafeInstallRoot(Value) then", registry)
+        self.assertIn("if IsRegisteredInstallRoot(Value) then", registry)
         self.assertNotIn("IsSafeInstallRoot", validation)
         self.assertIn("PathsEqual(PreviousInstallRoot, NewInstallRoot)", validation)
+        self.assertIn(
+            "if IsProtectedInstallRoot(NewInstallRoot) and\n"
+            "     (not PathsEqual(PreviousInstallRoot, NewInstallRoot)) then",
+            validation,
+        )
+
+    def test_inno_keeps_legacy_programdata_install_but_nests_new_parent_selection(self) -> None:
+        iss = self._read_inno_script()
+
+        protected_start = iss.index("function IsProtectedInstallRoot")
+        protected_end = iss.index("function IsSharedInstallRoot", protected_start)
+        protected = iss[protected_start:protected_end]
+        resolver_start = iss.index("function ResolveSelectedInstallRoot")
+        resolver_end = iss.index("procedure ApplySelectedInstallRoot", resolver_start)
+        resolver = iss[resolver_start:resolver_end]
+        install_delete_start = iss.index("[InstallDelete]")
+        install_delete_end = iss.index("[UninstallDelete]", install_delete_start)
+        install_delete = iss[install_delete_start:install_delete_end]
+
+        self.assertNotIn("ExpandConstant('{commonappdata}')", protected)
+        self.assertIn(
+            "Result := PathsEqual(Value, ExpandConstant('{commonappdata}'));",
+            iss,
+        )
+        self.assertIn("PathsEqual(Root, PreviousInstallRoot)", resolver)
+        self.assertIn("HasChannelInstallSuffix(Root)", resolver)
+        self.assertIn("(CompareText(Leaf, 'Dev') = 0)", resolver)
+        self.assertIn("(CompareText(Leaf, 'Stable') = 0)", resolver)
+        self.assertIn("AddBackslash(ParentRoot) + '{#InstallLeaf}'", resolver)
+        self.assertIn("AddBackslash(Root) + '{#InstallLeaf}'", resolver)
+        self.assertIn("AddBackslash(Root) + 'Zapret\\{#InstallLeaf}'", resolver)
+        self.assertIn("BrowseForFolder(", iss)
+        self.assertIn("ApplySelectedInstallRoot;", iss)
+        self.assertIn(
+            'Type: files; Name: "{app}\\*.dll"; Check: ShouldDeleteLegacyRootRuntime',
+            install_delete,
+        )
+        self.assertIn(
+            'Type: filesandordirs; Name: "{app}\\src"; Check: ShouldDeleteLegacyRootRuntime',
+            install_delete,
+        )
+        self.assertIn("if not IsSharedInstallRoot(AppRoot) then", iss)
 
     def test_inno_persistent_bindings_follow_install_roots_not_previous_exe_layout(self) -> None:
         iss = self._read_inno_script()
@@ -1017,12 +1095,15 @@ class BuildResourceLayoutTests(unittest.TestCase):
         process_stop = iss[process_start:process_end]
         self.assertIn("RootPrefix := AddBackslash(NormalizedRoot);", process_stop)
         self.assertIn("SourceInstaller := NormalizeInstallRoot(ExpandConstant('{srcexe}'));", process_stop)
+        self.assertIn("if IsSharedInstallRoot(NormalizedRoot) then", process_stop)
+        self.assertIn("NormalizedRoot + '\\Zapret.exe'", process_stop)
+        self.assertIn("NormalizedRoot + '\\_internal\\Zapret.exe'", process_stop)
+        self.assertIn("NormalizedRoot + '\\exe\\winws.exe'", process_stop)
+        self.assertIn("NormalizedRoot + '\\exe\\winws2.exe'", process_stop)
+        self.assertIn("PathMatchExpression", process_stop)
         self.assertIn("$path.StartsWith($root,[StringComparison]::OrdinalIgnoreCase)", process_stop)
         self.assertIn("$path -ine $setup", process_stop)
         self.assertIn("Stop-Process -Force", process_stop)
-        self.assertNotIn("Zapret.exe", process_stop)
-        self.assertNotIn("winws.exe", process_stop)
-        self.assertNotIn("winws2.exe", process_stop)
         self.assertNotIn("KillProcessAtPathWithRetry", iss)
         self.assertIn("function NativePowerShellExe: string;", iss)
         self.assertIn(
@@ -1046,6 +1127,7 @@ class BuildResourceLayoutTests(unittest.TestCase):
         self.assertLess(ownership_call, process_stop_call)
         self.assertIn("StopApplicationServices(PreviousInstallRoot, WizardDirValue);", prepare)
         self.assertIn("function ServiceReferencesInstallRoot(", iss)
+        self.assertIn("function RegistryValueReferencesInstallOwnedPath(", iss)
         self.assertIn("Service does not belong to selected install roots, skipped", iss)
 
         uninstall_start = iss.index("procedure CurUninstallStepChanged(")
