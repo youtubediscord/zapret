@@ -60,6 +60,9 @@ class ProxyLogger:
             maxBytes=_MAX_BYTES,
             backupCount=_BACKUP_COUNT,
             encoding="utf-8",
+            # Трей и страница создают менеджер заранее. Сам файл нужен
+            # только после первой реальной строки Telegram Proxy.
+            delay=True,
         )
         formatter = logging.Formatter(
             "%(asctime)s  %(message)s",
