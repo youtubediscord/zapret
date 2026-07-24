@@ -1,0 +1,26 @@
+# Библиотеки, которые использует приложение и которые попадают в runtime.
+# Последняя сверка с PyPI: 2026-07-24.
+
+# GUI
+PyQt6==6.11.0
+PyQt6-Qt6==6.11.1
+PyQt6-sip==13.11.1
+PyQt6-Fluent-Widgets==1.11.2
+PyQt6-Frameless-Window==0.8.1
+QtAwesome==1.4.2
+
+# Сеть и HTTP
+requests==2.34.2
+urllib3==2.7.0
+certifi==2026.7.22
+PySocks==1.7.1
+httpx==0.28.1
+
+# Интеграция с Windows
+pywin32==312
+psutil==7.2.2
+WMI==1.5.1
+
+# Остальное
+packaging==26.2
+TgCrypto==1.2.5

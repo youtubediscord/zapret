@@ -564,6 +564,11 @@ class BuildResourceLayoutTests(unittest.TestCase):
         self.assertIn('$runtimeTarget = Join-Path $artifactRoot "_internal"', workflow)
         self.assertIn('Join-Path $runtimeTarget "Zapret.exe"', workflow)
         self.assertIn("path: artifact/", workflow)
+        self.assertIn(
+            "python -m pip install --upgrade --upgrade-strategy eager -r requirements-build.txt",
+            workflow,
+        )
+        self.assertNotIn("pip install nuitka pyinstaller", workflow.lower())
         self.assertNotIn("cd src", workflow)
         self.assertNotIn("src/dist/Zapret/", workflow)
         self.assertNotIn("--paths . main.py", workflow)

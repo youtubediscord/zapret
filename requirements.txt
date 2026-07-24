@@ -1,56 +1,9 @@
-# requirements.txt — Zapret GUI
-# "C:\Program Files\Python314\Scripts\pip.exe" install -r requirements.txt
-# python.exe -m pip install --upgrade pip
+# Полное окружение разработки и выпуска ZapretGUI.
+# Версии пакетов находятся только в профильных файлах ниже.
+#
+# Установка на Windows:
+#   py -3.14 -m pip install --upgrade --upgrade-strategy eager -r requirements.txt
 
-# ════════════════════════════════════════════════════════════
-# Runtime (попадает в exe — это же ставит CI в windows-release.yml)
-# ════════════════════════════════════════════════════════════
-
-# GUI Framework
-PyQt6
-PyQt6-Qt6
-PyQt6-sip
-PyQt6-Fluent-Widgets
-qtawesome
-
-# Network and HTTP
-requests
-urllib3
-PySocks
-httpx>=0.28.1  # blockcheck (isp_page_detector, dns_integrity, tcp_test)
-
-# Windows System Integration
-pywin32
-psutil
-wmi  # dns_core: список сетевых адаптеров
-
-# Misc
-packaging  # updater: сравнение версий
-tgcrypto   # быстрый AES-CTR для MTProxy; на Python 3.14 собирается через Microsoft C++ Build Tools
-
-# ════════════════════════════════════════════════════════════
-# Build Tools (только для сборки exe, в рантайм не попадают)
-# ════════════════════════════════════════════════════════════
-PyInstaller
-Nuitka
-
-# ════════════════════════════════════════════════════════════
-# Publish Tools (только для публикации релизов)
-# ════════════════════════════════════════════════════════════
-PyGithub   # публикация релизов на GitHub
-paramiko   # деплой на VPS по SSH
-pyrogram   # публикация в Telegram-канал
-telethon   # приватный publish-тулинг (build_zapret: telegram_auth_telethon, telegram_uploader_telethon_fixed)
-
-# ════════════════════════════════════════════════════════════
-# Dev Tools (генераторы, не нужны ни в рантайме, ни в CI)
-# ════════════════════════════════════════════════════════════
-simplepycons  # только tools/generate_profile_icon_bundle.py; рантайм использует сгенерированный бандл
-
-# ════════════════════════════════════════════════════════════
-# Примечания:
-# ════════════════════════════════════════════════════════════
-# - tkinter входит в стандартную поставку Python (не требует установки)
-# - Inno Setup нужно установить отдельно для Windows
-# - PyInstaller и Nuitka опциональны (нужны только для сборки exe)
-# - PyGithub, paramiko, pyrogram опциональны (нужны только для публикации)
+-r requirements-build.txt
+-r requirements-publish.txt
+-r requirements-dev.txt

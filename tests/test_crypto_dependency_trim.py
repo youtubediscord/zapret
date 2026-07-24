@@ -10,7 +10,8 @@ ROOT = Path(__file__).resolve().parents[1]
 
 class CryptoDependencyTrimTests(unittest.TestCase):
     def test_runtime_and_release_inputs_do_not_depend_on_cryptography(self) -> None:
-        checked_paths = [ROOT / "requirements.txt", ROOT / ".github" / "workflows" / "windows-release.yml"]
+        checked_paths = list(ROOT.glob("requirements*.txt"))
+        checked_paths.append(ROOT / ".github" / "workflows" / "windows-release.yml")
         checked_paths.extend(path for path in (ROOT / "src").rglob("*.py") if "__pycache__" not in path.parts)
 
         offenders = [
@@ -21,12 +22,12 @@ class CryptoDependencyTrimTests(unittest.TestCase):
 
         self.assertEqual(offenders, [])
 
-        requirements = (ROOT / "requirements.txt").read_text(encoding="utf-8")
+        runtime_requirements = (ROOT / "requirements-runtime.txt").read_text(encoding="utf-8")
         workflow = (ROOT / ".github" / "workflows" / "windows-release.yml").read_text(encoding="utf-8")
         self.assertIn('python-version: "3.14"', workflow)
         self.assertNotIn('python-version: "3.12"', workflow)
-        self.assertIn("tgcrypto", requirements)
-        self.assertIn("tgcrypto", workflow)
+        self.assertIn("TgCrypto==1.2.5", runtime_requirements)
+        self.assertIn("-r requirements-build.txt", workflow)
 
     def test_aes_ctr_stream_matches_standard_vector_and_keeps_chunk_state(self) -> None:
         from telegram_proxy.proxy.aes_ctr import AesCtrStream, aes_ctr_crypt

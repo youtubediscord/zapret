@@ -1,0 +1,7 @@
+# Каноническое окружение сборки runtime.
+# Этот файл устанавливает действующий GitHub Actions workflow.
+
+-r requirements-runtime.txt
+
+PyInstaller==6.21.0
+Nuitka==4.1.3

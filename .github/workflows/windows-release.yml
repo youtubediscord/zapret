@@ -33,7 +33,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install nuitka pyinstaller PyQt6 PyQt6-Qt6 PyQt6-sip pywin32 psutil requests urllib3 PySocks tgcrypto qtawesome PyQt6-Fluent-Widgets wmi httpx packaging
+          python -m pip install --upgrade --upgrade-strategy eager -r requirements-build.txt
 
       - name: Generate build files
         shell: python
