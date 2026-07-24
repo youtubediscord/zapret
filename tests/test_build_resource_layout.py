@@ -618,6 +618,37 @@ class BuildResourceLayoutTests(unittest.TestCase):
             sys.modules.pop("build_zapret.scheduled_release_task", None)
             sys.path[:] = old_path
 
+    def test_scheduled_release_task_is_registered_without_console_window(self) -> None:
+        registration = (
+            PRIVATE_ROOT / "register_release_task.ps1"
+        ).read_text(encoding="utf-8")
+        readme = (
+            PRIVATE_ROOT / "build_zapret" / "README.md"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("'pythonw.exe'", registration)
+        self.assertIn("-m build_zapret.scheduled_release_task", registration)
+        self.assertIn("-WorkingDirectory $PrivateRoot", registration)
+        self.assertNotIn("build_release_task.cmd", registration)
+        self.assertIn("не показывает чёрное окно `cmd.exe`", readme)
+
+    def test_release_publication_subprocesses_are_hidden_on_windows(self) -> None:
+        gui = (
+            PRIVATE_ROOT / "build_zapret" / "build_release_gui.py"
+        ).read_text(encoding="utf-8")
+        github = (
+            PRIVATE_ROOT / "build_zapret" / "github_release.py"
+        ).read_text(encoding="utf-8")
+        ssh = (
+            PRIVATE_ROOT / "build_zapret" / "ssh_deploy.py"
+        ).read_text(encoding="utf-8")
+        installer = self._read_inno_script()
+
+        self.assertIn('creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)', gui)
+        self.assertGreaterEqual(github.count("creationflags=_hidden_subprocess_flags()"), 2)
+        self.assertGreaterEqual(ssh.count("creationflags=_hidden_subprocess_flags()"), 7)
+        self.assertIn("'', SW_HIDE, ewWaitUntilTerminated", installer)
+
     def test_gui_and_cli_share_one_release_build_lock(self) -> None:
         old_path = list(sys.path)
         sys.path.insert(0, str(PRIVATE_ROOT))
