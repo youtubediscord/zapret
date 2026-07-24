@@ -85,7 +85,6 @@ jobs:
               "--nofollow-import-to=numpy",
               "--nofollow-import-to=PIL",
               "--noinclude-dlls=opengl32sw.dll",
-              "--windows-icon-from-ico=src\ico\Zapret2.ico",
               "--output-filename=Zapret.exe",
               "--output-dir=$buildRoot\nuitka"
             )
@@ -106,7 +105,6 @@ jobs:
               "--onedir",
               "--contents-directory", ".",
               "--paths", "src",
-              "--icon", "src\ico\Zapret2.ico",
               "--workpath", "$buildRoot\pyinstaller-work",
               "--distpath", "$buildRoot\pyinstaller-dist"
             )

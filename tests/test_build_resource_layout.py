@@ -572,6 +572,8 @@ class BuildResourceLayoutTests(unittest.TestCase):
         self.assertNotIn("cd src", workflow)
         self.assertNotIn("src/dist/Zapret/", workflow)
         self.assertNotIn("--paths . main.py", workflow)
+        self.assertNotIn(r"src\ico", workflow)
+        self.assertNotIn("--windows-icon-from-ico", workflow)
 
     def test_cli_uses_nuitka_by_default_and_normalizes_old_flat_target(self) -> None:
         old_path = list(sys.path)
