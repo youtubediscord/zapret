@@ -419,6 +419,7 @@ class BuildResourceLayoutTests(unittest.TestCase):
             self.assertTrue(defaults.run_installer)
             self.assertFalse(defaults.skip_github)
             self.assertFalse(defaults.skip_ssh)
+            self.assertTrue(defaults.version_is_explicit)
 
             parsed = build_release_cli.parse_args(
                 [
@@ -473,6 +474,55 @@ class BuildResourceLayoutTests(unittest.TestCase):
             self.assertEqual(
                 builder._fast_dest_exe_path("dev"),
                 Path(r"C:\Zapret\Dev\_internal\Zapret.exe"),
+            )
+        finally:
+            sys.modules.pop("build_release_cli", None)
+            sys.path[:] = old_path
+
+    def test_cli_defaults_to_dev_and_increments_fourth_version_part_independently(self) -> None:
+        build_path = PRIVATE_ROOT / "build_zapret"
+        old_path = list(sys.path)
+        sys.path.insert(0, str(build_path))
+        try:
+            sys.modules.pop("build_release_cli", None)
+            import build_release_cli
+
+            with tempfile.TemporaryDirectory() as temp_dir:
+                versions_file = Path(temp_dir) / "version_Local.json"
+                versions_file.write_text(
+                    json.dumps(
+                        {
+                            "stable": {"version": "21.1.1.3"},
+                            "dev": {"version": "21.1.5.13"},
+                            "next_suggested": {
+                                "stable": "99.99.99.99",
+                                "dev": "88.88.88.88",
+                            },
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+                with (
+                    patch.object(build_release_cli, "VERSIONS_FILE", versions_file),
+                    patch.object(
+                        build_release_cli,
+                        "check_telegram_configured",
+                        return_value=(False, "Telegram не настроен"),
+                    ),
+                ):
+                    dev = build_release_cli.parse_args([])
+                    stable = build_release_cli.parse_args(["--channel", "stable"])
+                    plan = build_release_cli.format_release_plan(dev)
+
+            self.assertEqual(dev.channel, "dev")
+            self.assertEqual(dev.version, "21.1.5.14")
+            self.assertFalse(dev.version_is_explicit)
+            self.assertEqual(stable.version, "21.1.1.4")
+            self.assertIn("Stable: 21.1.1.3 → следующая 21.1.1.4", plan)
+            self.assertIn("Dev: 21.1.5.13 → следующая 21.1.5.14", plan)
+            self.assertIn(
+                "Будет выпущена версия: 21.1.5.14 (следующая автоматически)",
+                plan,
             )
         finally:
             sys.modules.pop("build_release_cli", None)
