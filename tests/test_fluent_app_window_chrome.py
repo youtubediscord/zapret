@@ -37,6 +37,20 @@ class FluentAppWindowChromeTests(unittest.TestCase):
         self.assertNotIn("_set_handles_visible", source)
         self.assertFalse(hasattr(ZapretFluentWindow, "set_zoom_chrome_compact"))
 
+    def test_replaced_titlebar_is_removed_from_window_event_filters(self) -> None:
+        class EventFilterTrackingWindow(ZapretFluentWindow):
+            def removeEventFilter(self, event_filter) -> None:  # noqa: N802
+                detached = self.__dict__.setdefault("_detached_event_filters", [])
+                detached.append(event_filter)
+                super().removeEventFilter(event_filter)
+
+        window = EventFilterTrackingWindow()
+        detached = window.__dict__.get("_detached_event_filters", [])
+
+        self.assertGreaterEqual(len(detached), 1)
+        self.assertNotIn(window.titleBar, detached)
+        self.assertTrue(all(hasattr(title_bar, "maxBtn") for title_bar in detached))
+
     def test_fluent_window_does_not_own_app_geometry_policy(self) -> None:
         source = inspect.getsource(ZapretFluentWindow)
 

@@ -40,6 +40,20 @@ class ZapretFluentWindow(FluentWindow):
         # Theme mode (DARK/LIGHT) is set in main.py via _sync_theme_mode_to_qfluent()
         # before the window is created, so no hardcoded setTheme(DARK) here.
 
+    def setTitleBar(self, title_bar) -> None:  # noqa: N802 (qfluentwidgets API)
+        """Безопасно заменяет верхнюю панель окна.
+
+        qframelesswindow регистрирует каждую TitleBar как фильтр событий окна,
+        но при замене только откладывает её удаление. На Python 3.14 / PyQt6
+        6.11 старая панель иногда успевает получить WindowStateChange уже во
+        время очистки Python-объекта, когда maxBtn в нём больше нет.
+        """
+        previous_title_bar = getattr(self, "titleBar", None)
+        if previous_title_bar is not None and previous_title_bar is not title_bar:
+            self.removeEventFilter(previous_title_bar)
+
+        super().setTitleBar(title_bar)
+
     def _sync_titlebar_icon_from_application(self) -> None:
         """Показывает уже готовый общий значок в окончательной верхней панели."""
         app = QApplication.instance()
