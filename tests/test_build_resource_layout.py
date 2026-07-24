@@ -647,6 +647,7 @@ class BuildResourceLayoutTests(unittest.TestCase):
         self.assertIn('creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)', gui)
         self.assertGreaterEqual(github.count("creationflags=_hidden_subprocess_flags()"), 2)
         self.assertGreaterEqual(ssh.count("creationflags=_hidden_subprocess_flags()"), 7)
+        self.assertNotIn("capture_output=True,\n        text=True,\n        creationflags", ssh)
         self.assertIn("'', SW_HIDE, ewWaitUntilTerminated", installer)
 
     def test_gui_and_cli_share_one_release_build_lock(self) -> None:
