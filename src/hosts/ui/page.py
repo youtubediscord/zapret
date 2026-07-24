@@ -68,9 +68,10 @@ from ui.theme import get_theme_tokens, get_themed_qta_icon
 from ui.theme_semantic import get_semantic_palette
 
 from qfluentwidgets import (
-    BodyLabel, CaptionLabel, ComboBox, InfoBar, MessageBox, PushButton,
+    BodyLabel, CaptionLabel, ComboBox, InfoBar, PushButton,
     StrongBodyLabel, SwitchButton,
 )
+from ui.fluent_dialog import MessageBox
 
 
 _FLUENT_CHIP_STYLE_TEMPLATE = Template(

@@ -5,9 +5,10 @@ import time
 
 from PyQt6.QtCore import Qt, QTimer
 
-from qfluentwidgets import BodyLabel, InfoBar, MessageBox, SubtitleLabel
+from qfluentwidgets import BodyLabel, InfoBar, SubtitleLabel
 
 import donater.ui.page_plans as premium_page_plans
+from ui.fluent_dialog import MessageBox
 from ui.pages.base_page import BasePage
 from donater.ui.build import (
     build_premium_actions_section,

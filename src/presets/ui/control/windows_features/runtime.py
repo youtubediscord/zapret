@@ -31,7 +31,7 @@ class ControlPageWindowsFeatureMixin:
         )
 
     def _confirm_windows_feature_action(self, dialog_plan, toggle=None) -> bool:
-        from qfluentwidgets import MessageBox
+        from ui.fluent_dialog import MessageBox
 
         return run_confirmation_dialog(
             dialog_plan,

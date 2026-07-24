@@ -14,10 +14,11 @@ import qtawesome as qta
 
 from qfluentwidgets import (
     BodyLabel, CaptionLabel, CheckBox, IndeterminateProgressBar, InfoBar,
-    InfoBarPosition, LineEdit, MessageBox, PushButton, RoundMenu, SettingCardGroup, StrongBodyLabel,
+    InfoBarPosition, LineEdit, PushButton, RoundMenu, SettingCardGroup, StrongBodyLabel,
 )
 
 from settings.store import get_custom_dns_servers, set_custom_dns_servers
+from ui.fluent_dialog import MessageBox
 from ui.pages.base_page import BasePage
 from ui.latest_value_worker_state import LatestValueWorkerState
 from ui.one_shot_worker_runtime import OneShotWorkerRuntime

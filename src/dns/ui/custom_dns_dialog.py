@@ -5,7 +5,8 @@ from __future__ import annotations
 from ipaddress import IPv4Address, IPv6Address
 from uuid import uuid4
 
-from qfluentwidgets import BodyLabel, CaptionLabel, LineEdit, MessageBoxBase, SubtitleLabel
+from qfluentwidgets import BodyLabel, CaptionLabel, LineEdit, SubtitleLabel
+from ui.fluent_dialog import MessageBoxBase
 
 from ui.accessibility import remove_line_edit_buttons_from_tab_order, set_control_accessibility, set_state_text
 from ui.fluent_widgets import style_semantic_caption_label

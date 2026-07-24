@@ -67,9 +67,10 @@ from app.state_store import MainWindowStateStore
 
 from qfluentwidgets import (
     FluentIcon, InfoBar,
-    LineEdit, MessageBox, PrimaryToolButton, PushButton,
+    LineEdit, PrimaryToolButton, PushButton,
     RoundMenu, StrongBodyLabel,
 )
+from ui.fluent_dialog import MessageBox
 
 
 from ui.theme import get_cached_qta_pixmap, get_theme_tokens

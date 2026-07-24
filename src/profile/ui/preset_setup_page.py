@@ -21,8 +21,9 @@ from profile.ui.profile_folder_controller import ProfileFolderController
 from profile.ui.profiles_list import ProfilesList
 from profile.ui.shell import build_profile_shell, wire_profile_search_keyboard_activation
 from profile.ui.user_profile_dialog import CreateUserProfileDialog
-from qfluentwidgets import BodyLabel, InfoBar, MessageBox, PushButton
+from qfluentwidgets import BodyLabel, InfoBar, PushButton
 from settings.mode import ZAPRET1_MODE, ZAPRET2_MODE
+from ui.fluent_dialog import MessageBox
 from ui.pages.base_page import BasePage
 from app.ui_texts import tr as tr_catalog
 from config.urls import PROFILE_INFO_URL
@@ -1550,5 +1551,4 @@ def _user_profile_id_from_item(profile_key: str, item) -> str:
     if key.startswith("template:user:"):
         return key.split("template:user:", 1)[1].strip()
     return ""
-
 

@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 from app.ui_texts import tr as tr_catalog
-from qfluentwidgets import BodyLabel, CaptionLabel, LineEdit, MessageBoxBase, SubtitleLabel
+from qfluentwidgets import BodyLabel, CaptionLabel, LineEdit, SubtitleLabel
+from ui.fluent_dialog import MessageBoxBase
 from ui.accessibility import set_control_accessibility, set_state_text
 
 

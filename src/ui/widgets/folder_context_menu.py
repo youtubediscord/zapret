@@ -4,9 +4,10 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from PyQt6.QtCore import Qt
-from qfluentwidgets import BodyLabel, CaptionLabel, LineEdit, MessageBox, MessageBoxBase, RoundMenu, SubtitleLabel
+from qfluentwidgets import BodyLabel, CaptionLabel, LineEdit, RoundMenu, SubtitleLabel
 
 from ui.accessibility import remove_line_edit_buttons_from_tab_order, set_control_accessibility, set_state_text
+from ui.fluent_dialog import MessageBox, MessageBoxBase
 from ui.fluent_widgets import style_semantic_caption_label
 from ui.message_box_accessibility import set_message_box_button_accessibility
 from ui.popup_menu import exec_popup_menu

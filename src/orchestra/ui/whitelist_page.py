@@ -16,10 +16,10 @@ from qfluentwidgets import (
     CardWidget,
     StrongBodyLabel,
     BodyLabel,
-    MessageBox,
     InfoBar,
     CaptionLabel,
 )
+from ui.fluent_dialog import MessageBox
 
 from ui.pages.base_page import BasePage
 from ui.accessibility import remove_line_edit_buttons_from_tab_order, set_control_accessibility, set_state_text

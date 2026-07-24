@@ -8,7 +8,8 @@ from ui.accessibility import remove_line_edit_buttons_from_tab_order, set_contro
 from ui.fluent_widgets import style_semantic_caption_label
 from ui.segmented_accessibility import set_segmented_items_accessibility
 from app.ui_texts import tr as tr_catalog
-from qfluentwidgets import BodyLabel, CaptionLabel, LineEdit, MessageBoxBase, SubtitleLabel
+from qfluentwidgets import BodyLabel, CaptionLabel, LineEdit, SubtitleLabel
+from ui.fluent_dialog import MessageBoxBase
 
 
 def tr_presets_dialog(key: str, language: str, default: str, **kwargs) -> str:

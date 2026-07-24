@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from qfluentwidgets import BodyLabel, CaptionLabel, ComboBox, LineEdit, MessageBoxBase, SubtitleLabel
+from qfluentwidgets import BodyLabel, CaptionLabel, ComboBox, LineEdit, SubtitleLabel
+from ui.fluent_dialog import MessageBoxBase
 
 from profile.user_profiles import validate_user_profile_filter
 from ui.accessibility import (

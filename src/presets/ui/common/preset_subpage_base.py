@@ -34,14 +34,13 @@ from qfluentwidgets import (
     FluentIcon,
     InfoBar,
     LineEdit,
-    MessageBox,
-    MessageBoxBase,
     PushButton,
     RoundMenu,
     SimpleCardWidget,
     StrongBodyLabel,
     TransparentToolButton,
 )
+from ui.fluent_dialog import MessageBox, MessageBoxBase
 
 
 EXTERNAL_RAW_PRESET_RELOAD_COALESCE_MS = 150

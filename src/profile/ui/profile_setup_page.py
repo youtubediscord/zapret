@@ -57,12 +57,12 @@ from qfluentwidgets import (
     ComboBox,
     InfoBar,
     LineEdit,
-    MessageBox,
     PlainTextEdit,
     FluentIcon,
     SegmentedWidget,
     PushButton,
 )
+from ui.fluent_dialog import MessageBox
 from settings.mode import ZAPRET1_MODE, ZAPRET2_MODE, is_preset_launch_method, is_zapret2_launch_method
 from ui.pages.base_page import BasePage
 from ui.accessibility import (

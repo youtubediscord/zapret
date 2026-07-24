@@ -29,7 +29,7 @@ class PostStartupHost:
         return not bool(close_state.is_exiting or close_state.closing_completely)
 
     def confirm_update_install(self, version: str) -> bool:
-        from qfluentwidgets import MessageBox
+        from ui.fluent_dialog import MessageBox
         from ui.message_box_accessibility import set_message_box_button_accessibility
 
         body = f"Выпущена версия {version}. Скачать и установить сейчас?"

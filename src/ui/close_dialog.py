@@ -6,10 +6,11 @@ WinUI диалог выбора варианта закрытия приложе
 
 from PyQt6.QtWidgets import QHBoxLayout
 from qfluentwidgets import (
-    MessageBoxBase, SubtitleLabel, BodyLabel,
+    SubtitleLabel, BodyLabel,
 )
 from ui.accessibility import set_control_accessibility, set_state_text
 from ui.dialog_action_buttons import create_dialog_action_button, create_dialog_cancel_button
+from ui.fluent_dialog import MessageBoxBase
 
 
 class CloseDialog(MessageBoxBase):

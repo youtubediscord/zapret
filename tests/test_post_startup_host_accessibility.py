@@ -55,7 +55,7 @@ class PostStartupHostAccessibilityTests(unittest.TestCase):
         host = PostStartupHost(window)
         _MessageBox.instances = []
 
-        with patch("qfluentwidgets.MessageBox", _MessageBox):
+        with patch("ui.fluent_dialog.MessageBox", _MessageBox):
             confirmed = host.confirm_update_install("1.2.3")
 
         self.assertFalse(confirmed)

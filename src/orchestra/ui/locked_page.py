@@ -28,11 +28,11 @@ from qfluentwidgets import (
     TransparentToolButton,
     CardWidget,
     StrongBodyLabel,
-    MessageBox,
     InfoBar,
     CaptionLabel,
     BodyLabel,
 )
+from ui.fluent_dialog import MessageBox
 
 from ui.widgets.notification_banner import NotificationBanner
 from ui.theme import get_theme_tokens
