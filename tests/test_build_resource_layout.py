@@ -18,6 +18,26 @@ class BuildResourceLayoutTests(unittest.TestCase):
     def _read_inno_script(self) -> str:
         return (PRIVATE_ROOT / "build_zapret" / "zapret_universal.iss").read_text(encoding="utf-8")
 
+    @staticmethod
+    def _release_request(release_model, **overrides):
+        values = {
+            "channel": "dev",
+            "version": "1.2.3.4",
+            "notes": "test",
+            "build_method": "nuitka",
+            "fast_exe": False,
+            "fast_exe_dest": None,
+            "publish_telegram": False,
+            "telegram_use_socks": False,
+            "skip_github": True,
+            "github_nonfatal": False,
+            "skip_ssh": True,
+            "run_installer": False,
+            "version_is_explicit": True,
+        }
+        values.update(overrides)
+        return release_model.ReleaseRequest(**values)
+
     def test_profile_templates_are_private_resources(self) -> None:
         private_template = PRIVATE_ROOT / "resources" / "profile" / "templates" / "all_profiles.txt"
         public_template = PUBLIC_ROOT / "src" / "profile" / "templates" / "all_profiles.txt"
@@ -211,15 +231,165 @@ class BuildResourceLayoutTests(unittest.TestCase):
     def test_release_builder_defaults_to_nuitka(self) -> None:
         gui = (PRIVATE_ROOT / "build_zapret" / "build_release_gui.py").read_text(encoding="utf-8")
         cli = (PRIVATE_ROOT / "build_zapret" / "build_release_cli.py").read_text(encoding="utf-8")
+        model = (PRIVATE_ROOT / "build_zapret" / "release_model.py").read_text(encoding="utf-8")
 
-        self.assertIn('DEFAULT_BUILD_METHOD = "nuitka"', gui)
+        self.assertIn('DEFAULT_BUILD_METHOD = "nuitka"', model)
         self.assertIn('self.build_method_var = tk.StringVar(value=DEFAULT_BUILD_METHOD)', gui)
         self.assertIn('value="nuitka"', gui)
         self.assertIn('value="pyinstaller"', gui)
         self.assertIn('choices=["nuitka", "pyinstaller"]', cli)
         self.assertIn("default=DEFAULT_BUILD_METHOD", cli)
-        self.assertIn("Запуск из исходников запрещён", gui)
-        self.assertIn("Запуск приложения из исходников запрещён", cli)
+
+    def test_gui_and_cli_are_thin_adapters_for_one_release_pipeline(self) -> None:
+        build_dir = PRIVATE_ROOT / "build_zapret"
+        gui = (build_dir / "build_release_gui.py").read_text(encoding="utf-8")
+        cli = (build_dir / "build_release_cli.py").read_text(encoding="utf-8")
+        pipeline = (build_dir / "release_pipeline.py").read_text(encoding="utf-8")
+        readme = (build_dir / "README.md").read_text(encoding="utf-8")
+
+        self.assertIn("ReleaseRequest(", gui)
+        self.assertIn("ReleaseRequest(", cli)
+        self.assertIn("ReleasePipeline(", gui)
+        self.assertIn("ReleasePipeline(request", cli)
+        self.assertNotIn("build_release_gui import", cli)
+        self.assertNotIn("ConsoleReleaseBuilder", cli)
+        self.assertNotIn("class _Value", cli)
+
+        for obsolete_owner in (
+            "def build_process",
+            "def run_inno_setup",
+            "def deploy_to_ssh",
+            "def create_github_release",
+            "def fast_deploy_exe",
+            "def prepare_installer_stage",
+        ):
+            self.assertNotIn(obsolete_owner, gui)
+            self.assertNotIn(obsolete_owner, cli)
+
+        self.assertIn("class ReleasePipeline:", pipeline)
+        self.assertIn("steps: list[tuple[int, str, Callable[[], None]]]", pipeline)
+        self.assertIn("def prepare_installer_stage", pipeline)
+        self.assertIn("def build_installer", pipeline)
+        self.assertIn("def publish_github", pipeline)
+        self.assertIn("def deploy", pipeline)
+        self.assertIn("GUI ─┐", readme)
+        self.assertIn("ReleaseRequest → ReleasePipeline", readme)
+
+    def test_release_pipeline_owns_the_complete_step_order(self) -> None:
+        old_path = list(sys.path)
+        sys.path.insert(0, str(PRIVATE_ROOT))
+        try:
+            sys.modules.pop("build_zapret.release_pipeline", None)
+            from build_zapret import release_model, release_pipeline
+
+            calls: list[str] = []
+            request = self._release_request(
+                release_model,
+                run_installer=True,
+                skip_github=False,
+                skip_ssh=False,
+            )
+            builder = release_pipeline.ReleasePipeline(request, log=Mock())
+            capabilities = release_pipeline.ReleaseCapabilities(
+                github=True,
+                ssh=True,
+                telegram=True,
+                nuitka=True,
+                pyinstaller=True,
+            )
+
+            with (
+                patch.object(
+                    release_pipeline,
+                    "detect_release_capabilities",
+                    return_value=capabilities,
+                ),
+                patch.object(
+                    release_pipeline,
+                    "write_build_secrets",
+                    side_effect=lambda *_args: calls.append("secrets"),
+                ),
+                patch.object(
+                    release_pipeline,
+                    "write_build_info",
+                    side_effect=lambda *_args: calls.append("build_info"),
+                ),
+                patch.object(
+                    release_pipeline,
+                    "run_nuitka",
+                    side_effect=lambda *_args, **_kwargs: calls.append("nuitka"),
+                ),
+                patch.object(
+                    builder,
+                    "build_installer",
+                    side_effect=lambda: calls.append("installer"),
+                ),
+                patch.object(
+                    builder,
+                    "run_installer",
+                    side_effect=lambda: calls.append("run_installer"),
+                ),
+                patch.object(
+                    builder,
+                    "publish_github",
+                    side_effect=lambda: calls.append("github"),
+                ),
+                patch.object(
+                    builder,
+                    "deploy",
+                    side_effect=lambda: calls.append("ssh"),
+                ),
+                patch.object(
+                    release_pipeline,
+                    "update_versions_file",
+                    side_effect=lambda *_args: calls.append("versions"),
+                ),
+            ):
+                builder._run_locked()
+
+            self.assertEqual(
+                calls,
+                [
+                    "secrets",
+                    "build_info",
+                    "nuitka",
+                    "installer",
+                    "run_installer",
+                    "github",
+                    "ssh",
+                    "versions",
+                ],
+            )
+        finally:
+            sys.modules.pop("build_zapret.release_pipeline", None)
+            sys.path[:] = old_path
+
+    def test_cli_plan_does_not_load_gui_or_release_pipeline(self) -> None:
+        environment = os.environ.copy()
+        environment.pop("PYTHONPATH", None)
+        command = (
+            "import sys; "
+            "from build_zapret.build_release_cli import main; "
+            "result=main(['--show-plan','--no-run-installer']); "
+            "assert result == 0; "
+            "assert 'build_zapret.build_release_gui' not in sys.modules; "
+            "assert 'build_zapret.release_pipeline' not in sys.modules; "
+            "assert 'PyQt6' not in sys.modules"
+        )
+        result = subprocess.run(
+            [sys.executable, "-X", "utf8", "-c", command],
+            cwd=PRIVATE_ROOT,
+            env=environment,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=30,
+        )
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("Канал: dev", result.stdout)
+        self.assertIn("следующая автоматически", result.stdout)
 
     def test_ci_and_builder_document_only_internal_exe_launch(self) -> None:
         ci = (PRIVATE_ROOT / "build_zapret" / "ci_build.py").read_text(encoding="utf-8")
@@ -283,6 +453,10 @@ class BuildResourceLayoutTests(unittest.TestCase):
             "write_build_info.py",
             "github_release.py",
             "ssh_deploy.py",
+            "release_model.py",
+            "release_pipeline.py",
+            "build_release_gui.py",
+            "build_release_cli.py",
         )
         forbidden_imports = (
             "from channel_constants import",
@@ -395,24 +569,25 @@ class BuildResourceLayoutTests(unittest.TestCase):
         self.assertNotIn("--paths . main.py", workflow)
 
     def test_cli_uses_nuitka_by_default_and_normalizes_old_flat_target(self) -> None:
-        build_path = PRIVATE_ROOT / "build_zapret"
         old_path = list(sys.path)
-        sys.path.insert(0, str(build_path))
+        sys.path.insert(0, str(PRIVATE_ROOT))
         try:
-            sys.modules.pop("build_release_cli", None)
-            import build_release_cli
+            sys.modules.pop("build_zapret.build_release_cli", None)
+            sys.modules.pop("build_zapret.release_pipeline", None)
+            from build_zapret import build_release_cli, release_pipeline
 
             with patch.object(
                 build_release_cli,
                 "check_telegram_configured",
                 return_value=(True, "Telegram настроен"),
             ):
-                defaults = build_release_cli.parse_args(
+                defaults, show_plan = build_release_cli.parse_args(
                     [
                         "--version",
                         "21.1.5.4",
                     ]
                 )
+            self.assertFalse(show_plan)
             self.assertEqual(defaults.channel, "dev")
             self.assertEqual(defaults.build_method, "nuitka")
             self.assertTrue(defaults.publish_telegram)
@@ -421,7 +596,7 @@ class BuildResourceLayoutTests(unittest.TestCase):
             self.assertFalse(defaults.skip_ssh)
             self.assertTrue(defaults.version_is_explicit)
 
-            parsed = build_release_cli.parse_args(
+            parsed, show_plan = build_release_cli.parse_args(
                 [
                     "--channel",
                     "dev",
@@ -433,6 +608,7 @@ class BuildResourceLayoutTests(unittest.TestCase):
                     "--no-run-installer",
                 ]
             )
+            self.assertFalse(show_plan)
             self.assertEqual(parsed.build_method, "nuitka")
             self.assertFalse(parsed.publish_telegram)
             self.assertFalse(parsed.run_installer)
@@ -456,36 +632,37 @@ class BuildResourceLayoutTests(unittest.TestCase):
             self.assertEqual(result, 0)
             run_build.assert_not_called()
 
-            options = build_release_cli.BuildOptions(
+            request = build_release_cli.ReleaseRequest(
                 channel="dev",
                 version="21.1.5.4",
                 notes="test",
                 build_method="nuitka",
                 fast_exe=True,
-                fast_exe_dest=r"C:\Zapret\Dev\Zapret.exe",
+                fast_exe_dest="/Zapret/Dev/Zapret.exe",
                 publish_telegram=False,
                 telegram_use_socks=False,
                 skip_github=True,
                 github_nonfatal=False,
                 skip_ssh=True,
                 run_installer=False,
+                version_is_explicit=True,
             )
-            builder = build_release_cli.ConsoleReleaseBuilder(options)
+            builder = release_pipeline.ReleasePipeline(request, log=Mock())
             self.assertEqual(
-                builder._fast_dest_exe_path("dev"),
-                Path(r"C:\Zapret\Dev\_internal\Zapret.exe"),
+                builder.fast_destination_exe(),
+                Path("/Zapret/Dev/_internal/Zapret.exe"),
             )
         finally:
-            sys.modules.pop("build_release_cli", None)
+            sys.modules.pop("build_zapret.build_release_cli", None)
+            sys.modules.pop("build_zapret.release_pipeline", None)
             sys.path[:] = old_path
 
     def test_cli_defaults_to_dev_and_increments_fourth_version_part_independently(self) -> None:
-        build_path = PRIVATE_ROOT / "build_zapret"
         old_path = list(sys.path)
-        sys.path.insert(0, str(build_path))
+        sys.path.insert(0, str(PRIVATE_ROOT))
         try:
-            sys.modules.pop("build_release_cli", None)
-            import build_release_cli
+            sys.modules.pop("build_zapret.build_release_cli", None)
+            from build_zapret import build_release_cli
 
             with tempfile.TemporaryDirectory() as temp_dir:
                 versions_file = Path(temp_dir) / "version_Local.json"
@@ -510,9 +687,13 @@ class BuildResourceLayoutTests(unittest.TestCase):
                         return_value=(False, "Telegram не настроен"),
                     ),
                 ):
-                    dev = build_release_cli.parse_args([])
-                    stable = build_release_cli.parse_args(["--channel", "stable"])
-                    plan = build_release_cli.format_release_plan(dev)
+                    dev, _ = build_release_cli.parse_args([])
+                    stable, _ = build_release_cli.parse_args(["--channel", "stable"])
+                    plan = build_release_cli.format_release_plan(
+                        dev,
+                        ssh_enabled=False,
+                        versions_file=versions_file,
+                    )
 
             self.assertEqual(dev.channel, "dev")
             self.assertEqual(dev.version, "21.1.5.14")
@@ -525,11 +706,11 @@ class BuildResourceLayoutTests(unittest.TestCase):
                 plan,
             )
         finally:
-            sys.modules.pop("build_release_cli", None)
+            sys.modules.pop("build_zapret.build_release_cli", None)
             sys.path[:] = old_path
 
     def test_both_builders_share_one_internal_runtime_layout(self) -> None:
-        gui = (PRIVATE_ROOT / "build_zapret" / "build_release_gui.py").read_text(encoding="utf-8")
+        pipeline = (PRIVATE_ROOT / "build_zapret" / "release_pipeline.py").read_text(encoding="utf-8")
         nuitka = (PRIVATE_ROOT / "build_zapret" / "nuitka_builder.py").read_text(encoding="utf-8")
         pyinstaller = (PRIVATE_ROOT / "build_zapret" / "pyinstaller_builder.py").read_text(encoding="utf-8")
         paths = (PRIVATE_ROOT / "build_zapret" / "paths.py").read_text(encoding="utf-8")
@@ -541,8 +722,8 @@ class BuildResourceLayoutTests(unittest.TestCase):
         self.assertIn("replace_runtime_output(dist_dir, target_dir)", nuitka)
         self.assertIn("target_dir = Path(target_dir or DIST_RUNTIME_DIR).resolve()", pyinstaller)
         self.assertIn("replace_runtime_output(source_runtime_dir, target_dir)", pyinstaller)
-        self.assertIn("runtime_stage = stage_root / RUNTIME_DIR_NAME", gui)
-        self.assertNotIn("_nuitka_runtime", gui)
+        self.assertIn("runtime_stage = stage_root / RUNTIME_DIR_NAME", pipeline)
+        self.assertNotIn("_nuitka_runtime", pipeline)
         self.assertNotIn("_nuitka_runtime", installer)
         self.assertNotIn(r'Source: "{#SOURCEPATH}\Zapret.exe"', installer)
         self.assertIn(
@@ -633,8 +814,8 @@ class BuildResourceLayoutTests(unittest.TestCase):
         self.assertIn("не показывает чёрное окно `cmd.exe`", readme)
 
     def test_release_publication_subprocesses_are_hidden_on_windows(self) -> None:
-        gui = (
-            PRIVATE_ROOT / "build_zapret" / "build_release_gui.py"
+        pipeline = (
+            PRIVATE_ROOT / "build_zapret" / "release_pipeline.py"
         ).read_text(encoding="utf-8")
         github = (
             PRIVATE_ROOT / "build_zapret" / "github_release.py"
@@ -644,7 +825,7 @@ class BuildResourceLayoutTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
         installer = self._read_inno_script()
 
-        self.assertIn('creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)', gui)
+        self.assertIn('"creationflags": getattr(subprocess, "CREATE_NO_WINDOW", 0)', pipeline)
         self.assertGreaterEqual(github.count("creationflags=_hidden_subprocess_flags()"), 2)
         self.assertGreaterEqual(ssh.count("creationflags=_hidden_subprocess_flags()"), 7)
         self.assertNotIn("capture_output=True,\n        text=True,\n        creationflags", ssh)
@@ -654,8 +835,8 @@ class BuildResourceLayoutTests(unittest.TestCase):
         old_path = list(sys.path)
         sys.path.insert(0, str(PRIVATE_ROOT))
         try:
-            sys.modules.pop("build_zapret.build_release_gui", None)
-            from build_zapret.build_release_gui import acquire_release_build_lock
+            sys.modules.pop("build_zapret.release_pipeline", None)
+            from build_zapret.release_pipeline import acquire_release_build_lock
 
             with tempfile.TemporaryDirectory() as temp_dir:
                 lock_path = Path(temp_dir) / "release.lock"
@@ -669,7 +850,7 @@ class BuildResourceLayoutTests(unittest.TestCase):
                 second = acquire_release_build_lock(lock_path)
                 second.release()
         finally:
-            sys.modules.pop("build_zapret.build_release_gui", None)
+            sys.modules.pop("build_zapret.release_pipeline", None)
             sys.path[:] = old_path
 
     def test_both_builders_use_strict_atomic_runtime_normalization(self) -> None:
@@ -712,22 +893,24 @@ class BuildResourceLayoutTests(unittest.TestCase):
     def test_fast_deploy_replaces_complete_internal_runtime(self) -> None:
         gui = (PRIVATE_ROOT / "build_zapret" / "build_release_gui.py").read_text(encoding="utf-8")
         cli = (PRIVATE_ROOT / "build_zapret" / "build_release_cli.py").read_text(encoding="utf-8")
+        model = (PRIVATE_ROOT / "build_zapret" / "release_model.py").read_text(encoding="utf-8")
+        pipeline = (PRIVATE_ROOT / "build_zapret" / "release_pipeline.py").read_text(encoding="utf-8")
 
-        self.assertIn("dst = replace_runtime_output(src_runtime, dst_runtime)", gui)
+        self.assertIn("produced = replace_runtime_output(source_runtime, target_runtime)", pipeline)
         self.assertNotIn("Синхронизация библиотек Nuitka рядом с Zapret.exe", gui)
         self.assertNotIn("def publish_exe_to_telegram", gui)
-        self.assertIn("if fast_exe and publish_telegram:", gui)
-        self.assertIn("if options.fast_exe and options.publish_telegram:", cli)
+        self.assertIn("if request.fast_exe and request.publish_telegram:", model)
+        self.assertNotIn("replace_runtime_output(", gui)
+        self.assertNotIn("replace_runtime_output(", cli)
 
     def test_cli_rejects_publishing_internal_runtime_as_one_exe(self) -> None:
-        build_path = PRIVATE_ROOT / "build_zapret"
         old_path = list(sys.path)
-        sys.path.insert(0, str(build_path))
+        sys.path.insert(0, str(PRIVATE_ROOT))
         try:
-            sys.modules.pop("build_release_cli", None)
-            import build_release_cli
+            sys.modules.pop("build_zapret.release_model", None)
+            from build_zapret import release_model
 
-            options = build_release_cli.BuildOptions(
+            request = release_model.ReleaseRequest(
                 channel="dev",
                 version="1.2.3.4",
                 notes="test",
@@ -740,24 +923,23 @@ class BuildResourceLayoutTests(unittest.TestCase):
                 github_nonfatal=False,
                 skip_ssh=True,
                 run_installer=False,
+                version_is_explicit=True,
             )
-            builder = build_release_cli.ConsoleReleaseBuilder(options)
 
-            with self.assertRaisesRegex(RuntimeError, "всю папку _internal"):
-                builder._validate_options()
+            with self.assertRaisesRegex(ValueError, "всю папку _internal"):
+                release_model.validate_release_request(request)
         finally:
-            sys.modules.pop("build_release_cli", None)
+            sys.modules.pop("build_zapret.release_model", None)
             sys.path[:] = old_path
 
     def test_fast_deploy_cleanup_removes_only_old_flat_runtime(self) -> None:
-        build_path = PRIVATE_ROOT / "build_zapret"
         old_path = list(sys.path)
-        sys.path.insert(0, str(build_path))
+        sys.path.insert(0, str(PRIVATE_ROOT))
         try:
-            sys.modules.pop("build_release_cli", None)
-            import build_release_cli
+            sys.modules.pop("build_zapret.release_pipeline", None)
+            from build_zapret import release_model, release_pipeline
 
-            options = build_release_cli.BuildOptions(
+            request = release_model.ReleaseRequest(
                 channel="dev",
                 version="1.2.3.4",
                 notes="test",
@@ -770,8 +952,9 @@ class BuildResourceLayoutTests(unittest.TestCase):
                 github_nonfatal=False,
                 skip_ssh=True,
                 run_installer=False,
+                version_is_explicit=True,
             )
-            builder = build_release_cli.ConsoleReleaseBuilder(options)
+            builder = release_pipeline.ReleasePipeline(request, log=Mock())
 
             with tempfile.TemporaryDirectory() as temp_dir:
                 app_root = Path(temp_dir) / "Zapret" / "Dev"
@@ -800,38 +983,27 @@ class BuildResourceLayoutTests(unittest.TestCase):
                 self.assertFalse((app_root / "PyQt6").exists())
                 self.assertFalse((app_root / "src").exists())
         finally:
-            sys.modules.pop("build_release_cli", None)
+            sys.modules.pop("build_zapret.release_pipeline", None)
             sys.path[:] = old_path
 
     def test_installer_stage_keeps_runtime_only_inside_internal(self) -> None:
-        build_path = PRIVATE_ROOT / "build_zapret"
         old_path = list(sys.path)
-        sys.path.insert(0, str(build_path))
+        sys.path.insert(0, str(PRIVATE_ROOT))
         try:
-            sys.modules.pop("build_release_cli", None)
-            import build_release_cli
+            sys.modules.pop("build_zapret.release_pipeline", None)
+            from build_zapret import release_model, release_pipeline
 
-            options = build_release_cli.BuildOptions(
-                channel="dev",
-                version="1.2.3.4",
-                notes="test",
-                build_method="nuitka",
-                fast_exe=False,
-                fast_exe_dest=None,
-                publish_telegram=False,
-                telegram_use_socks=False,
-                skip_github=True,
-                github_nonfatal=False,
-                skip_ssh=True,
-                run_installer=False,
+            builder = release_pipeline.ReleasePipeline(
+                self._release_request(release_model),
+                log=Mock(),
             )
-            builder = build_release_cli.ConsoleReleaseBuilder(options)
 
             with tempfile.TemporaryDirectory() as temp_dir:
                 temp_root = Path(temp_dir)
                 source_root = temp_root / "source"
                 runtime_root = temp_root / "runtime"
-                stage_root = temp_root / "stage"
+                stage_parent = temp_root / "stage"
+                stage_root = stage_parent / "installer_root"
                 source_root.mkdir()
                 runtime_root.mkdir()
                 (runtime_root / "Zapret.exe").write_bytes(b"exe")
@@ -849,6 +1021,10 @@ class BuildResourceLayoutTests(unittest.TestCase):
                     directory = source_root / dir_name
                     directory.mkdir()
                     (directory / "required.dat").write_bytes(b"resource")
+                icon_directory = source_root / "ico"
+                icon_directory.mkdir()
+                (icon_directory / "Zapret2.ico").write_bytes(b"stable-icon")
+                (icon_directory / "ZapretDevLogo4.ico").write_bytes(b"dev-icon")
                 generated_source_list = source_root / "lists" / "other.txt"
                 generated_source_list.write_text("source must stay untouched", encoding="utf-8")
                 source_before = {
@@ -857,13 +1033,12 @@ class BuildResourceLayoutTests(unittest.TestCase):
                     if path.is_file()
                 }
 
-                builder._source_root = lambda: source_root
-                builder._built_runtime_root = lambda: runtime_root
-                builder._installer_stage_root = lambda: stage_root
-                builder._copy_installer_icon_resources = lambda _stage: None
-                builder._materialize_installer_managed_lists = lambda _stage: None
-
-                prepared = builder._prepare_installer_source_root()
+                with (
+                    patch.object(release_pipeline, "DIST_DIR", source_root),
+                    patch.object(release_pipeline, "DIST_RUNTIME_DIR", runtime_root),
+                    patch.object(release_pipeline, "STAGE_DIR", stage_parent),
+                ):
+                    prepared = builder.prepare_installer_stage()
 
                 self.assertEqual(prepared, stage_root)
                 self.assertTrue((stage_root / "_internal" / "Zapret.exe").is_file())
@@ -889,15 +1064,15 @@ class BuildResourceLayoutTests(unittest.TestCase):
                 self.assertTrue((stage_root / "json" / "hosts_catalog").is_dir())
                 self.assertTrue((stage_root / "ico" / "windows11_fluent" / "sidebar").is_dir())
         finally:
-            sys.modules.pop("build_release_cli", None)
+            sys.modules.pop("build_zapret.release_pipeline", None)
             sys.path[:] = old_path
 
     def test_installer_stage_rejects_any_overlap_with_read_roots(self) -> None:
         old_path = list(sys.path)
         sys.path.insert(0, str(PRIVATE_ROOT))
         try:
-            sys.modules.pop("build_zapret.build_release_gui", None)
-            from build_zapret import build_release_gui
+            sys.modules.pop("build_zapret.release_pipeline", None)
+            from build_zapret import release_pipeline
 
             with tempfile.TemporaryDirectory() as temp_dir:
                 root = Path(temp_dir)
@@ -907,62 +1082,61 @@ class BuildResourceLayoutTests(unittest.TestCase):
                 sentinel.write_text("unchanged", encoding="utf-8")
 
                 with self.assertRaisesRegex(RuntimeError, "отдельной папкой"):
-                    build_release_gui._require_isolated_installer_stage(
+                    release_pipeline._require_isolated_installer_stage(
                         source_root / "stage",
                         (source_root,),
                     )
                 with self.assertRaisesRegex(RuntimeError, "отдельной папкой"):
-                    build_release_gui._require_isolated_installer_stage(
+                    release_pipeline._require_isolated_installer_stage(
                         root,
                         (source_root,),
                     )
 
-                builder = object.__new__(build_release_gui.BuildReleaseGUI)
-                builder._source_root = lambda: source_root
-                builder._built_runtime_root = lambda: root / "runtime"
-                builder._installer_stage_root = lambda: source_root
-                with self.assertRaisesRegex(RuntimeError, "отдельной папкой"):
-                    builder._prepare_installer_source_root()
-
                 self.assertEqual(sentinel.read_text(encoding="utf-8"), "unchanged")
         finally:
-            sys.modules.pop("build_zapret.build_release_gui", None)
+            sys.modules.pop("build_zapret.release_pipeline", None)
             sys.path[:] = old_path
 
     def test_successful_installer_stage_cleanup_removes_only_expected_directory(self) -> None:
         old_path = list(sys.path)
         sys.path.insert(0, str(PRIVATE_ROOT))
         try:
-            sys.modules.pop("build_zapret.build_release_gui", None)
-            from build_zapret import build_release_gui
+            sys.modules.pop("build_zapret.release_pipeline", None)
+            from build_zapret import release_model, release_pipeline
 
-            builder = object.__new__(build_release_gui.BuildReleaseGUI)
-            builder.log_queue = Mock()
+            log = Mock()
+            builder = release_pipeline.ReleasePipeline(
+                self._release_request(release_model),
+                log=log,
+            )
 
             with tempfile.TemporaryDirectory() as temp_dir:
                 root = Path(temp_dir)
                 expected_stage = root / "stage" / "installer_root"
                 expected_stage.mkdir(parents=True)
                 (expected_stage / "prepared.txt").write_text("ready", encoding="utf-8")
-                builder._installer_stage_root = lambda: expected_stage
 
-                builder._cleanup_installer_stage_after_success(expected_stage)
+                with patch.object(release_pipeline, "STAGE_DIR", root / "stage"):
+                    builder._cleanup_installer_stage(expected_stage)
 
                 self.assertFalse(expected_stage.exists())
-                builder.log_queue.put.assert_called_once()
+                log.put.assert_called_once()
         finally:
-            sys.modules.pop("build_zapret.build_release_gui", None)
+            sys.modules.pop("build_zapret.release_pipeline", None)
             sys.path[:] = old_path
 
     def test_successful_installer_stage_cleanup_rejects_unexpected_directory(self) -> None:
         old_path = list(sys.path)
         sys.path.insert(0, str(PRIVATE_ROOT))
         try:
-            sys.modules.pop("build_zapret.build_release_gui", None)
-            from build_zapret import build_release_gui
+            sys.modules.pop("build_zapret.release_pipeline", None)
+            from build_zapret import release_model, release_pipeline
 
-            builder = object.__new__(build_release_gui.BuildReleaseGUI)
-            builder.log_queue = Mock()
+            log = Mock()
+            builder = release_pipeline.ReleasePipeline(
+                self._release_request(release_model),
+                log=log,
+            )
 
             with tempfile.TemporaryDirectory() as temp_dir:
                 root = Path(temp_dir)
@@ -972,40 +1146,33 @@ class BuildResourceLayoutTests(unittest.TestCase):
                 unexpected_stage.mkdir()
                 sentinel = unexpected_stage / "keep.txt"
                 sentinel.write_text("unchanged", encoding="utf-8")
-                builder._installer_stage_root = lambda: expected_stage
 
-                with self.assertRaisesRegex(RuntimeError, "неожиданного installer stage"):
-                    builder._cleanup_installer_stage_after_success(unexpected_stage)
+                with (
+                    patch.object(release_pipeline, "STAGE_DIR", root / "stage"),
+                    self.assertRaisesRegex(
+                        RuntimeError,
+                        "неожиданного installer stage",
+                    ),
+                ):
+                    builder._cleanup_installer_stage(unexpected_stage)
 
                 self.assertEqual(sentinel.read_text(encoding="utf-8"), "unchanged")
-                builder.log_queue.put.assert_not_called()
+                log.put.assert_not_called()
         finally:
-            sys.modules.pop("build_zapret.build_release_gui", None)
+            sys.modules.pop("build_zapret.release_pipeline", None)
             sys.path[:] = old_path
 
     def test_installer_stage_rejects_missing_required_resource_directory(self) -> None:
-        build_path = PRIVATE_ROOT / "build_zapret"
         old_path = list(sys.path)
-        sys.path.insert(0, str(build_path))
+        sys.path.insert(0, str(PRIVATE_ROOT))
         try:
-            sys.modules.pop("build_release_cli", None)
-            import build_release_cli
+            sys.modules.pop("build_zapret.release_pipeline", None)
+            from build_zapret import release_model, release_pipeline
 
-            options = build_release_cli.BuildOptions(
-                channel="dev",
-                version="1.2.3.4",
-                notes="test",
-                build_method="nuitka",
-                fast_exe=False,
-                fast_exe_dest=None,
-                publish_telegram=False,
-                telegram_use_socks=False,
-                skip_github=True,
-                github_nonfatal=False,
-                skip_ssh=True,
-                run_installer=False,
+            builder = release_pipeline.ReleasePipeline(
+                self._release_request(release_model),
+                log=Mock(),
             )
-            builder = build_release_cli.ConsoleReleaseBuilder(options)
 
             with tempfile.TemporaryDirectory() as temp_dir:
                 temp_root = Path(temp_dir)
@@ -1016,14 +1183,18 @@ class BuildResourceLayoutTests(unittest.TestCase):
                 runtime_root.mkdir()
                 (runtime_root / "Zapret.exe").write_bytes(b"exe")
 
-                builder._source_root = lambda: source_root
-                builder._built_runtime_root = lambda: runtime_root
-                builder._installer_stage_root = lambda: stage_root
-
-                with self.assertRaisesRegex(FileNotFoundError, "обязательный каталог"):
-                    builder._prepare_installer_source_root()
+                with (
+                    patch.object(release_pipeline, "DIST_DIR", source_root),
+                    patch.object(release_pipeline, "DIST_RUNTIME_DIR", runtime_root),
+                    patch.object(release_pipeline, "STAGE_DIR", stage_root),
+                    self.assertRaisesRegex(
+                        FileNotFoundError,
+                        "обязательный каталог",
+                    ),
+                ):
+                    builder.prepare_installer_stage()
         finally:
-            sys.modules.pop("build_release_cli", None)
+            sys.modules.pop("build_zapret.release_pipeline", None)
             sys.path[:] = old_path
 
     def test_inno_installs_only_required_ico_resources(self) -> None:
@@ -1367,23 +1538,23 @@ class BuildResourceLayoutTests(unittest.TestCase):
         for source in expected_sources:
             self.assertIn(source, iss)
 
-        builder = (PRIVATE_ROOT / "build_zapret" / "build_release_gui.py").read_text(encoding="utf-8")
-        self.assertIn("def _copy_installer_managed_resources", builder)
+        builder = (PRIVATE_ROOT / "build_zapret" / "release_pipeline.py").read_text(encoding="utf-8")
+        self.assertIn("resource_sets = (", builder)
         self.assertIn("PUBLIC_SRC / \"presets\" / \"builtin\" / \"winws2\"", builder)
         self.assertIn("PRIVATE_ROOT / \"resources\" / \"profile\" / \"templates\"", builder)
         self.assertNotIn("f'/DPUBLICSRC=", builder)
         self.assertNotIn("f'/DPRIVATERESOURCES=", builder)
 
     def test_installer_stage_copies_only_required_ico_resources(self) -> None:
-        builder = (PRIVATE_ROOT / "build_zapret" / "build_release_gui.py").read_text(encoding="utf-8")
+        builder = (PRIVATE_ROOT / "build_zapret" / "release_pipeline.py").read_text(encoding="utf-8")
 
         self.assertIn('REQUIRED_INSTALLER_ICO_FILES = ("Zapret2.ico", "ZapretDevLogo4.ico")', builder)
-        self.assertIn("def _copy_installer_icon_resources", builder)
-        self.assertIn("_copy_installer_icon_resources(stage_root)", builder)
+        self.assertIn("for file_name in REQUIRED_INSTALLER_ICO_FILES:", builder)
+        self.assertIn("shutil.copy2(source, icon_directory / file_name)", builder)
         self.assertNotIn('"ico",\n            "lists",', builder)
 
     def test_installer_stage_does_not_copy_local_help_folder(self) -> None:
-        builder = (PRIVATE_ROOT / "build_zapret" / "build_release_gui.py").read_text(encoding="utf-8")
+        builder = (PRIVATE_ROOT / "build_zapret" / "release_pipeline.py").read_text(encoding="utf-8")
 
         self.assertNotIn('"help"', builder)
 
