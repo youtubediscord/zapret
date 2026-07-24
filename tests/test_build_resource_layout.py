@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 import subprocess
@@ -211,11 +212,12 @@ class BuildResourceLayoutTests(unittest.TestCase):
         gui = (PRIVATE_ROOT / "build_zapret" / "build_release_gui.py").read_text(encoding="utf-8")
         cli = (PRIVATE_ROOT / "build_zapret" / "build_release_cli.py").read_text(encoding="utf-8")
 
-        self.assertIn('self.build_method_var = tk.StringVar(value="nuitka")', gui)
+        self.assertIn('DEFAULT_BUILD_METHOD = "nuitka"', gui)
+        self.assertIn('self.build_method_var = tk.StringVar(value=DEFAULT_BUILD_METHOD)', gui)
         self.assertIn('value="nuitka"', gui)
         self.assertIn('value="pyinstaller"', gui)
         self.assertIn('choices=["nuitka", "pyinstaller"]', cli)
-        self.assertIn('default="nuitka"', cli)
+        self.assertIn("default=DEFAULT_BUILD_METHOD", cli)
         self.assertIn("Запуск из исходников запрещён", gui)
         self.assertIn("Запуск приложения из исходников запрещён", cli)
 
@@ -400,6 +402,24 @@ class BuildResourceLayoutTests(unittest.TestCase):
             sys.modules.pop("build_release_cli", None)
             import build_release_cli
 
+            with patch.object(
+                build_release_cli,
+                "check_telegram_configured",
+                return_value=(True, "Telegram настроен"),
+            ):
+                defaults = build_release_cli.parse_args(
+                    [
+                        "--version",
+                        "21.1.5.4",
+                    ]
+                )
+            self.assertEqual(defaults.channel, "dev")
+            self.assertEqual(defaults.build_method, "nuitka")
+            self.assertTrue(defaults.publish_telegram)
+            self.assertTrue(defaults.run_installer)
+            self.assertFalse(defaults.skip_github)
+            self.assertFalse(defaults.skip_ssh)
+
             parsed = build_release_cli.parse_args(
                 [
                     "--channel",
@@ -408,9 +428,32 @@ class BuildResourceLayoutTests(unittest.TestCase):
                     "21.1.5.4",
                     "--skip-github",
                     "--skip-ssh",
+                    "--no-publish-telegram",
+                    "--no-run-installer",
                 ]
             )
             self.assertEqual(parsed.build_method, "nuitka")
+            self.assertFalse(parsed.publish_telegram)
+            self.assertFalse(parsed.run_installer)
+
+            with (
+                patch.object(
+                    build_release_cli,
+                    "check_telegram_configured",
+                    return_value=(True, "Telegram настроен"),
+                ),
+                patch.object(build_release_cli, "run_release_build") as run_build,
+                patch("builtins.print"),
+            ):
+                result = build_release_cli.main(
+                    [
+                        "--version",
+                        "21.1.5.4",
+                        "--show-plan",
+                    ]
+                )
+            self.assertEqual(result, 0)
+            run_build.assert_not_called()
 
             options = build_release_cli.BuildOptions(
                 channel="dev",
@@ -461,6 +504,91 @@ class BuildResourceLayoutTests(unittest.TestCase):
         self.assertIn('Type: files; Name: "{app}\\*.dll"', installer)
         self.assertIn('Type: files; Name: "{app}\\*.pyd"', installer)
         self.assertIn('Type: filesandordirs; Name: "{app}\\src"', installer)
+
+    def test_scheduled_release_task_requires_confirmation_and_writes_result(self) -> None:
+        old_path = list(sys.path)
+        sys.path.insert(0, str(PRIVATE_ROOT))
+        try:
+            sys.modules.pop("build_zapret.scheduled_release_task", None)
+            from build_zapret import scheduled_release_task
+
+            with tempfile.TemporaryDirectory() as temp_dir:
+                task_root = Path(temp_dir)
+                request_path = task_root / "request.json"
+                request_path.write_text(
+                    json.dumps(
+                        {
+                            "request_id": "preview-1",
+                            "args": ["--show-plan"],
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+                with patch.object(scheduled_release_task, "release_main", return_value=0):
+                    result = scheduled_release_task.run_task(task_root)
+
+                self.assertEqual(result, 0)
+                result_data = json.loads(
+                    (task_root / "result.json").read_text(encoding="utf-8")
+                )
+                self.assertEqual(result_data["request_id"], "preview-1")
+                self.assertEqual(result_data["status"], "success")
+                self.assertEqual(result_data["exit_code"], 0)
+
+                with patch.object(scheduled_release_task, "release_main") as release_main:
+                    result = scheduled_release_task.run_task(task_root)
+
+                self.assertEqual(result, 2)
+                release_main.assert_not_called()
+                result_data = json.loads(
+                    (task_root / "result.json").read_text(encoding="utf-8")
+                )
+                self.assertEqual(result_data["status"], "success")
+
+                request_path.write_text(
+                    json.dumps(
+                        {
+                            "request_id": "release-without-confirmation",
+                            "args": ["--version", "21.1.5.4"],
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+                with patch.object(scheduled_release_task, "release_main") as release_main:
+                    result = scheduled_release_task.run_task(task_root)
+
+                self.assertEqual(result, 1)
+                release_main.assert_not_called()
+                result_data = json.loads(
+                    (task_root / "result.json").read_text(encoding="utf-8")
+                )
+                self.assertEqual(result_data["status"], "failed")
+                self.assertIn("confirm_release", result_data["error"])
+        finally:
+            sys.modules.pop("build_zapret.scheduled_release_task", None)
+            sys.path[:] = old_path
+
+    def test_gui_and_cli_share_one_release_build_lock(self) -> None:
+        old_path = list(sys.path)
+        sys.path.insert(0, str(PRIVATE_ROOT))
+        try:
+            sys.modules.pop("build_zapret.build_release_gui", None)
+            from build_zapret.build_release_gui import acquire_release_build_lock
+
+            with tempfile.TemporaryDirectory() as temp_dir:
+                lock_path = Path(temp_dir) / "release.lock"
+                first = acquire_release_build_lock(lock_path)
+                try:
+                    with self.assertRaisesRegex(RuntimeError, "уже запущена"):
+                        acquire_release_build_lock(lock_path)
+                finally:
+                    first.release()
+
+                second = acquire_release_build_lock(lock_path)
+                second.release()
+        finally:
+            sys.modules.pop("build_zapret.build_release_gui", None)
+            sys.path[:] = old_path
 
     def test_both_builders_use_strict_atomic_runtime_normalization(self) -> None:
         old_path = list(sys.path)
